@@ -2,6 +2,7 @@ package llamacpp
 
 import (
 	"fmt"
+	"os"
 	"runtime"
 	"strconv"
 
@@ -16,9 +17,34 @@ type Config struct {
 	Args []string
 }
 
+// isTerminal returns true if the given file is a character device (a terminal).
+func isTerminal(f *os.File) bool {
+	fi, err := f.Stat()
+	if err != nil {
+		return false
+	}
+
+	return (fi.Mode() & os.ModeCharDevice) != 0
+}
+
+func stdoutIsTerminal() bool { return isTerminal(os.Stdout) }
+func stderrIsTerminal() bool { return isTerminal(os.Stderr) }
+
+func shouldColorize() bool {
+	term := os.Getenv("TERM")
+	if term == "" || term == "dumb" {
+		return false
+	}
+
+	return stdoutIsTerminal() && stderrIsTerminal()
+}
+
 // NewDefaultLlamaCppConfig creates a new LlamaCppConfig with default values.
 func NewDefaultLlamaCppConfig() *Config {
 	args := append([]string{"--jinja", "-ngl", "100", "--metrics"})
+	if shouldColorize() {
+		args = append(args, "--log-colors")
+	}
 
 	// Special case for Windows ARM64
 	if runtime.GOOS == "windows" && runtime.GOARCH == "arm64" {
