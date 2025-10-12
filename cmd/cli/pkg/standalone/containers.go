@@ -161,6 +161,33 @@ func FindControllerContainer(ctx context.Context, dockerClient client.ContainerA
 	return containers[0].ID, containerName, containers[0], nil
 }
 
+// FindControllerContainerAny searches for any controller container (running or stopped).
+// It returns the ID of the container (if found), the container name (if any), the
+// full container summary (if found), or any error that occurred.
+func FindControllerContainerAny(ctx context.Context, dockerClient client.ContainerAPIClient) (string, string, container.Summary, error) {
+	// Identify all controller containers (including stopped ones).
+	containers, err := dockerClient.ContainerList(ctx, container.ListOptions{
+		All: true,
+		Filters: filters.NewArgs(
+			// Don't include a value on this first label selector; Docker Cloud
+			// middleware only shows these containers if no value is queried.
+			filters.Arg("label", labelDesktopService),
+			filters.Arg("label", labelRole+"="+roleController),
+		),
+	})
+	if err != nil {
+		return "", "", container.Summary{}, fmt.Errorf("unable to identify model runner containers: %w", err)
+	}
+	if len(containers) == 0 {
+		return "", "", container.Summary{}, nil
+	}
+	var containerName string
+	if len(containers[0].Names) > 0 {
+		containerName = strings.TrimPrefix(containers[0].Names[0], "/")
+	}
+	return containers[0].ID, containerName, containers[0], nil
+}
+
 // determineBridgeGatewayIP attempts to identify the engine's host gateway IP
 // address on the bridge network. It may return an empty IP address even with a
 // nil error if no IP could be identified.
@@ -344,6 +371,77 @@ func CreateControllerContainer(ctx context.Context, dockerClient *client.Client,
 			printer.Printf("Warning: failed to copy Docker config: %v\n", err)
 		}
 	}
+	return nil
+}
+
+// StartControllerContainer starts an existing stopped controller container.
+func StartControllerContainer(ctx context.Context, dockerClient client.ContainerAPIClient, printer StatusPrinter) error {
+	// Find any controller container (running or stopped).
+	ctrID, ctrName, ctr, err := FindControllerContainerAny(ctx, dockerClient)
+	if err != nil {
+		return err
+	}
+	if ctrID == "" {
+		return fmt.Errorf("no Model Runner container found")
+	}
+
+	// Check if already running.
+	if ctr.State == container.StateRunning {
+		if ctrName != "" {
+			printer.Printf("Model Runner container %s (%s) is already running\n", ctrName, ctrID[:12])
+		} else {
+			printer.Printf("Model Runner container %s is already running\n", ctrID[:12])
+		}
+		return nil
+	}
+
+	// Start the container.
+	if ctrName != "" {
+		printer.Printf("Starting Model Runner container %s (%s)...\n", ctrName, ctrID[:12])
+	} else {
+		printer.Printf("Starting Model Runner container %s...\n", ctrID[:12])
+	}
+	if err := dockerClient.ContainerStart(ctx, ctrID, container.StartOptions{}); err != nil {
+		return fmt.Errorf("failed to start container: %w", err)
+	}
+
+	printer.Printf("Model Runner container started successfully\n")
+	return nil
+}
+
+// StopControllerContainer stops a running controller container.
+func StopControllerContainer(ctx context.Context, dockerClient client.ContainerAPIClient, printer StatusPrinter) error {
+	// Find a running controller container.
+	ctrID, ctrName, ctr, err := FindControllerContainer(ctx, dockerClient)
+	if err != nil {
+		return err
+	}
+	if ctrID == "" {
+		return fmt.Errorf("no running Model Runner container found")
+	}
+
+	// Check if already stopped.
+	if ctr.State != container.StateRunning {
+		if ctrName != "" {
+			printer.Printf("Model Runner container %s (%s) is already stopped\n", ctrName, ctrID[:12])
+		} else {
+			printer.Printf("Model Runner container %s is already stopped\n", ctrID[:12])
+		}
+		return nil
+	}
+
+	// Stop the container.
+	if ctrName != "" {
+		printer.Printf("Stopping Model Runner container %s (%s)...\n", ctrName, ctrID[:12])
+	} else {
+		printer.Printf("Stopping Model Runner container %s...\n", ctrID[:12])
+	}
+	timeout := 10
+	if err := dockerClient.ContainerStop(ctx, ctrID, container.StopOptions{Timeout: &timeout}); err != nil {
+		return fmt.Errorf("failed to stop container: %w", err)
+	}
+
+	printer.Printf("Model Runner container stopped successfully\n")
 	return nil
 }
 
