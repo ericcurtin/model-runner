@@ -63,8 +63,8 @@ func TestToOpenAI(t *testing.T) {
 		{
 			name: "basic model without metadata",
 			model: &mockModel{
-				id:   "sha256:abc123",
-				tags: []string{"llama3.2:latest"},
+				id:     "sha256:abc123",
+				tags:   []string{"llama3.2:latest"},
 				config: types.Config{},
 				descriptor: types.Descriptor{
 					Created: &createdTime,
