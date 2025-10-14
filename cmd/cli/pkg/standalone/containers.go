@@ -237,6 +237,14 @@ func CreateControllerContainer(ctx context.Context, dockerClient *client.Client,
 	if doNotTrack {
 		env = append(env, "DO_NOT_TRACK=1")
 	}
+
+	// Pass proxy environment variables from the host to the container
+	proxyVars := []string{"HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "no_proxy"}
+	for _, proxyVar := range proxyVars {
+		if value := os.Getenv(proxyVar); value != "" {
+			env = append(env, proxyVar+"="+value)
+		}
+	}
 	config := &container.Config{
 		Image: imageName,
 		Env:   env,
