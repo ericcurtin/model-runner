@@ -12,6 +12,7 @@ import (
 // ValidBackends is a map of valid backends
 var ValidBackends = map[string]bool{
 	"llama.cpp": true,
+	"nim":       true,
 	"openai":    true,
 }
 
