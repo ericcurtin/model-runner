@@ -150,6 +150,37 @@ This will:
 - Start the service on port 8080 (or the specified port)
 - All models downloaded will be stored in the host's `models` directory and will persist between container runs
 
+### Proxy Configuration
+
+When running Docker Model Runner on Docker Engine behind a corporate firewall or proxy, you may need to configure proxy settings to allow model pulling from registries.
+
+Docker Model Runner automatically passes proxy environment variables from the host to the container when you use the `docker model` commands. If you have configured proxy settings in Docker Engine (via `/etc/systemd/system/docker.service.d/http-proxy.conf` or similar), these settings will be inherited.
+
+Supported environment variables:
+- `HTTP_PROXY` / `http_proxy` - HTTP proxy server URL
+- `HTTPS_PROXY` / `https_proxy` - HTTPS proxy server URL  
+- `NO_PROXY` / `no_proxy` - Comma-separated list of hosts to exclude from proxying
+
+Example Docker proxy configuration (`/etc/systemd/system/docker.service.d/http-proxy.conf`):
+```ini
+[Service]
+Environment="HTTP_PROXY=http://proxy.example.com:3128"
+Environment="HTTPS_PROXY=http://proxy.example.com:3128"
+Environment="NO_PROXY=localhost,127.0.0.1"
+```
+
+After configuring the proxy settings:
+```bash
+# Reload systemd and restart Docker
+sudo systemctl daemon-reload
+sudo systemctl restart docker
+
+# The docker model commands will now use the proxy settings
+docker model run ai/smollm2
+```
+
+> **Note:** The proxy environment variables must be set in the environment where the `docker model` command is executed. If you're running the CLI directly, ensure these variables are exported in your shell session.
+
 ### llama.cpp integration
 
 The Docker image includes the llama.cpp server binary from the `docker/docker-model-backend-llamacpp` image. You can specify the version of the image to use by setting the `LLAMA_SERVER_VERSION` variable. Additionally, you can configure the target OS, architecture, and acceleration type:

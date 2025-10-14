@@ -17,4 +17,18 @@ Install Docker Model Runner (Docker Engine only)
 
 ## Description
 
- This command runs implicitly when a docker model command is executed. You can run this command explicitly to add a new configuration.
+This command runs implicitly when a docker model command is executed. You can run this command explicitly to add a new configuration.
+
+## Proxy Configuration
+
+When running behind a corporate firewall or proxy, Docker Model Runner automatically passes proxy environment variables from the host to the container. Ensure that `HTTP_PROXY`, `HTTPS_PROXY`, and `NO_PROXY` environment variables are set in your environment before running this command.
+
+Example:
+```bash
+export HTTP_PROXY=http://proxy.example.com:3128
+export HTTPS_PROXY=http://proxy.example.com:3128
+export NO_PROXY=localhost,127.0.0.1
+docker model install-runner
+```
+
+The proxy settings will be inherited by the model-runner container, allowing it to pull models from registries through the proxy.
