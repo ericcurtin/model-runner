@@ -224,6 +224,8 @@ func CreateControllerContainer(ctx context.Context, dockerClient *client.Client,
 	switch gpu {
 	case gpupkg.GPUSupportCUDA:
 		imageName = ControllerImage + ":" + controllerImageTagCUDA()
+	case gpupkg.GPUSupportROCm:
+		imageName = ControllerImage + ":" + controllerImageTagROCm()
 	default:
 		imageName = ControllerImage + ":" + controllerImageTagCPU()
 	}

@@ -22,6 +22,9 @@ const (
 	// defaultControllerImageTagCUDA is the image tag used for the controller container
 	// when running with the CUDA GPU backend.
 	defaultControllerImageTagCUDA = "latest-cuda"
+	// defaultControllerImageTagROCm is the image tag used for the controller container
+	// when running with the ROCm GPU backend.
+	defaultControllerImageTagROCm = "latest-rocm"
 )
 
 func controllerImageTagCPU() string {
@@ -38,6 +41,13 @@ func controllerImageTagCUDA() string {
 	return defaultControllerImageTagCUDA
 }
 
+func controllerImageTagROCm() string {
+	if version, ok := os.LookupEnv("MODEL_RUNNER_CONTROLLER_VERSION"); ok && version != "" {
+		return version + "-rocm"
+	}
+	return defaultControllerImageTagROCm
+}
+
 // EnsureControllerImage ensures that the controller container image is pulled.
 func EnsureControllerImage(ctx context.Context, dockerClient client.ImageAPIClient, gpu gpupkg.GPUSupport, printer StatusPrinter) error {
 	// Determine the target image.
@@ -45,6 +55,8 @@ func EnsureControllerImage(ctx context.Context, dockerClient client.ImageAPIClie
 	switch gpu {
 	case gpupkg.GPUSupportCUDA:
 		imageName = ControllerImage + ":" + controllerImageTagCUDA()
+	case gpupkg.GPUSupportROCm:
+		imageName = ControllerImage + ":" + controllerImageTagROCm()
 	default:
 		imageName = ControllerImage + ":" + controllerImageTagCPU()
 	}
@@ -89,6 +101,12 @@ func PruneControllerImages(ctx context.Context, dockerClient client.ImageAPIClie
 	imageNameCUDA := ControllerImage + ":" + controllerImageTagCUDA()
 	if _, err := dockerClient.ImageRemove(ctx, imageNameCUDA, image.RemoveOptions{}); err == nil {
 		printer.Println("Removed image", imageNameCUDA)
+	}
+
+	// Remove the ROCm GPU image, if present.
+	imageNameROCm := ControllerImage + ":" + controllerImageTagROCm()
+	if _, err := dockerClient.ImageRemove(ctx, imageNameROCm, image.RemoveOptions{}); err == nil {
+		printer.Println("Removed image", imageNameROCm)
 	}
 	return nil
 }

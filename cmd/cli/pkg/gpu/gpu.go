@@ -15,6 +15,8 @@ const (
 	GPUSupportNone GPUSupport = iota
 	// GPUSupportCUDA indicates CUDA GPU support.
 	GPUSupportCUDA
+	// GPUSupportROCm indicates ROCm GPU support.
+	GPUSupportROCm
 )
 
 // ProbeGPUSupport determines whether or not the Docker engine has GPU support.
@@ -34,6 +36,15 @@ func ProbeGPUSupport(ctx context.Context, dockerClient client.SystemAPIClient) (
 		return GPUSupportCUDA, nil
 	}
 
+	// Check for ROCm support
+	hasROCm, err := HasROCmRuntime(ctx, dockerClient)
+	if err != nil {
+		return GPUSupportNone, err
+	}
+	if hasROCm {
+		return GPUSupportROCm, nil
+	}
+
 	return GPUSupportNone, nil
 }
 
@@ -45,4 +56,22 @@ func HasNVIDIARuntime(ctx context.Context, dockerClient client.SystemAPIClient) 
 	}
 	_, hasNvidia := info.Runtimes["nvidia"]
 	return hasNvidia, nil
+}
+
+// HasROCmRuntime determines whether there is ROCm support available
+func HasROCmRuntime(ctx context.Context, dockerClient client.SystemAPIClient) (bool, error) {
+	// Check for rocm-smi on PATH
+	if _, err := exec.LookPath("rocm-smi"); err == nil {
+		return true, nil
+	}
+
+	// Check for /dev/kfd (AMD Kernel Fusion Driver)
+	if _, err := exec.LookPath("test"); err == nil {
+		cmd := exec.CommandContext(ctx, "test", "-e", "/dev/kfd")
+		if err := cmd.Run(); err == nil {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }
