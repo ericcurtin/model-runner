@@ -14,6 +14,7 @@ import (
 	"github.com/docker/model-runner/pkg/gpuinfo"
 	"github.com/docker/model-runner/pkg/inference"
 	"github.com/docker/model-runner/pkg/inference/backends/llamacpp"
+	"github.com/docker/model-runner/pkg/inference/backends/nim"
 	"github.com/docker/model-runner/pkg/inference/config"
 	"github.com/docker/model-runner/pkg/inference/memory"
 	"github.com/docker/model-runner/pkg/inference/models"
@@ -105,9 +106,24 @@ func main() {
 
 	memEstimator.SetDefaultBackend(llamaCppBackend)
 
+	// Create NIM backend
+	nimBackend, err := nim.New(
+		log.WithFields(logrus.Fields{"component": "nim"}),
+		modelManager,
+	)
+	if err != nil {
+		log.Fatalf("unable to initialize %s backend: %v", nim.Name, err)
+	}
+
+	// Register both llama.cpp and NIM backends
+	backends := map[string]inference.Backend{
+		llamacpp.Name: llamaCppBackend,
+		nim.Name:      nimBackend,
+	}
+
 	scheduler := scheduling.NewScheduler(
 		log,
-		map[string]inference.Backend{llamacpp.Name: llamaCppBackend},
+		backends,
 		llamaCppBackend,
 		modelManager,
 		http.DefaultClient,
