@@ -168,6 +168,38 @@ Default values:
 
 The binary path in the image follows this pattern: `/com.docker.llama-server.native.linux.${LLAMA_SERVER_VARIANT}.${TARGETARCH}`
 
+### NVIDIA NIM Integration
+
+Docker Model Runner supports NVIDIA Inference Microservices (NIM) containers. NIM containers are pre-packaged, optimized inference microservices that expose OpenAI-compatible APIs.
+
+To use NIM containers:
+
+```sh
+# First, authenticate with NVIDIA's container registry
+docker login nvcr.io
+
+# Run a NIM model using the --backend nim flag
+docker model run --backend nim nvcr.io/nim/google/gemma-3-1b-it:latest "What is the capital of France?"
+```
+
+**Note**: The current implementation requires the NIM container to be running separately on `localhost:8000`. Future versions will automatically manage NIM container lifecycle.
+
+To manually start a NIM container:
+
+```sh
+# Pull and run a NIM container
+docker pull nvcr.io/nim/google/gemma-3-1b-it:latest
+docker run -d \
+  --name nim-gemma \
+  --gpus all \
+  -p 8000:8000 \
+  -e NGC_API_KEY=$NGC_API_KEY \
+  nvcr.io/nim/google/gemma-3-1b-it:latest
+
+# Then use it with docker model run
+docker model run --backend nim nvcr.io/nim/google/gemma-3-1b-it:latest "Hello!"
+```
+
 ## API Examples
 
 The Model Runner exposes a REST API that can be accessed via TCP port. You can interact with it using curl commands.

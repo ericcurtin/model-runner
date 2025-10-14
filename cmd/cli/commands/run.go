@@ -367,8 +367,10 @@ func newRunCmd() *cobra.Command {
 				return fmt.Errorf("unable to initialize standalone model runner: %w", err)
 			}
 
-			// Do not validate the model in case of using OpenAI's backend, let OpenAI handle it
-			if backend != "openai" {
+			// Do not validate the model in case of using OpenAI or NIM backend
+			// For OpenAI, let OpenAI handle model validation
+			// For NIM, the model reference is a container image, not a local model
+			if backend != "openai" && backend != "nim" {
 				_, err := desktopClient.Inspect(model, false)
 				if err != nil {
 					if !errors.Is(err, desktop.ErrNotFound) {
