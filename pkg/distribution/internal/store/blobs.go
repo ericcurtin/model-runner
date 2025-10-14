@@ -105,6 +105,9 @@ func (s *LocalStore) writeLayer(layer blob, updates chan<- v1.Update) error {
 
 // WriteBlob writes the blob to the store, reporting progress to the given channel.
 // If the blob is already in the store, it is a no-op and the blob is not consumed from the reader.
+// If an incomplete file exists from a previous interrupted download, it will attempt to resume
+// by skipping bytes already written. Note: This requires the reader to support reading from the
+// beginning; if the skip fails, the incomplete file is removed and download starts from scratch.
 func (s *LocalStore) WriteBlob(diffID v1.Hash, r io.Reader) error {
 	hasBlob, err := s.hasBlob(diffID)
 	if err != nil {
@@ -118,21 +121,57 @@ func (s *LocalStore) WriteBlob(diffID v1.Hash, r io.Reader) error {
 	if err != nil {
 		return fmt.Errorf("get blob path: %w", err)
 	}
-	f, err := createFile(incompletePath(path))
-	if err != nil {
-		return fmt.Errorf("create blob file: %w", err)
+	incompletePath := incompletePath(path)
+
+	// Check if incomplete file exists from a previous download attempt
+	var f *os.File
+	var bytesToSkip int64
+	if info, err := os.Stat(incompletePath); err == nil && info.Size() > 0 {
+		// Incomplete file exists, open for append
+		bytesToSkip = info.Size()
+		f, err = os.OpenFile(incompletePath, os.O_WRONLY|os.O_APPEND, 0666)
+		if err != nil {
+			return fmt.Errorf("open incomplete blob file: %w", err)
+		}
+	} else {
+		// No incomplete file or it's empty, create new one
+		f, err = createFile(incompletePath)
+		if err != nil {
+			return fmt.Errorf("create blob file: %w", err)
+		}
 	}
-	defer os.Remove(incompletePath(path))
 	defer f.Close()
 
+	// If we're resuming, we need to skip bytes already written.
+	// Since the reader provides the full blob, we discard the bytes we already have.
+	if bytesToSkip > 0 {
+		discarded, err := io.CopyN(io.Discard, r, bytesToSkip)
+		if err != nil || discarded != bytesToSkip {
+			// If we can't skip the expected bytes, the incomplete file may be corrupt
+			// or the reader may not provide the full content. Start over.
+			f.Close()
+			os.Remove(incompletePath)
+			f, err = createFile(incompletePath)
+			if err != nil {
+				return fmt.Errorf("create blob file after skip failure: %w", err)
+			}
+			// Note: we don't add another defer f.Close() here because we already have one
+			// The old file handle is already closed above
+		}
+	}
+
+	// Copy the remaining data
 	if _, err := io.Copy(f, r); err != nil {
 		return fmt.Errorf("copy blob %q to store: %w", diffID.String(), err)
 	}
 
 	f.Close() // Rename will fail on Windows if the file is still open.
-	if err := os.Rename(incompletePath(path), path); err != nil {
+	if err := os.Rename(incompletePath, path); err != nil {
 		return fmt.Errorf("rename blob file: %w", err)
 	}
+
+	// Clean up incomplete file on success (it's now renamed to final path)
+	os.Remove(incompletePath)
 	return nil
 }
 
