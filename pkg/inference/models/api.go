@@ -59,12 +59,33 @@ func ToOpenAI(m types.Model) (*OpenAIModel, error) {
 		id = tags[0]
 	}
 
-	return &OpenAIModel{
-		ID:      id,
-		Object:  "model",
-		Created: created,
-		OwnedBy: "docker",
-	}, nil
+	cfg, err := m.Config()
+	if err != nil {
+		return nil, fmt.Errorf("get config: %w", err)
+	}
+
+	// Build the OpenAI model with metadata
+	result := &OpenAIModel{
+		ID:           id,
+		Object:       "model",
+		Created:      created,
+		OwnedBy:      "docker",
+		Architecture: cfg.Architecture,
+		Quantization: cfg.Quantization,
+		Parameters:   cfg.Parameters,
+	}
+
+	// Add format if available
+	if cfg.Format != "" {
+		result.Format = string(cfg.Format)
+	}
+
+	// Add context length if available
+	if cfg.ContextSize != nil {
+		result.ContextLength = cfg.ContextSize
+	}
+
+	return result, nil
 }
 
 // OpenAIModel represents a locally stored model using OpenAI conventions.
@@ -77,6 +98,16 @@ type OpenAIModel struct {
 	Created int64 `json:"created"`
 	// OwnedBy is the model owner. At the moment, it is always "docker".
 	OwnedBy string `json:"owned_by"`
+	// Architecture is the model architecture (e.g., "llama", "mistral").
+	Architecture string `json:"architecture,omitempty"`
+	// ContextLength is the maximum context window size in tokens.
+	ContextLength *uint64 `json:"context_length,omitempty"`
+	// Format is the model format (e.g., "gguf", "safetensors").
+	Format string `json:"format,omitempty"`
+	// Quantization is the quantization method used (e.g., "Q4_K_M", "Q8_0").
+	Quantization string `json:"quantization,omitempty"`
+	// Parameters is the approximate number of parameters (e.g., "7B", "13B").
+	Parameters string `json:"parameters,omitempty"`
 }
 
 // OpenAIModelList represents a list of models using OpenAI conventions.
