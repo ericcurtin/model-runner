@@ -17,10 +17,9 @@ func TestProxyEnvironmentVariablesPassed(t *testing.T) {
 	// without requiring Docker to be available
 
 	testCases := []struct {
-		name            string
-		envVarsToSet    map[string]string
-		expectedInEnv   []string
-		notExpectedInEnv []string
+		name          string
+		envVarsToSet  map[string]string
+		expectedInEnv []string
 	}{
 		{
 			name: "HTTP_PROXY is passed",
@@ -75,12 +74,10 @@ func TestProxyEnvironmentVariablesPassed(t *testing.T) {
 				"no_proxy=localhost,127.0.0.1",
 			},
 		},
-		{
-			name:            "no proxy vars set means no proxy vars passed",
-			envVarsToSet:    map[string]string{},
-			expectedInEnv:   []string{"MODEL_RUNNER_PORT=12434", "MODEL_RUNNER_ENVIRONMENT=moby"},
-			notExpectedInEnv: []string{"HTTP_PROXY=", "HTTPS_PROXY=", "NO_PROXY="},
-		},
+		// Note: We can't properly test "no proxy vars set" in a table-driven test
+		// because environment variables may leak from the parent test process.
+		// Instead, we have a separate test function TestCreateControllerContainerNoProxy
+		// that properly clears the environment.
 	}
 
 	for _, tc := range testCases {
@@ -109,13 +106,6 @@ func TestProxyEnvironmentVariablesPassed(t *testing.T) {
 			// Verify expected environment variables are present
 			for _, expected := range tc.expectedInEnv {
 				assert.Contains(t, env, expected, "expected environment variable not found")
-			}
-
-			// Verify not-expected environment variables are absent
-			for _, notExpected := range tc.notExpectedInEnv {
-				for _, envVar := range env {
-					assert.NotContains(t, envVar, notExpected, "unexpected environment variable found")
-				}
 			}
 		})
 	}
@@ -159,6 +149,8 @@ func TestCreateControllerContainerNoProxy(t *testing.T) {
 	// Clear any proxy environment variables that might be set
 	proxyVars := []string{"HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "no_proxy"}
 	for _, proxyVar := range proxyVars {
+		// Use t.Setenv to properly clear the variable in test scope
+		t.Setenv(proxyVar, "")
 		os.Unsetenv(proxyVar)
 	}
 
