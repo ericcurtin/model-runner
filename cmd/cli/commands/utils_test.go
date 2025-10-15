@@ -43,7 +43,7 @@ func TestNormalizeModelName(t *testing.T) {
 		{
 			name:     "huggingface model with tag",
 			input:    "hf.co/bartowski/model:Q4_K_S",
-			expected: "hf.co/bartowski/model:Q4_K_S",
+			expected: "hf.co/bartowski/model:q4_k_s",
 		},
 		{
 			name:     "registry with model",
