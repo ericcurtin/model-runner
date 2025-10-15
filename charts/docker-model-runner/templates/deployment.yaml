@@ -68,8 +68,7 @@ spec:
           readinessProbe:
             {{- toYaml .Values.readinessProbe | nindent 12 }}
           resources:
-            {{- toYaml .Values.resources | nindent 12 }}
-          {{- if .Values.gpu.enabled }}
+            {{- if .Values.gpu.enabled }}
             limits:
               {{- if eq .Values.gpu.vendor "nvidia" }}
               nvidia.com/gpu: {{ .Values.gpu.count }}
@@ -82,7 +81,9 @@ spec:
               {{- else if eq .Values.gpu.vendor "amd" }}
               amd.com/gpu: {{ .Values.gpu.count }}
               {{- end }}
-          {{- end }}
+            {{- else }}
+            {{- toYaml .Values.resources | nindent 12 }}
+            {{- end }}
           volumeMounts:
             - name: model-storage
               mountPath: /root/.docker/models
