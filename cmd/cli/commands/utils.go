@@ -90,25 +90,35 @@ func normalizeModelName(model string) string {
 // stripDefaultsFromModelName removes the default "ai/" prefix and ":latest" tag for display.
 // Examples:
 //   - "ai/gemma3:latest" -> "gemma3"
-//   - "ai/gemma3:v1" -> "gemma3:v1"
+//   - "ai/gemma3:v1" -> "ai/gemma3:v1"
 //   - "myorg/gemma3:latest" -> "myorg/gemma3:latest"
 //   - "gemma3:latest" -> "gemma3"
 //   - "hf.co/bartowski/model:latest" -> "hf.co/bartowski/model:latest"
 func stripDefaultsFromModelName(model string) string {
-	// Check if model has ai/ prefix without tag (implicitly :latest)
-	if strings.HasPrefix(model, defaultOrg+"/") {
-		// Strip ai/ prefix
-		model = strings.TrimPrefix(model, defaultOrg+"/")
+	// For models with a registry (hf.co, docker.io, etc.), keep as-is
+	if strings.Contains(model, ".") {
 		return model
 	}
 
-	// Check if model has :latest but no slash (no org specified)
-	if strings.HasSuffix(model, ":"+defaultTag) {
-		// Strip :latest
+	// Check if model has ai/ prefix with :latest tag - strip both
+	if strings.HasPrefix(model, defaultOrg+"/") && strings.HasSuffix(model, ":"+defaultTag) {
+		model = strings.TrimPrefix(model, defaultOrg+"/")
 		model = strings.TrimSuffix(model, ":"+defaultTag)
 		return model
 	}
 
-	// For other cases (custom org with :latest, hf.co with :latest, ai/ with custom tag, etc.), keep as-is
+	// Check if model has ai/ prefix without tag (implicitly :latest) - strip just ai/
+	if strings.HasPrefix(model, defaultOrg+"/") && !strings.Contains(model, ":") {
+		model = strings.TrimPrefix(model, defaultOrg+"/")
+		return model
+	}
+
+	// Check if model has :latest but no slash (no org specified) - strip :latest
+	if !strings.Contains(model, "/") && strings.HasSuffix(model, ":"+defaultTag) {
+		model = strings.TrimSuffix(model, ":"+defaultTag)
+		return model
+	}
+
+	// For other cases (ai/ with custom tag, custom org with :latest, etc.), keep as-is
 	return model
 }
