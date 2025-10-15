@@ -56,6 +56,10 @@ func normalizeModelName(model string) string {
 	// Normalize HuggingFace model names to lowercase first
 	if strings.HasPrefix(model, "hf.co/") {
 		model = strings.ToLower(model)
+		// Ensure tag is present
+		if !strings.Contains(model, ":") {
+			return model + ":" + defaultTag
+		}
 		return model
 	}
 
