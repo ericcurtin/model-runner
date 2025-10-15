@@ -18,8 +18,9 @@ import (
 
 // readMultilineInput reads input from stdin, supporting both single-line and multiline input.
 // For multiline input, it detects triple-quoted strings and shows continuation prompts.
+// This implementation copies the prompt style from ollama/cmd/interactive.go
 func readMultilineInput(cmd *cobra.Command, scanner *bufio.Scanner) (string, error) {
-	cmd.Print("> ")
+	cmd.Print(">>> ")
 
 	if !scanner.Scan() {
 		if err := scanner.Err(); err != nil {
@@ -394,15 +395,14 @@ func newRunCmd() *cobra.Command {
 				userInput, err := readMultilineInput(cmd, scanner)
 				if err != nil {
 					if err.Error() == "EOF" {
-						cmd.Println("\nChat session ended.")
-						break
+						cmd.Println()
+						return nil
 					}
 					return fmt.Errorf("Error reading input: %v", err)
 				}
 
-				if strings.ToLower(strings.TrimSpace(userInput)) == "/bye" {
-					cmd.Println("Chat session ended.")
-					break
+				if strings.HasPrefix(userInput, "/bye") || strings.HasPrefix(userInput, "/exit") {
+					return nil
 				}
 
 				if strings.TrimSpace(userInput) == "" {
@@ -416,7 +416,6 @@ func newRunCmd() *cobra.Command {
 
 				cmd.Println()
 			}
-			return nil
 		},
 		ValidArgsFunction: completion.ModelNames(getDesktopClient, 1),
 	}
