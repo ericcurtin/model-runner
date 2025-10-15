@@ -1,0 +1,167 @@
+# Default values for docker-model-runner
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+replicaCount: 1
+
+image:
+  repository: docker/model-runner
+  pullPolicy: IfNotPresent
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: ""
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # Automatically mount a ServiceAccount's API credentials?
+  automount: true
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext:
+  fsGroup: 2000
+
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 2000
+  capabilities:
+    drop:
+    - ALL
+  readOnlyRootFilesystem: false
+  allowPrivilegeEscalation: false
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 12434
+
+# Node port configuration
+nodePort:
+  enabled: false
+  port: 31245
+
+# Ingress configuration
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+    # kubernetes.io/ingress.class: nginx
+    # kubernetes.io/tls-acme: "true"
+  hosts:
+    - host: model-runner.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+  #  - secretName: model-runner-tls
+  #    hosts:
+  #      - model-runner.local
+
+resources: {}
+  # We usually recommend not to specify default resources and to leave this as a conscious
+  # choice for the user. This also increases chances charts run on environments with little
+  # resources, such as Minikube. If you do want to specify resources, uncomment the following
+  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+  # limits:
+  #   cpu: 2000m
+  #   memory: 4Gi
+  # requests:
+  #   cpu: 1000m
+  #   memory: 2Gi
+
+# Storage configuration
+storage:
+  # Size of the persistent volume for model storage
+  size: 100Gi
+  # Storage class name. Leave empty for default storage class.
+  # For cloud providers, specify appropriate storage class:
+  # - AWS EKS: gp2, gp3
+  # - GCP GKE: standard, standard-rwo
+  # - Azure AKS: default, managed-premium
+  storageClass: ""
+  # Access mode for the volume
+  accessMode: ReadWriteOnce
+
+# Model pre-pulling configuration
+# Models specified here will be pulled during pod initialization
+modelInit:
+  enabled: false
+  models: []
+    # - "ai/smollm2:latest"
+    # - "ai/llama3.2:latest"
+
+# GPU configuration
+gpu:
+  enabled: false
+  # GPU vendor: nvidia or amd
+  vendor: nvidia
+  # Number of GPUs to request
+  count: 1
+
+# Liveness and readiness probes
+livenessProbe:
+  httpGet:
+    path: /healthz
+    port: 12434
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet:
+    path: /healthz
+    port: 12434
+  initialDelaySeconds: 10
+  periodSeconds: 5
+  timeoutSeconds: 3
+  failureThreshold: 3
+
+# Environment variables
+env: []
+  # - name: MODEL_RUNNER_LOG_LEVEL
+  #   value: "info"
+  # - name: DISABLE_SERVER_UPDATE
+  #   value: "true"
+
+# Additional volumes
+volumes: []
+
+# Additional volume mounts
+volumeMounts: []
+
+# Node selector
+nodeSelector: {}
+
+# Tolerations
+tolerations: []
+
+# Affinity rules
+affinity: {}
+
+# Priority class name
+priorityClassName: ""
+
+# Pod disruption budget
+podDisruptionBudget:
+  enabled: false
+  minAvailable: 1
+  # maxUnavailable: 1
+
+# Autoscaling configuration
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 80
+  # targetMemoryUtilizationPercentage: 80

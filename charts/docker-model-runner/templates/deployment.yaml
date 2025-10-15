@@ -1,0 +1,121 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "docker-model-runner.fullname" . }}
+  labels:
+    {{- include "docker-model-runner.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "docker-model-runner.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "docker-model-runner.labels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "docker-model-runner.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- if .Values.modelInit.enabled }}
+      initContainers:
+        - name: model-puller
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              echo "Pre-pulling models..."
+              {{- range .Values.modelInit.models }}
+              echo "Pulling model: {{ . }}"
+              /model-runner pull {{ . }} || echo "Failed to pull {{ . }}, continuing..."
+              {{- end }}
+              echo "Model pre-pull completed"
+          volumeMounts:
+            - name: model-storage
+              mountPath: /root/.docker/models
+          env:
+            - name: MODELS_PATH
+              value: /root/.docker/models
+      {{- end }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.targetPort }}
+              protocol: TCP
+          livenessProbe:
+            {{- toYaml .Values.livenessProbe | nindent 12 }}
+          readinessProbe:
+            {{- toYaml .Values.readinessProbe | nindent 12 }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          {{- if .Values.gpu.enabled }}
+            limits:
+              {{- if eq .Values.gpu.vendor "nvidia" }}
+              nvidia.com/gpu: {{ .Values.gpu.count }}
+              {{- else if eq .Values.gpu.vendor "amd" }}
+              amd.com/gpu: {{ .Values.gpu.count }}
+              {{- end }}
+            requests:
+              {{- if eq .Values.gpu.vendor "nvidia" }}
+              nvidia.com/gpu: {{ .Values.gpu.count }}
+              {{- else if eq .Values.gpu.vendor "amd" }}
+              amd.com/gpu: {{ .Values.gpu.count }}
+              {{- end }}
+          {{- end }}
+          volumeMounts:
+            - name: model-storage
+              mountPath: /root/.docker/models
+            {{- with .Values.volumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          env:
+            - name: MODEL_RUNNER_PORT
+              value: "{{ .Values.service.targetPort }}"
+            - name: MODELS_PATH
+              value: /root/.docker/models
+            {{- with .Values.env }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+      volumes:
+        - name: model-storage
+          persistentVolumeClaim:
+            claimName: {{ include "docker-model-runner.fullname" . }}
+        {{- with .Values.volumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.priorityClassName }}
+      priorityClassName: {{ .Values.priorityClassName }}
+      {{- end }}

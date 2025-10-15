@@ -1,0 +1,152 @@
+---
+# Source: docker-model-runner/templates/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: docker-model-runner
+  labels:
+    helm.sh/chart: docker-model-runner-0.1.0
+    app.kubernetes.io/name: docker-model-runner
+    app.kubernetes.io/instance: docker-model-runner
+    app.kubernetes.io/version: "latest"
+    app.kubernetes.io/managed-by: Helm
+automountServiceAccountToken: true
+---
+# Source: docker-model-runner/templates/pvc.yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: docker-model-runner
+  labels:
+    helm.sh/chart: docker-model-runner-0.1.0
+    app.kubernetes.io/name: docker-model-runner
+    app.kubernetes.io/instance: docker-model-runner
+    app.kubernetes.io/version: "latest"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Gi
+---
+# Source: docker-model-runner/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: docker-model-runner
+  labels:
+    helm.sh/chart: docker-model-runner-0.1.0
+    app.kubernetes.io/name: docker-model-runner
+    app.kubernetes.io/instance: docker-model-runner
+    app.kubernetes.io/version: "latest"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 12434
+      protocol: TCP
+      name: http
+  selector:
+    app.kubernetes.io/name: docker-model-runner
+    app.kubernetes.io/instance: docker-model-runner
+---
+# Source: docker-model-runner/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: docker-model-runner-nodeport
+  labels:
+    helm.sh/chart: docker-model-runner-0.1.0
+    app.kubernetes.io/name: docker-model-runner
+    app.kubernetes.io/instance: docker-model-runner
+    app.kubernetes.io/version: "latest"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  type: NodePort
+  ports:
+    - port: 80
+      targetPort: 12434
+      nodePort: 31245
+      protocol: TCP
+      name: http
+  selector:
+    app.kubernetes.io/name: docker-model-runner
+    app.kubernetes.io/instance: docker-model-runner
+---
+# Source: docker-model-runner/templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: docker-model-runner
+  labels:
+    helm.sh/chart: docker-model-runner-0.1.0
+    app.kubernetes.io/name: docker-model-runner
+    app.kubernetes.io/instance: docker-model-runner
+    app.kubernetes.io/version: "latest"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: docker-model-runner
+      app.kubernetes.io/instance: docker-model-runner
+  template:
+    metadata:
+      labels:
+        helm.sh/chart: docker-model-runner-0.1.0
+        app.kubernetes.io/name: docker-model-runner
+        app.kubernetes.io/instance: docker-model-runner
+        app.kubernetes.io/version: "latest"
+        app.kubernetes.io/managed-by: Helm
+    spec:
+      serviceAccountName: docker-model-runner
+      securityContext:
+        fsGroup: 2000
+      containers:
+        - name: docker-model-runner
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            readOnlyRootFilesystem: false
+            runAsNonRoot: true
+            runAsUser: 2000
+          image: "docker/model-runner:latest"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 12434
+              protocol: TCP
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /healthz
+              port: 12434
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /healthz
+              port: 12434
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+          resources:
+            {}
+          volumeMounts:
+            - name: model-storage
+              mountPath: /root/.docker/models
+          env:
+            - name: MODEL_RUNNER_PORT
+              value: "12434"
+            - name: MODELS_PATH
+              value: /root/.docker/models
+      volumes:
+        - name: model-storage
+          persistentVolumeClaim:
+            claimName: docker-model-runner
