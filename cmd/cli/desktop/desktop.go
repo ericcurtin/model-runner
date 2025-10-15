@@ -62,29 +62,25 @@ type Status struct {
 	Error   error  `json:"error"`
 }
 
-// normalizeHuggingFaceModelName converts Hugging Face model names to lowercase
-func normalizeHuggingFaceModelName(model string) string {
-	if strings.HasPrefix(model, "hf.co/") {
-		return strings.ToLower(model)
-	}
-	return model
-}
-
 // normalizeModelName adds the default organization prefix (ai/) and tag (:latest) if missing.
+// It also converts Hugging Face model names to lowercase.
 // Examples:
 //   - "gemma3" -> "ai/gemma3:latest"
 //   - "gemma3:v1" -> "ai/gemma3:v1"
 //   - "myorg/gemma3" -> "myorg/gemma3:latest"
 //   - "ai/gemma3:latest" -> "ai/gemma3:latest" (unchanged)
-//   - "hf.co/model" -> "hf.co/model" (unchanged - has registry)
+//   - "hf.co/model" -> "hf.co/model:latest" (lowercase, has registry)
+//   - "hf.co/Model" -> "hf.co/model:latest" (converted to lowercase)
 func normalizeModelName(model string) string {
 	// If the model is empty, return as-is
 	if model == "" {
 		return model
 	}
 
-	// Normalize HuggingFace model names first
-	model = normalizeHuggingFaceModelName(model)
+	// Normalize HuggingFace model names to lowercase first
+	if strings.HasPrefix(model, "hf.co/") {
+		model = strings.ToLower(model)
+	}
 
 	// If model starts with "hf.co/" or contains a registry (has a dot before the first slash),
 	// don't add default org
