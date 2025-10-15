@@ -247,14 +247,6 @@ curl http://localhost:8080/metrics
 
 Check [METRICS.md](./METRICS.md) for more details.
 
-##  Kubernetes
-
-Experimental support for running in Kubernetes is available
-in the form of [a Helm chart and static YAML](charts/docker-model-runner/README.md).
-
-If you are interested in a specific Kubernetes use-case, please start a
-discussion on the issue tracker.
-
 ## Community
 
 For general questions and discussion, please use [Docker Model Runner's Slack channel](https://app.slack.com/client/T0JK1PCN6/C09H9P5E57B).
