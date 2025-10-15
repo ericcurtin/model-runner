@@ -1,6 +1,7 @@
 .idea/
 model-distribution-tool
 model-runner
+model-cli
 model-runner.sock
 # Default MODELS_PATH in Makefile
 models-store/
