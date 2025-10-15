@@ -20,7 +20,7 @@ func TestPullHuggingFaceModel(t *testing.T) {
 
 	// Test case for pulling a Hugging Face model with mixed case
 	modelName := "hf.co/Bartowski/Llama-3.2-1B-Instruct-GGUF"
-	expectedLowercase := "hf.co/bartowski/llama-3.2-1b-instruct-gguf"
+	expectedLowercase := "hf.co/bartowski/llama-3.2-1b-instruct-gguf:latest"
 
 	mockClient := mockdesktop.NewMockDockerHttpClient(ctrl)
 	mockContext := NewContextForMock(mockClient)
@@ -46,7 +46,7 @@ func TestChatHuggingFaceModel(t *testing.T) {
 
 	// Test case for chatting with a Hugging Face model with mixed case
 	modelName := "hf.co/Bartowski/Llama-3.2-1B-Instruct-GGUF"
-	expectedLowercase := "hf.co/bartowski/llama-3.2-1b-instruct-gguf"
+	expectedLowercase := "hf.co/bartowski/llama-3.2-1b-instruct-gguf:latest"
 	prompt := "Hello"
 
 	mockClient := mockdesktop.NewMockDockerHttpClient(ctrl)
@@ -108,6 +108,7 @@ func TestNonHuggingFaceModel(t *testing.T) {
 
 	// Test case for a non-Hugging Face model (should not be converted to lowercase)
 	modelName := "docker.io/library/llama2"
+	expectedWithTag := "docker.io/library/llama2:latest"
 	mockClient := mockdesktop.NewMockDockerHttpClient(ctrl)
 	mockContext := NewContextForMock(mockClient)
 	client := New(mockContext)
@@ -116,7 +117,7 @@ func TestNonHuggingFaceModel(t *testing.T) {
 		var reqBody models.ModelCreateRequest
 		err := json.NewDecoder(req.Body).Decode(&reqBody)
 		require.NoError(t, err)
-		assert.Equal(t, modelName, reqBody.From)
+		assert.Equal(t, expectedWithTag, reqBody.From)
 	}).Return(&http.Response{
 		StatusCode: http.StatusOK,
 		Body:       io.NopCloser(bytes.NewBufferString(`{"type":"success","message":"Model pulled successfully"}`)),

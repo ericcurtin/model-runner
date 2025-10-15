@@ -95,15 +95,23 @@ func normalizeModelName(model string) string {
 //   - "gemma3:latest" -> "gemma3"
 //   - "hf.co/bartowski/model:latest" -> "hf.co/bartowski/model:latest"
 func stripDefaultsFromModelName(model string) string {
-	// Check if model has ai/ prefix without tag (implicitly :latest)
-	if strings.HasPrefix(model, defaultOrg+"/") {
+	// Check if model has ai/ prefix with :latest tag
+	if strings.HasPrefix(model, defaultOrg+"/") && strings.HasSuffix(model, ":"+defaultTag) {
+		// Strip both ai/ prefix and :latest tag
+		model = strings.TrimPrefix(model, defaultOrg+"/")
+		model = strings.TrimSuffix(model, ":"+defaultTag)
+		return model
+	}
+
+	// Check if model has ai/ prefix without tag
+	if strings.HasPrefix(model, defaultOrg+"/") && !strings.Contains(model, ":") {
 		// Strip ai/ prefix
 		model = strings.TrimPrefix(model, defaultOrg+"/")
 		return model
 	}
 
 	// Check if model has :latest but no slash (no org specified)
-	if strings.HasSuffix(model, ":"+defaultTag) {
+	if !strings.Contains(model, "/") && strings.HasSuffix(model, ":"+defaultTag) {
 		// Strip :latest
 		model = strings.TrimSuffix(model, ":"+defaultTag)
 		return model
