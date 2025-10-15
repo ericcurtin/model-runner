@@ -209,7 +209,7 @@ func generateInteractiveWithReadline(cmd *cobra.Command, desktopClient *desktop.
 			// Create a cancellable context for the chat request
 			// This allows us to cancel the request if the user presses Ctrl+C during response generation
 			chatCtx, cancelChat := context.WithCancel(cmd.Context())
-			
+
 			// Set up signal handler to cancel the context on Ctrl+C
 			sigChan := make(chan os.Signal, 1)
 			signal.Notify(sigChan, syscall.SIGINT)
@@ -223,7 +223,7 @@ func generateInteractiveWithReadline(cmd *cobra.Command, desktopClient *desktop.
 			}()
 
 			err := chatWithMarkdownContext(chatCtx, cmd, desktopClient, backend, model, userInput, apiKey)
-			
+
 			// Clean up signal handler
 			signal.Stop(sigChan)
 			// Do not close sigChan to avoid race condition
@@ -269,7 +269,7 @@ func generateInteractiveBasic(cmd *cobra.Command, desktopClient *desktop.Client,
 		// Create a cancellable context for the chat request
 		// This allows us to cancel the request if the user presses Ctrl+C during response generation
 		chatCtx, cancelChat := context.WithCancel(cmd.Context())
-		
+
 		// Set up signal handler to cancel the context on Ctrl+C
 		sigChan := make(chan os.Signal, 1)
 		signal.Notify(sigChan, syscall.SIGINT)
@@ -284,7 +284,7 @@ func generateInteractiveBasic(cmd *cobra.Command, desktopClient *desktop.Client,
 		}()
 
 		err = chatWithMarkdownContext(chatCtx, cmd, desktopClient, backend, model, userInput, apiKey)
-		
+
 		cancelChat()
 		signal.Stop(sigChan)
 		cancelChat()
@@ -680,10 +680,10 @@ func newRunCmd() *cobra.Command {
 func runOllamaModel(cmd *cobra.Command, model, prompt string, detach, debug bool) error {
 	// Extract the model name from the ollama.com URL
 	modelName := ollama.ExtractModelName(model)
-	
+
 	// Create an ollama client
 	ollamaClient := ollama.NewClient(fmt.Sprintf("http://localhost:%d", standalone.DefaultOllamaPort))
-	
+
 	if debug {
 		if prompt == "" {
 			cmd.Printf("Running ollama model %s\n", model)
@@ -691,7 +691,7 @@ func runOllamaModel(cmd *cobra.Command, model, prompt string, detach, debug bool
 			cmd.Printf("Running ollama model %s with prompt %s\n", model, prompt)
 		}
 	}
-	
+
 	// Handle --detach flag: just load the model without interaction
 	if detach {
 		// Make a minimal request to load the model into memory
@@ -706,7 +706,7 @@ func runOllamaModel(cmd *cobra.Command, model, prompt string, detach, debug bool
 		}
 		return nil
 	}
-	
+
 	if prompt != "" {
 		// Single prompt mode
 		err := ollamaClient.Chat(cmd.Context(), modelName, prompt, func(content string) {
@@ -718,12 +718,12 @@ func runOllamaModel(cmd *cobra.Command, model, prompt string, detach, debug bool
 		cmd.Println()
 		return nil
 	}
-	
+
 	// Interactive mode
 	if term.IsTerminal(int(os.Stdin.Fd())) {
 		return runOllamaInteractiveWithReadline(cmd, ollamaClient, modelName)
 	}
-	
+
 	// Fall back to basic mode if not a terminal
 	return runOllamaInteractiveBasic(cmd, ollamaClient, modelName)
 }
@@ -848,7 +848,7 @@ func runOllamaInteractiveWithReadline(cmd *cobra.Command, client *ollama.Client,
 
 			// Create a cancellable context for the chat request
 			chatCtx, cancelChat := context.WithCancel(cmd.Context())
-			
+
 			// Set up signal handler to cancel the context on Ctrl+C
 			sigChan := make(chan os.Signal, 1)
 			signal.Notify(sigChan, syscall.SIGINT)
@@ -864,7 +864,7 @@ func runOllamaInteractiveWithReadline(cmd *cobra.Command, client *ollama.Client,
 			err := client.Chat(chatCtx, modelName, userInput, func(content string) {
 				cmd.Print(content)
 			})
-			
+
 			// Clean up signal handler
 			signal.Stop(sigChan)
 			cancelChat()
@@ -907,7 +907,7 @@ func runOllamaInteractiveBasic(cmd *cobra.Command, client *ollama.Client, modelN
 
 		// Create a cancellable context for the chat request
 		chatCtx, cancelChat := context.WithCancel(cmd.Context())
-		
+
 		// Set up signal handler to cancel the context on Ctrl+C
 		sigChan := make(chan os.Signal, 1)
 		signal.Notify(sigChan, syscall.SIGINT)
@@ -923,7 +923,7 @@ func runOllamaInteractiveBasic(cmd *cobra.Command, client *ollama.Client, modelN
 		err = client.Chat(chatCtx, modelName, userInput, func(content string) {
 			cmd.Print(content)
 		})
-		
+
 		cancelChat()
 		signal.Stop(sigChan)
 		cancelChat()

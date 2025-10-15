@@ -107,16 +107,16 @@ type GenerateRequest struct {
 
 // GenerateResponse represents a streaming response from the generate endpoint
 type GenerateResponse struct {
-	Model     string `json:"model"`
-	Response  string `json:"response"`
-	Done      bool   `json:"done"`
-	Context   []int  `json:"context,omitempty"`
-	TotalDuration int64 `json:"total_duration,omitempty"`
-	LoadDuration  int64 `json:"load_duration,omitempty"`
-	PromptEvalCount int `json:"prompt_eval_count,omitempty"`
-	PromptEvalDuration int64 `json:"prompt_eval_duration,omitempty"`
-	EvalCount int `json:"eval_count,omitempty"`
-	EvalDuration int64 `json:"eval_duration,omitempty"`
+	Model              string `json:"model"`
+	Response           string `json:"response"`
+	Done               bool   `json:"done"`
+	Context            []int  `json:"context,omitempty"`
+	TotalDuration      int64  `json:"total_duration,omitempty"`
+	LoadDuration       int64  `json:"load_duration,omitempty"`
+	PromptEvalCount    int    `json:"prompt_eval_count,omitempty"`
+	PromptEvalDuration int64  `json:"prompt_eval_duration,omitempty"`
+	EvalCount          int    `json:"eval_count,omitempty"`
+	EvalDuration       int64  `json:"eval_duration,omitempty"`
 }
 
 // Generate generates a response from the model
@@ -199,15 +199,15 @@ type ChatRequest struct {
 
 // ChatResponse represents a streaming response from the chat endpoint
 type ChatResponse struct {
-	Model     string      `json:"model"`
-	Message   ChatMessage `json:"message"`
-	Done      bool        `json:"done"`
-	TotalDuration int64 `json:"total_duration,omitempty"`
-	LoadDuration  int64 `json:"load_duration,omitempty"`
-	PromptEvalCount int `json:"prompt_eval_count,omitempty"`
-	PromptEvalDuration int64 `json:"prompt_eval_duration,omitempty"`
-	EvalCount int `json:"eval_count,omitempty"`
-	EvalDuration int64 `json:"eval_duration,omitempty"`
+	Model              string      `json:"model"`
+	Message            ChatMessage `json:"message"`
+	Done               bool        `json:"done"`
+	TotalDuration      int64       `json:"total_duration,omitempty"`
+	LoadDuration       int64       `json:"load_duration,omitempty"`
+	PromptEvalCount    int         `json:"prompt_eval_count,omitempty"`
+	PromptEvalDuration int64       `json:"prompt_eval_duration,omitempty"`
+	EvalCount          int         `json:"eval_count,omitempty"`
+	EvalDuration       int64       `json:"eval_duration,omitempty"`
 }
 
 // Chat performs a chat interaction with the model

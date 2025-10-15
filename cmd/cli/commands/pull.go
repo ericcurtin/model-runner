@@ -84,29 +84,29 @@ func RawProgress(message string) {
 func pullOllamaModel(cmd *cobra.Command, model string) error {
 	// Extract the model name from the ollama.com URL
 	modelName := ollama.ExtractModelName(model)
-	
+
 	// Create an ollama client
 	ollamaClient := ollama.NewClient(fmt.Sprintf("http://localhost:%d", standalone.DefaultOllamaPort))
-	
+
 	var progress func(string)
 	if isatty.IsTerminal(os.Stdout.Fd()) {
 		progress = TUIProgress
 	} else {
 		progress = RawProgress
 	}
-	
+
 	// Pull the model
 	err := ollamaClient.Pull(cmd.Context(), modelName, progress)
-	
+
 	// Add a newline after progress if shown
 	if isatty.IsTerminal(os.Stdout.Fd()) {
 		cmd.Println()
 	}
-	
+
 	if err != nil {
 		return fmt.Errorf("failed to pull model: %w", err)
 	}
-	
+
 	cmd.Printf("Successfully pulled %s\n", model)
 	return nil
 }
