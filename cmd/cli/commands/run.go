@@ -260,8 +260,32 @@ func generateInteractiveBasic(cmd *cobra.Command, desktopClient *desktop.Client,
 			continue
 		}
 
-		if err := chatWithMarkdown(cmd, desktopClient, backend, model, userInput, apiKey); err != nil {
-			cmd.PrintErr(handleClientError(err, "Failed to generate a response"))
+		// Create a cancellable context for the chat request
+		// This allows us to cancel the request if the user presses Ctrl+C during response generation
+		chatCtx, cancelChat := context.WithCancel(context.Background())
+		
+		// Set up signal handler to cancel the context on Ctrl+C
+		sigChan := make(chan os.Signal, 1)
+		signal.Notify(sigChan, syscall.SIGINT)
+		go func() {
+			<-sigChan
+			cancelChat()
+		}()
+
+		err = chatWithMarkdownContext(chatCtx, cmd, desktopClient, backend, model, userInput, apiKey)
+		
+		// Clean up signal handler
+		signal.Stop(sigChan)
+		close(sigChan)
+		cancelChat()
+
+		if err != nil {
+			// Check if the error is due to context cancellation (Ctrl+C during response)
+			if errors.Is(err, context.Canceled) {
+				fmt.Println("\nUse Ctrl + d or /bye to exit.")
+			} else {
+				cmd.PrintErr(handleClientError(err, "Failed to generate a response"))
+			}
 			continue
 		}
 
