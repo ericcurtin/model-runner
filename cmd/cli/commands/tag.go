@@ -36,6 +36,9 @@ func newTagCmd() *cobra.Command {
 }
 
 func tagModel(cmd *cobra.Command, desktopClient *desktop.Client, source, target string) error {
+	// Normalize source model name to add default org and tag if missing
+	source = normalizeModelName(source)
+	
 	// Ensure tag is valid
 	tag, err := name.NewTag(target)
 	if err != nil {

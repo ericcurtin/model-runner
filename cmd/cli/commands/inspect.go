@@ -47,7 +47,8 @@ func newInspectCmd() *cobra.Command {
 }
 
 func inspectModel(args []string, openai bool, remote bool, desktopClient *desktop.Client) (string, error) {
-	modelName := args[0]
+	// Normalize model name to add default org and tag if missing
+	modelName := normalizeModelName(args[0])
 	if openai {
 		model, err := desktopClient.InspectOpenAI(modelName)
 		if err != nil {

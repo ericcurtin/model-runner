@@ -165,8 +165,10 @@ func appendRow(table *tablewriter.Table, tag string, model dmrm.Model) {
 		fmt.Fprintf(os.Stderr, "invalid model ID for model: %v\n", model)
 		return
 	}
+	// Strip default "ai/" prefix and ":latest" tag for display
+	displayTag := stripDefaultsFromModelName(tag)
 	table.Append([]string{
-		tag,
+		displayTag,
 		model.Config.Parameters,
 		model.Config.Quantization,
 		model.Config.Architecture,

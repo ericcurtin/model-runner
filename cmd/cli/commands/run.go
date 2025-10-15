@@ -497,7 +497,8 @@ func newRunCmd() *cobra.Command {
 				return err
 			}
 
-			model := args[0]
+			// Normalize model name to add default org and tag if missing
+			model := normalizeModelName(args[0])
 			prompt := ""
 			argsLen := len(args)
 			if argsLen > 1 {
