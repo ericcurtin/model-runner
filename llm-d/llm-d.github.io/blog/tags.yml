@@ -1,0 +1,65 @@
+facebook:
+  label: Facebook
+  permalink: /facebook
+  description: Facebook tag description
+
+hello:
+  label: Hello
+  permalink: /hello
+  description: Hello tag description
+
+welcome:
+  label: Welcome!
+  permalink: /welcome
+  description: Welcome tag description
+
+llm-d:
+  label: llm-d release news!
+  permalink: /llm-d
+  description: llm-d tag description
+
+news:
+  label: News Releases
+  permalink: /news-releases
+  description: Used for "official" news releases in the blog
+
+docusaurus:
+  label: Docusaurus
+  permalink: /docusaurus
+  description: Docusaurus tag description
+
+hola:
+  label: Hola
+  permalink: /hola
+  description: Hola tag description
+
+blog:
+  label: blog posts
+  permalink: /blog
+  description: everyday blog posts
+
+  
+announce:
+  label: Announcements
+  permalink: /announce
+  description: Announcements that aren't news releases
+
+community:
+  label: Community
+  permalink: /community
+  description: Community updates and engagement
+
+updates:
+  label: Updates
+  permalink: /updates
+  description: Project updates and progress reports
+
+sig-benchmarking:
+  label: SIG-Benchmarking
+  permalink: /sig-benchmarking
+  description: Special Interest Group for benchmarking and performance analysis
+
+releases:
+  label: Releases
+  permalink: /releases
+  description: llm-d release announcements
