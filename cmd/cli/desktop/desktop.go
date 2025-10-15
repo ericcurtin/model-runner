@@ -24,7 +24,11 @@ import (
 	"go.opentelemetry.io/otel"
 )
 
-const DefaultBackend = "llama.cpp"
+const (
+	DefaultBackend = "llama.cpp"
+	defaultOrg     = "ai"
+	defaultTag     = "latest"
+)
 
 var (
 	ErrNotFound           = errors.New("model not found")
@@ -64,6 +68,58 @@ func normalizeHuggingFaceModelName(model string) string {
 		return strings.ToLower(model)
 	}
 	return model
+}
+
+// normalizeModelName adds the default organization prefix (ai/) and tag (:latest) if missing.
+// Examples:
+//   - "gemma3" -> "ai/gemma3:latest"
+//   - "gemma3:v1" -> "ai/gemma3:v1"
+//   - "myorg/gemma3" -> "myorg/gemma3:latest"
+//   - "ai/gemma3:latest" -> "ai/gemma3:latest" (unchanged)
+//   - "hf.co/model" -> "hf.co/model" (unchanged - has registry)
+func normalizeModelName(model string) string {
+	// If the model is empty, return as-is
+	if model == "" {
+		return model
+	}
+
+	// Normalize HuggingFace model names first
+	model = normalizeHuggingFaceModelName(model)
+
+	// If model starts with "hf.co/" or contains a registry (has a dot before the first slash),
+	// don't add default org
+	if strings.HasPrefix(model, "hf.co/") {
+		// For HuggingFace models, just ensure :latest tag if no tag specified
+		if !strings.Contains(model, ":") {
+			return model + ":" + defaultTag
+		}
+		return model
+	}
+
+	// Check if model contains a registry (domain with dot before first slash)
+	firstSlash := strings.Index(model, "/")
+	if firstSlash > 0 && strings.Contains(model[:firstSlash], ".") {
+		// Has a registry, just ensure tag
+		if !strings.Contains(model, ":") {
+			return model + ":" + defaultTag
+		}
+		return model
+	}
+
+	// Split by colon to check for tag
+	parts := strings.SplitN(model, ":", 2)
+	nameWithOrg := parts[0]
+	tag := defaultTag
+	if len(parts) == 2 {
+		tag = parts[1]
+	}
+
+	// If name doesn't contain a slash, add the default org
+	if !strings.Contains(nameWithOrg, "/") {
+		nameWithOrg = defaultOrg + "/" + nameWithOrg
+	}
+
+	return nameWithOrg + ":" + tag
 }
 
 func (c *Client) Status() Status {
@@ -108,7 +164,7 @@ func (c *Client) Status() Status {
 }
 
 func (c *Client) Pull(model string, ignoreRuntimeMemoryCheck bool, progress func(string)) (string, bool, error) {
-	model = normalizeHuggingFaceModelName(model)
+	model = normalizeModelName(model)
 	jsonData, err := json.Marshal(dmrm.ModelCreateRequest{From: model, IgnoreRuntimeMemoryCheck: ignoreRuntimeMemoryCheck})
 	if err != nil {
 		return "", false, fmt.Errorf("error marshaling request: %w", err)
@@ -176,7 +232,7 @@ func (c *Client) Pull(model string, ignoreRuntimeMemoryCheck bool, progress func
 }
 
 func (c *Client) Push(model string, progress func(string)) (string, bool, error) {
-	model = normalizeHuggingFaceModelName(model)
+	model = normalizeModelName(model)
 	pushPath := inference.ModelsPrefix + "/" + model + "/push"
 	resp, err := c.doRequest(
 		http.MethodPost,
@@ -271,7 +327,7 @@ func (c *Client) ListOpenAI(backend, apiKey string) (dmrm.OpenAIModelList, error
 }
 
 func (c *Client) Inspect(model string, remote bool) (dmrm.Model, error) {
-	model = normalizeHuggingFaceModelName(model)
+	model = normalizeModelName(model)
 	if model != "" {
 		if !strings.Contains(strings.Trim(model, "/"), "/") {
 			// Do an extra API call to check if the model parameter isn't a model ID.
@@ -295,7 +351,7 @@ func (c *Client) Inspect(model string, remote bool) (dmrm.Model, error) {
 }
 
 func (c *Client) InspectOpenAI(model string) (dmrm.OpenAIModel, error) {
-	model = normalizeHuggingFaceModelName(model)
+	model = normalizeModelName(model)
 	modelsRoute := inference.InferencePrefix + "/v1/models"
 	if !strings.Contains(strings.Trim(model, "/"), "/") {
 		// Do an extra API call to check if the model parameter isn't a model ID.
@@ -371,7 +427,7 @@ func (c *Client) Chat(backend, model, prompt, apiKey string, outputFunc func(str
 
 // ChatWithContext performs a chat request with context support for cancellation and streams the response content with selective markdown rendering.
 func (c *Client) ChatWithContext(ctx context.Context, backend, model, prompt, apiKey string, outputFunc func(string), shouldUseMarkdown bool) error {
-	model = normalizeHuggingFaceModelName(model)
+	model = normalizeModelName(model)
 	if !strings.Contains(strings.Trim(model, "/"), "/") {
 		// Do an extra API call to check if the model parameter isn't a model ID.
 		if expanded, err := c.fullModelID(model); err == nil {
@@ -524,7 +580,7 @@ func (c *Client) ChatWithContext(ctx context.Context, backend, model, prompt, ap
 func (c *Client) Remove(models []string, force bool) (string, error) {
 	modelRemoved := ""
 	for _, model := range models {
-		model = normalizeHuggingFaceModelName(model)
+		model = normalizeModelName(model)
 		// Check if not a model ID passed as parameter.
 		if !strings.Contains(model, "/") {
 			if expanded, err := c.fullModelID(model); err == nil {
@@ -808,7 +864,7 @@ func (c *Client) handleQueryError(err error, path string) error {
 }
 
 func (c *Client) Tag(source, targetRepo, targetTag string) error {
-	source = normalizeHuggingFaceModelName(source)
+	source = normalizeModelName(source)
 	// Check if the source is a model ID, and expand it if necessary
 	if !strings.Contains(strings.Trim(source, "/"), "/") {
 		// Do an extra API call to check if the model parameter might be a model ID
