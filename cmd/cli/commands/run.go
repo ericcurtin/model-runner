@@ -390,8 +390,6 @@ func newRunCmd() *cobra.Command {
 			}
 
 			scanner := bufio.NewScanner(os.Stdin)
-			cmd.Println("Interactive chat mode started. Type '/bye' to exit.")
-
 			for {
 				userInput, err := readMultilineInput(cmd, scanner)
 				if err != nil {

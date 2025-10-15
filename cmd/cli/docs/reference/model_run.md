@@ -45,7 +45,6 @@ docker model run ai/smollm2
 Output:
 
 ```console
-Interactive chat mode started. Type '/bye' to exit.
 > Hi
 Hi there! It's SmolLM, AI assistant. How can I help you today?
 > /bye
