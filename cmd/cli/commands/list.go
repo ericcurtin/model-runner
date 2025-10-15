@@ -12,11 +12,36 @@ import (
 	"github.com/docker/model-runner/cmd/cli/commands/completion"
 	"github.com/docker/model-runner/cmd/cli/commands/formatter"
 	"github.com/docker/model-runner/cmd/cli/desktop"
+	"github.com/docker/model-runner/cmd/cli/pkg/ollama"
 	"github.com/docker/model-runner/cmd/cli/pkg/standalone"
 	dmrm "github.com/docker/model-runner/pkg/inference/models"
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 )
+
+// listOllamaModels attempts to list models from the Ollama runner.
+// Returns an empty list (no error) if the Ollama runner is not available.
+func listOllamaModels() ([]ollama.Model, error) {
+	// Check if ollama container is running
+	dockerClient, err := desktop.DockerClientForContext(dockerCLI, dockerCLI.CurrentContext())
+	if err != nil {
+		return nil, nil // Silently skip if we can't get a docker client
+	}
+
+	ctrID, _, _, err := standalone.FindOllamaContainer(dockerCLI.CurrentContext(), dockerClient)
+	if err != nil || ctrID == "" {
+		return nil, nil // Ollama runner not available, skip silently
+	}
+
+	// List models from Ollama
+	ollamaClient := ollama.NewClient("http://localhost:" + fmt.Sprintf("%d", standalone.DefaultOllamaPort))
+	models, err := ollamaClient.List(dockerCLI.CurrentContext())
+	if err != nil {
+		return nil, nil // Silently skip on error
+	}
+
+	return models, nil
+}
 
 func newListCmd() *cobra.Command {
 	var jsonFormat, openai, quiet bool
@@ -86,6 +111,24 @@ func listModels(openai bool, backend string, desktopClient *desktop.Client, quie
 	if err != nil {
 		err = handleClientError(err, "Failed to list models")
 		return "", handleNotRunningError(err)
+	}
+
+	// Try to list Ollama models if the Ollama runner is available
+	ollamaModels, err := listOllamaModels()
+	if err == nil && len(ollamaModels) > 0 {
+		// Convert Ollama models to dmrm.Model format and add them to the list
+		for _, om := range ollamaModels {
+			// Create a synthetic model entry for the Ollama model
+			dmrModel := dmrm.Model{
+				ID:      "ollama:" + om.Digest,
+				Tags:    []string{"ollama.com/" + om.Name},
+				Created: 0, // We don't have creation time from Ollama
+				Config: dmrm.ModelConfig{
+					Size: units.HumanSize(float64(om.Size)),
+				},
+			}
+			models = append(models, dmrModel)
+		}
 	}
 
 	if modelFilter != "" {
