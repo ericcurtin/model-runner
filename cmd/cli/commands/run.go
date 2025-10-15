@@ -2,11 +2,14 @@ package commands
 
 import (
 	"bufio"
+	"context"
 	"errors"
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 
 	"github.com/charmbracelet/glamour"
 	"github.com/docker/model-runner/cmd/cli/commands/completion"
@@ -201,8 +204,32 @@ func generateInteractiveWithReadline(cmd *cobra.Command, desktopClient *desktop.
 		if sb.Len() > 0 && !multiline {
 			userInput := sb.String()
 
-			if err := chatWithMarkdown(cmd, desktopClient, backend, model, userInput, apiKey); err != nil {
-				cmd.PrintErr(handleClientError(err, "Failed to generate a response"))
+			// Create a cancellable context for the chat request
+			// This allows us to cancel the request if the user presses Ctrl+C during response generation
+			chatCtx, cancelChat := context.WithCancel(context.Background())
+			
+			// Set up signal handler to cancel the context on Ctrl+C
+			sigChan := make(chan os.Signal, 1)
+			signal.Notify(sigChan, syscall.SIGINT)
+			go func() {
+				<-sigChan
+				cancelChat()
+			}()
+
+			err := chatWithMarkdownContext(chatCtx, cmd, desktopClient, backend, model, userInput, apiKey)
+			
+			// Clean up signal handler
+			signal.Stop(sigChan)
+			close(sigChan)
+			cancelChat()
+
+			if err != nil {
+				// Check if the error is due to context cancellation (Ctrl+C during response)
+				if errors.Is(err, context.Canceled) {
+					cmd.Println()
+				} else {
+					cmd.PrintErr(handleClientError(err, "Failed to generate a response"))
+				}
 				sb.Reset()
 				continue
 			}
@@ -425,13 +452,18 @@ func renderMarkdown(content string) (string, error) {
 
 // chatWithMarkdown performs chat and streams the response with selective markdown rendering.
 func chatWithMarkdown(cmd *cobra.Command, client *desktop.Client, backend, model, prompt, apiKey string) error {
+	return chatWithMarkdownContext(cmd.Context(), cmd, client, backend, model, prompt, apiKey)
+}
+
+// chatWithMarkdownContext performs chat with context support and streams the response with selective markdown rendering.
+func chatWithMarkdownContext(ctx context.Context, cmd *cobra.Command, client *desktop.Client, backend, model, prompt, apiKey string) error {
 	colorMode, _ := cmd.Flags().GetString("color")
 	useMarkdown := shouldUseMarkdown(colorMode)
 	debug, _ := cmd.Flags().GetBool("debug")
 
 	if !useMarkdown {
 		// Simple case: just stream as plain text
-		return client.Chat(backend, model, prompt, apiKey, func(content string) {
+		return client.ChatWithContext(ctx, backend, model, prompt, apiKey, func(content string) {
 			cmd.Print(content)
 		}, false)
 	}
@@ -439,7 +471,7 @@ func chatWithMarkdown(cmd *cobra.Command, client *desktop.Client, backend, model
 	// For markdown: use streaming buffer to render code blocks as they complete
 	markdownBuffer := NewStreamingMarkdownBuffer()
 
-	err := client.Chat(backend, model, prompt, apiKey, func(content string) {
+	err := client.ChatWithContext(ctx, backend, model, prompt, apiKey, func(content string) {
 		// Use the streaming markdown buffer to intelligently render content
 		rendered, err := markdownBuffer.AddContent(content, true)
 		if err != nil {
