@@ -2,6 +2,8 @@ package commands
 
 import (
 	"testing"
+
+	"github.com/docker/model-runner/pkg/inference/models"
 )
 
 func TestNormalizeModelName(t *testing.T) {
@@ -74,9 +76,9 @@ func TestNormalizeModelName(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := normalizeModelName(tt.input)
+			result := models.NormalizeModelName(tt.input)
 			if result != tt.expected {
-				t.Errorf("normalizeModelName(%q) = %q, want %q", tt.input, result, tt.expected)
+				t.Errorf("NormalizeModelName(%q) = %q, want %q", tt.input, result, tt.expected)
 			}
 		})
 	}

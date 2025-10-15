@@ -123,7 +123,7 @@ func (m *Manager) RebuildRoutes(allowedOrigins []string) {
 	m.httpHandler = middleware.CorsMiddleware(allowedOrigins, m.router)
 }
 
-// normalizeModelName adds the default organization prefix (ai/) and tag (:latest) if missing.
+// NormalizeModelName adds the default organization prefix (ai/) and tag (:latest) if missing.
 // It also converts Hugging Face model names to lowercase.
 // Examples:
 //   - "gemma3" -> "ai/gemma3:latest"
@@ -132,7 +132,7 @@ func (m *Manager) RebuildRoutes(allowedOrigins []string) {
 //   - "ai/gemma3:latest" -> "ai/gemma3:latest" (unchanged)
 //   - "hf.co/model" -> "hf.co/model:latest" (unchanged - has registry)
 //   - "hf.co/Model" -> "hf.co/model:latest" (converted to lowercase)
-func normalizeModelName(model string) string {
+func NormalizeModelName(model string) string {
         // If the model is empty, return as-is
         if model == "" {
                 return model
@@ -199,7 +199,7 @@ func (m *Manager) handleCreateModel(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Normalize the model name to add defaults
-	request.From = normalizeModelName(request.From)
+	request.From = NormalizeModelName(request.From)
 
 	// Pull the model. In the future, we may support additional operations here
 	// besides pulling (such as model building).
@@ -295,7 +295,7 @@ func (m *Manager) handleGetModels(w http.ResponseWriter, r *http.Request) {
 // handleGetModel handles GET <inference-prefix>/models/{name} requests.
 func (m *Manager) handleGetModel(w http.ResponseWriter, r *http.Request) {
 	// Normalize model name
-	modelName := normalizeModelName(r.PathValue("name"))
+	modelName := NormalizeModelName(r.PathValue("name"))
 	
 	// Parse remote query parameter
 	remote := false
@@ -428,7 +428,7 @@ func (m *Manager) handleDeleteModel(w http.ResponseWriter, r *http.Request) {
 	// might need some separate cleanup process).
 
 	// Normalize model name
-	modelName := normalizeModelName(r.PathValue("name"))
+	modelName := NormalizeModelName(r.PathValue("name"))
 	
 	var force bool
 	if r.URL.Query().Has("force") {
@@ -497,7 +497,7 @@ func (m *Manager) handleOpenAIGetModel(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Normalize model name
-	modelName := normalizeModelName(r.PathValue("name"))
+	modelName := NormalizeModelName(r.PathValue("name"))
 
 	// Query the model.
 	model, err := m.GetModel(modelName)
@@ -530,7 +530,7 @@ func (m *Manager) handleModelAction(w http.ResponseWriter, r *http.Request) {
 	model, action := path.Split(r.PathValue("nameAndAction"))
 	model = strings.TrimRight(model, "/")
 	// Normalize model name
-	model = normalizeModelName(model)
+	model = NormalizeModelName(model)
 	switch action {
 	case "tag":
 		m.handleTagModel(w, r, model)
