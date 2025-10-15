@@ -366,7 +366,7 @@ func createControllerContainerInternal(ctx context.Context, dockerClient *client
 	}
 
 	// Copy Docker config file if it exists and we're the container creator.
-	if created {
+	if created && runnerType == runnerTypeModelRunner {
 		if err := copyDockerConfigToContainer(ctx, dockerClient, resp.ID, engineKind); err != nil {
 			// Log warning but continue - don't fail container creation
 			printer.Printf("Warning: failed to copy Docker config: %v\n", err)
