@@ -1,0 +1,135 @@
+command: docker model k8s install
+short: Install Docker Model Runner on Kubernetes
+long: |-
+    Install Docker Model Runner on Kubernetes cluster.
+
+    This command deploys Docker Model Runner to your Kubernetes cluster using either
+    Helm or plain Kubernetes manifests. It provides functionality for distributed
+    model serving without requiring external dependencies like llm-d or aibrix.
+
+    Examples:
+      # Install with default settings
+      docker model k8s install
+
+      # Install with GPU support
+      docker model k8s install --gpu --gpu-vendor nvidia --gpu-count 1
+
+      # Install with model pre-pulling
+      docker model k8s install --models ai/smollm2:latest,ai/llama3.2:latest
+
+      # Install with custom storage
+      docker model k8s install --storage-size 200Gi --storage-class fast-ssd
+
+      # Install with NodePort for Docker Desktop
+      docker model k8s install --node-port
+usage: docker model k8s install
+pname: docker model k8s
+plink: docker_model_k8s.yaml
+options:
+    - option: gpu
+      value_type: bool
+      default_value: "false"
+      description: Enable GPU support
+      deprecated: false
+      hidden: false
+      experimental: false
+      experimentalcli: false
+      kubernetes: false
+      swarm: false
+    - option: gpu-count
+      value_type: int
+      default_value: "1"
+      description: Number of GPUs to request
+      deprecated: false
+      hidden: false
+      experimental: false
+      experimentalcli: false
+      kubernetes: false
+      swarm: false
+    - option: gpu-vendor
+      value_type: string
+      default_value: nvidia
+      description: GPU vendor (nvidia or amd)
+      deprecated: false
+      hidden: false
+      experimental: false
+      experimentalcli: false
+      kubernetes: false
+      swarm: false
+    - option: helm
+      value_type: bool
+      default_value: "false"
+      description: Use Helm for installation (requires Helm to be installed)
+      deprecated: false
+      hidden: false
+      experimental: false
+      experimentalcli: false
+      kubernetes: false
+      swarm: false
+    - option: models
+      value_type: stringSlice
+      default_value: '[]'
+      description: Models to pre-pull during initialization
+      deprecated: false
+      hidden: false
+      experimental: false
+      experimentalcli: false
+      kubernetes: false
+      swarm: false
+    - option: namespace
+      shorthand: "n"
+      value_type: string
+      default_value: default
+      description: Kubernetes namespace
+      deprecated: false
+      hidden: false
+      experimental: false
+      experimentalcli: false
+      kubernetes: false
+      swarm: false
+    - option: node-port
+      value_type: bool
+      default_value: "false"
+      description: Enable NodePort service (for Docker Desktop)
+      deprecated: false
+      hidden: false
+      experimental: false
+      experimentalcli: false
+      kubernetes: false
+      swarm: false
+    - option: port
+      value_type: int
+      default_value: "31245"
+      description: NodePort port number
+      deprecated: false
+      hidden: false
+      experimental: false
+      experimentalcli: false
+      kubernetes: false
+      swarm: false
+    - option: storage-class
+      value_type: string
+      description: Storage class for persistent volume
+      deprecated: false
+      hidden: false
+      experimental: false
+      experimentalcli: false
+      kubernetes: false
+      swarm: false
+    - option: storage-size
+      value_type: string
+      default_value: 100Gi
+      description: Storage size for model cache
+      deprecated: false
+      hidden: false
+      experimental: false
+      experimentalcli: false
+      kubernetes: false
+      swarm: false
+deprecated: false
+hidden: false
+experimental: false
+experimentalcli: false
+kubernetes: false
+swarm: false
+

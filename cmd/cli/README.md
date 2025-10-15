@@ -11,6 +11,7 @@ A powerful command-line interface for managing, running, packaging, and deployin
 - **Logs & Status**: Stream logs and check the status of the Model Runner and individual models.
 - **Tag, Pull, Push, Remove, Unload**: Full lifecycle management for model artifacts.
 - **Compose & Desktop Integration**: Advanced orchestration and desktop support for model backends.
+- **Kubernetes Deployment**: Deploy and manage Docker Model Runner on Kubernetes with GPU support, model pre-pulling, and custom storage configurations.
 
 ## Building
 1. **Clone the repo:**
@@ -44,6 +45,9 @@ Run `./model --help` to see all commands and options.
 - `model pull MODEL` — Pull a model
 - `model push MODEL` — Push a model
 - `model rm MODEL` — Remove a model
+- `model k8s install` — Deploy Docker Model Runner to Kubernetes
+- `model k8s status` — Check Kubernetes deployment status
+- `model k8s uninstall` — Remove Docker Model Runner from Kubernetes
 
 ## Example: Interactive Chat
 ```bash
@@ -57,6 +61,97 @@ Interactive chat mode started. Type '/bye' to exit.
 Tell me a joke.
 """
 ```
+
+## Kubernetes Deployment
+
+Deploy Docker Model Runner to Kubernetes for distributed model serving, similar to llm-d and aibrix, but using Docker Model Runner's native infrastructure.
+
+### Quick Start
+
+#### Basic Installation
+```bash
+# Install with default settings
+docker model k8s install
+
+# Check the status
+docker model k8s status
+
+# Access the service (requires port-forward)
+kubectl port-forward deployment/docker-model-runner 31245:12434
+MODEL_RUNNER_HOST=http://localhost:31245 docker model run ai/smollm2:latest
+```
+
+#### Installation with GPU Support
+```bash
+# Install with NVIDIA GPU support
+docker model k8s install --gpu --gpu-vendor nvidia --gpu-count 1
+
+# Install with AMD GPU support
+docker model k8s install --gpu --gpu-vendor amd --gpu-count 1
+```
+
+#### Installation with Model Pre-pulling
+```bash
+# Pre-pull models during pod initialization
+docker model k8s install --models ai/smollm2:latest,ai/llama3.2:latest
+```
+
+#### Installation with Custom Storage
+```bash
+# Configure storage size and class
+docker model k8s install --storage-size 200Gi --storage-class fast-ssd
+```
+
+#### Installation for Docker Desktop
+```bash
+# Enable NodePort for easy access
+docker model k8s install --node-port
+
+# Access directly without port-forward
+MODEL_RUNNER_HOST=http://localhost:31245 docker model run ai/smollm2:latest
+```
+
+### Using Helm
+```bash
+# Install using Helm (requires Helm to be installed)
+docker model k8s install --helm
+
+# Uninstall using Helm
+docker model k8s uninstall --helm
+```
+
+### Complete Example
+```bash
+# Deploy with GPU, model pre-pulling, and custom storage
+docker model k8s install \
+  --gpu \
+  --gpu-vendor nvidia \
+  --gpu-count 1 \
+  --models ai/smollm2:latest \
+  --storage-size 150Gi \
+  --storage-class gp2 \
+  --namespace my-models
+
+# Check status
+docker model k8s status --namespace my-models
+
+# Test the deployment
+kubectl port-forward -n my-models deployment/docker-model-runner 31245:12434
+MODEL_RUNNER_HOST=http://localhost:31245 docker model list
+MODEL_RUNNER_HOST=http://localhost:31245 docker model run ai/smollm2:latest "Tell me about Kubernetes"
+
+# Clean up
+docker model k8s uninstall --namespace my-models
+```
+
+### Key Features
+
+- **No External Dependencies**: Uses Docker Model Runner's native Helm charts - no need for llm-d or aibrix
+- **GPU Support**: Built-in support for NVIDIA and AMD GPUs with automatic resource allocation
+- **Model Pre-pulling**: Automatically download models during pod initialization
+- **Flexible Storage**: Configure storage size and class for your cloud provider
+- **Easy Access**: NodePort support for Docker Desktop, or standard port-forwarding for production
+- **Helm or kubectl**: Choose between Helm-based deployment or plain Kubernetes manifests
 
 ## Advanced
 - **Packaging:**

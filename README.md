@@ -249,8 +249,40 @@ Check [METRICS.md](./METRICS.md) for more details.
 
 ##  Kubernetes
 
-Experimental support for running in Kubernetes is available
-in the form of [a Helm chart and static YAML](charts/docker-model-runner/README.md).
+Docker Model Runner can be deployed to Kubernetes for distributed model serving, providing functionality similar to llm-d and aibrix, but using Docker Model Runner's native infrastructure.
+
+### Quick Start
+
+```bash
+# Install to Kubernetes with default settings
+docker model k8s install
+
+# Install with GPU support
+docker model k8s install --gpu --gpu-vendor nvidia --gpu-count 1
+
+# Install with model pre-pulling
+docker model k8s install --models ai/smollm2:latest,ai/llama3.2:latest
+
+# Check deployment status
+docker model k8s status
+
+# Access the service
+kubectl port-forward deployment/docker-model-runner 31245:12434
+MODEL_RUNNER_HOST=http://localhost:31245 docker model run ai/smollm2:latest
+
+# Remove the deployment
+docker model k8s uninstall
+```
+
+### Key Features
+
+- **No External Dependencies**: Uses Docker Model Runner's native Helm charts - no need for llm-d or aibrix
+- **GPU Support**: Built-in support for NVIDIA and AMD GPUs
+- **Model Pre-pulling**: Automatically download models during pod initialization
+- **Flexible Storage**: Configure storage size and class for your cloud provider
+- **Easy Deployment**: Simple CLI commands for installation, status checking, and removal
+
+For more details, see the [Helm chart documentation](charts/docker-model-runner/README.md) and [CLI documentation](cmd/cli/README.md#kubernetes-deployment).
 
 If you are interested in a specific Kubernetes use-case, please start a
 discussion on the issue tracker.

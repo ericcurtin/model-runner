@@ -1,0 +1,24 @@
+command: docker model k8s
+short: Deploy and manage Docker Model Runner on Kubernetes
+long: |-
+    Deploy and manage Docker Model Runner on Kubernetes.
+
+    This command provides functionality for deploying models to Kubernetes,
+    similar to llm-d and aibrix, but using Docker Model Runner's native infrastructure.
+pname: docker model
+plink: docker_model.yaml
+cname:
+    - docker model k8s install
+    - docker model k8s status
+    - docker model k8s uninstall
+clink:
+    - docker_model_k8s_install.yaml
+    - docker_model_k8s_status.yaml
+    - docker_model_k8s_uninstall.yaml
+deprecated: false
+hidden: false
+experimental: false
+experimentalcli: false
+kubernetes: false
+swarm: false
+

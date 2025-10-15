@@ -1,0 +1,35 @@
+command: docker model k8s status
+short: Check status of Docker Model Runner on Kubernetes
+long: |-
+    Check the status of Docker Model Runner deployment on Kubernetes.
+
+    This command shows the current state of the Docker Model Runner pods and services.
+
+    Examples:
+      # Check status in default namespace
+      docker model k8s status
+
+      # Check status in specific namespace
+      docker model k8s status --namespace my-namespace
+usage: docker model k8s status
+pname: docker model k8s
+plink: docker_model_k8s.yaml
+options:
+    - option: namespace
+      shorthand: "n"
+      value_type: string
+      default_value: default
+      description: Kubernetes namespace
+      deprecated: false
+      hidden: false
+      experimental: false
+      experimentalcli: false
+      kubernetes: false
+      swarm: false
+deprecated: false
+hidden: false
+experimental: false
+experimentalcli: false
+kubernetes: false
+swarm: false
+

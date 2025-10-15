@@ -10,6 +10,7 @@ cname:
     - docker model df
     - docker model inspect
     - docker model install-runner
+    - docker model k8s
     - docker model list
     - docker model logs
     - docker model package
@@ -29,6 +30,7 @@ clink:
     - docker_model_df.yaml
     - docker_model_inspect.yaml
     - docker_model_install-runner.yaml
+    - docker_model_k8s.yaml
     - docker_model_list.yaml
     - docker_model_logs.yaml
     - docker_model_package.yaml
@@ -43,6 +45,110 @@ clink:
     - docker_model_uninstall-runner.yaml
     - docker_model_unload.yaml
     - docker_model_version.yaml
+options:
+    - option: config
+      value_type: string
+      default_value: /home/runner/.docker
+      description: Location of client config files
+      deprecated: false
+      hidden: false
+      experimental: false
+      experimentalcli: false
+      kubernetes: false
+      swarm: false
+    - option: context
+      shorthand: c
+      value_type: string
+      description: |
+        Name of the context to use to connect to the daemon (overrides DOCKER_HOST env var and default context set with "docker context use")
+      deprecated: false
+      hidden: false
+      experimental: false
+      experimentalcli: false
+      kubernetes: false
+      swarm: false
+    - option: debug
+      shorthand: D
+      value_type: bool
+      default_value: "false"
+      description: Enable debug mode
+      deprecated: false
+      hidden: false
+      experimental: false
+      experimentalcli: false
+      kubernetes: false
+      swarm: false
+    - option: host
+      shorthand: H
+      value_type: list
+      description: Daemon socket to connect to
+      deprecated: false
+      hidden: false
+      experimental: false
+      experimentalcli: false
+      kubernetes: false
+      swarm: false
+    - option: log-level
+      shorthand: l
+      value_type: string
+      default_value: info
+      description: Set the logging level ("debug", "info", "warn", "error", "fatal")
+      deprecated: false
+      hidden: false
+      experimental: false
+      experimentalcli: false
+      kubernetes: false
+      swarm: false
+    - option: tls
+      value_type: bool
+      default_value: "false"
+      description: Use TLS; implied by --tlsverify
+      deprecated: false
+      hidden: false
+      experimental: false
+      experimentalcli: false
+      kubernetes: false
+      swarm: false
+    - option: tlscacert
+      value_type: string
+      default_value: /home/runner/.docker/ca.pem
+      description: Trust certs signed only by this CA
+      deprecated: false
+      hidden: false
+      experimental: false
+      experimentalcli: false
+      kubernetes: false
+      swarm: false
+    - option: tlscert
+      value_type: string
+      default_value: /home/runner/.docker/cert.pem
+      description: Path to TLS certificate file
+      deprecated: false
+      hidden: false
+      experimental: false
+      experimentalcli: false
+      kubernetes: false
+      swarm: false
+    - option: tlskey
+      value_type: string
+      default_value: /home/runner/.docker/key.pem
+      description: Path to TLS key file
+      deprecated: false
+      hidden: false
+      experimental: false
+      experimentalcli: false
+      kubernetes: false
+      swarm: false
+    - option: tlsverify
+      value_type: bool
+      default_value: "false"
+      description: Use TLS and verify the remote
+      deprecated: false
+      hidden: false
+      experimental: false
+      experimentalcli: false
+      kubernetes: false
+      swarm: false
 deprecated: false
 hidden: false
 experimental: false

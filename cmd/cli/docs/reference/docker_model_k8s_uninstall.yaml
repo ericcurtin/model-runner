@@ -1,0 +1,45 @@
+command: docker model k8s uninstall
+short: Uninstall Docker Model Runner from Kubernetes
+long: |-
+    Uninstall Docker Model Runner from Kubernetes cluster.
+
+    This command removes the Docker Model Runner deployment from your Kubernetes cluster.
+
+    Examples:
+      # Uninstall from default namespace
+      docker model k8s uninstall
+
+      # Uninstall from specific namespace
+      docker model k8s uninstall --namespace my-namespace
+usage: docker model k8s uninstall
+pname: docker model k8s
+plink: docker_model_k8s.yaml
+options:
+    - option: helm
+      value_type: bool
+      default_value: "false"
+      description: Use Helm for uninstallation
+      deprecated: false
+      hidden: false
+      experimental: false
+      experimentalcli: false
+      kubernetes: false
+      swarm: false
+    - option: namespace
+      shorthand: "n"
+      value_type: string
+      default_value: default
+      description: Kubernetes namespace
+      deprecated: false
+      hidden: false
+      experimental: false
+      experimentalcli: false
+      kubernetes: false
+      swarm: false
+deprecated: false
+hidden: false
+experimental: false
+experimentalcli: false
+kubernetes: false
+swarm: false
+
