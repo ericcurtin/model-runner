@@ -34,6 +34,9 @@ func newPushCmd() *cobra.Command {
 }
 
 func pushModel(cmd *cobra.Command, desktopClient *desktop.Client, model string) error {
+	// Normalize model name to add default org and tag if missing
+	model = normalizeModelName(model)
+	
 	response, progressShown, err := desktopClient.Push(model, TUIProgress)
 
 	// Add a newline before any output (success or error) if progress was shown.

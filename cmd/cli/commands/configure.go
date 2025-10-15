@@ -33,7 +33,7 @@ func newConfigureCmd() *cobra.Command {
 						argsBeforeDash)
 				}
 			}
-			opts.Model = args[0]
+			opts.Model = normalizeModelName(args[0])
 			opts.RuntimeFlags = args[1:]
 			return nil
 		},
