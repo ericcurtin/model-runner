@@ -56,15 +56,6 @@ func normalizeModelName(model string) string {
 	// Normalize HuggingFace model names to lowercase first
 	if strings.HasPrefix(model, "hf.co/") {
 		model = strings.ToLower(model)
-	}
-
-	// If model starts with "hf.co/" or contains a registry (has a dot before the first slash),
-	// don't add default org
-	if strings.HasPrefix(model, "hf.co/") {
-		// For HuggingFace models, just ensure :latest tag if no tag specified
-		if !strings.Contains(model, ":") {
-			return model + ":" + defaultTag
-		}
 		return model
 	}
 

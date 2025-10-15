@@ -24,11 +24,7 @@ import (
 	"go.opentelemetry.io/otel"
 )
 
-const (
-	DefaultBackend = "llama.cpp"
-	defaultOrg     = "ai"
-	defaultTag     = "latest"
-)
+const DefaultBackend = "llama.cpp"
 
 var (
 	ErrNotFound           = errors.New("model not found")
@@ -60,60 +56,6 @@ type Status struct {
 	Running bool   `json:"running"`
 	Status  []byte `json:"status"`
 	Error   error  `json:"error"`
-}
-
-// normalizeModelName adds the default organization prefix (ai/) and tag (:latest) if missing.
-// It also converts Hugging Face model names to lowercase.
-// Examples:
-//   - "gemma3" -> "ai/gemma3:latest"
-//   - "gemma3:v1" -> "ai/gemma3:v1"
-//   - "myorg/gemma3" -> "myorg/gemma3:latest"
-//   - "ai/gemma3:latest" -> "ai/gemma3:latest" (unchanged)
-//   - "hf.co/model" -> "hf.co/model:latest" (lowercase, has registry)
-//   - "hf.co/Model" -> "hf.co/model:latest" (converted to lowercase)
-func normalizeModelName(model string) string {
-	// If the model is empty, return as-is
-	if model == "" {
-		return model
-	}
-
-	// Normalize HuggingFace model names to lowercase first
-        // If model starts with "hf.co/" or contains a registry (has a dot before the first slash),
-        // don't add default org
-	if strings.HasPrefix(model, "hf.co/") {
-		model = strings.ToLower(model)
-
-		// For HuggingFace models, just ensure :latest tag if no tag specified
-		if !strings.Contains(model, ":") {
-			return model + ":" + defaultTag
-		}
-		return model
-	}
-
-	// Check if model contains a registry (domain with dot before first slash)
-	firstSlash := strings.Index(model, "/")
-	if firstSlash > 0 && strings.Contains(model[:firstSlash], ".") {
-		// Has a registry, just ensure tag
-		if !strings.Contains(model, ":") {
-			return model + ":" + defaultTag
-		}
-		return model
-	}
-
-	// Split by colon to check for tag
-	parts := strings.SplitN(model, ":", 2)
-	nameWithOrg := parts[0]
-	tag := defaultTag
-	if len(parts) == 2 {
-		tag = parts[1]
-	}
-
-	// If name doesn't contain a slash, add the default org
-	if !strings.Contains(nameWithOrg, "/") {
-		nameWithOrg = defaultOrg + "/" + nameWithOrg
-	}
-
-	return nameWithOrg + ":" + tag
 }
 
 func (c *Client) Status() Status {
