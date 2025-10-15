@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: docker-model-runner
+  labels:
+    app: docker-model-runner
+spec:
+  replicas: 1
+  revisionHistoryLimit: 2
+  strategy:
+    type: Recreate # don't run two pods at once during updates
+  selector:
+    matchLabels:
+      app: docker-model-runner
+  template:
+    metadata:
+      labels:
+        app: docker-model-runner
+    spec:
+      serviceAccountName: docker-model-runner
+      containers:
+        - name: model-runner
+          image: "ghcr.io/docker/model-runner:latest"
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 12434
+              protocol: TCP
+          resources:
+            requests:
+              cpu: "4"
+              memory: "8Gi"
+            limits:
+              cpu: "8"
+              memory: "16Gi"
+          env:
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          volumeMounts:
+            - name: model-storage
+              mountPath: /models
+      volumes:
+        - name: model-storage
+          emptyDir: {}
+      # optional: shorten shutdowns for faster restarts
+      terminationGracePeriodSeconds: 10
