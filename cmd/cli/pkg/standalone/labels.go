@@ -19,6 +19,10 @@ const (
 	// controller container.
 	roleController = "controller"
 
+	// roleOllamaController is the role label value used to identify the ollama
+	// runner controller container.
+	roleOllamaController = "ollama-controller"
+
 	// roleRunner is not currently defined because model runner processes
 	// currently execute within the controller container. This may change in a
 	// future release.
@@ -26,4 +30,8 @@ const (
 	// roleModelStorage is the role label value used to identify the model
 	// runner model storage volume.
 	roleModelStorage = "model-storage"
+
+	// roleOllamaStorage is the role label value used to identify the ollama
+	// runner model storage volume.
+	roleOllamaStorage = "ollama-storage"
 )
