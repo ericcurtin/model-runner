@@ -4,15 +4,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/docker/model-runner/cmd/cli/pkg/types"
 	"os"
 	"time"
 
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/client"
 	"github.com/docker/model-runner/cmd/cli/commands/completion"
 	"github.com/docker/model-runner/cmd/cli/desktop"
 	gpupkg "github.com/docker/model-runner/cmd/cli/pkg/gpu"
 	"github.com/docker/model-runner/cmd/cli/pkg/standalone"
+	"github.com/docker/model-runner/cmd/cli/pkg/types"
 	"github.com/spf13/cobra"
 )
 
@@ -167,6 +168,46 @@ type runnerOptions struct {
 	gpuMode     string
 	doNotTrack  bool
 	pullImage   bool
+	ollama      bool
+}
+
+// runInstallOrStartOllama handles installation or starting of the Ollama runner
+func runInstallOrStartOllama(cmd *cobra.Command, dockerClient *client.Client, opts runnerOptions) error {
+	// Check if an active ollama runner container already exists.
+	if ctrID, ctrName, _, err := standalone.FindOllamaContainer(cmd.Context(), dockerClient); err != nil {
+		return err
+	} else if ctrID != "" {
+		if ctrName != "" {
+			cmd.Printf("Ollama Runner container %s (%s) is already running\n", ctrName, ctrID[:12])
+		} else {
+			cmd.Printf("Ollama Runner container %s is already running\n", ctrID[:12])
+		}
+		return nil
+	}
+
+	port := opts.port
+	if port == 0 {
+		port = standalone.DefaultOllamaPort
+	}
+
+	host := opts.host
+	if host == "" {
+		host = "127.0.0.1"
+	}
+
+	// Ensure that we have an ollama storage volume.
+	ollamaStorageVolume, err := standalone.EnsureOllamaStorageVolume(cmd.Context(), dockerClient, cmd)
+	if err != nil {
+		return fmt.Errorf("unable to initialize ollama storage: %w", err)
+	}
+
+	// Create the ollama runner container.
+	if err := standalone.CreateOllamaContainer(cmd.Context(), dockerClient, port, host, opts.gpuMode, ollamaStorageVolume, cmd); err != nil {
+		return fmt.Errorf("unable to initialize ollama runner container: %w", err)
+	}
+
+	cmd.Printf("Ollama runner started successfully on port %d\n", port)
+	return nil
 }
 
 // runInstallOrStart is shared logic for install-runner and start-runner commands
@@ -183,6 +224,17 @@ func runInstallOrStart(cmd *cobra.Command, opts runnerOptions) error {
 	} else if engineKind == types.ModelRunnerEngineKindMobyManual {
 		cmd.Println("Standalone installation not supported with MODEL_RUNNER_HOST set")
 		return nil
+	}
+
+	// Create a Docker client for the active context.
+	dockerClient, err := desktop.DockerClientForContext(dockerCLI, dockerCLI.CurrentContext())
+	if err != nil {
+		return fmt.Errorf("failed to create Docker client: %w", err)
+	}
+
+	// Handle Ollama runner installation
+	if opts.ollama {
+		return runInstallOrStartOllama(cmd, dockerClient, opts)
 	}
 
 	port := opts.port
@@ -208,12 +260,6 @@ func runInstallOrStart(cmd *cobra.Command, opts runnerOptions) error {
 	environment := "moby"
 	if engineKind == types.ModelRunnerEngineKindCloud {
 		environment = "cloud"
-	}
-
-	// Create a Docker client for the active context.
-	dockerClient, err := desktop.DockerClientForContext(dockerCLI, dockerCLI.CurrentContext())
-	if err != nil {
-		return fmt.Errorf("failed to create Docker client: %w", err)
 	}
 
 	// Check if an active model runner container already exists.
@@ -267,6 +313,7 @@ func newInstallRunner() *cobra.Command {
 	var host string
 	var gpuMode string
 	var doNotTrack bool
+	var ollama bool
 	c := &cobra.Command{
 		Use:   "install-runner",
 		Short: "Install Docker Model Runner (Docker Engine only)",
@@ -277,14 +324,16 @@ func newInstallRunner() *cobra.Command {
 				gpuMode:    gpuMode,
 				doNotTrack: doNotTrack,
 				pullImage:  true,
+				ollama:     ollama,
 			})
 		},
 		ValidArgsFunction: completion.NoComplete,
 	}
 	c.Flags().Uint16Var(&port, "port", 0,
-		"Docker container port for Docker Model Runner (default: 12434 for Docker Engine, 12435 for Cloud mode)")
+		"Docker container port for Docker Model Runner (default: 12434 for Docker Engine, 12435 for Cloud mode, 11434 for Ollama)")
 	c.Flags().StringVar(&host, "host", "127.0.0.1", "Host address to bind Docker Model Runner")
-	c.Flags().StringVar(&gpuMode, "gpu", "auto", "Specify GPU support (none|auto|cuda)")
+	c.Flags().StringVar(&gpuMode, "gpu", "auto", "Specify GPU support (none|auto|cuda for model-runner, rocm for ollama)")
 	c.Flags().BoolVar(&doNotTrack, "do-not-track", false, "Do not track models usage in Docker Model Runner")
+	c.Flags().BoolVar(&ollama, "ollama", false, "Install Ollama runner instead of Docker Model Runner")
 	return c
 }

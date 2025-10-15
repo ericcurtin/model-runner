@@ -29,6 +29,9 @@ import (
 // controllerContainerName is the name to use for the controller container.
 const controllerContainerName = "docker-model-runner"
 
+// ollamaContainerName is the name to use for the ollama runner container.
+const ollamaContainerName = "docker-ollama-runner"
+
 // copyDockerConfigToContainer copies the Docker config file from the host to the container
 // and sets up proper ownership and permissions for the modelrunner user.
 // It does nothing for Desktop and Cloud engine kinds.
@@ -150,6 +153,35 @@ func FindControllerContainer(ctx context.Context, dockerClient client.ContainerA
 	})
 	if err != nil {
 		return "", "", container.Summary{}, fmt.Errorf("unable to identify model runner containers: %w", err)
+	}
+	if len(containers) == 0 {
+		return "", "", container.Summary{}, nil
+	}
+	var containerName string
+	if len(containers[0].Names) > 0 {
+		containerName = strings.TrimPrefix(containers[0].Names[0], "/")
+	}
+	return containers[0].ID, containerName, containers[0], nil
+}
+
+// FindOllamaContainer searches for a running ollama container. It
+// returns the ID of the container (if found), the container name (if any), the
+// full container summary (if found), or any error that occurred.
+func FindOllamaContainer(ctx context.Context, dockerClient client.ContainerAPIClient) (string, string, container.Summary, error) {
+	// Before listing, prune any stopped ollama containers.
+	if err := PruneOllamaContainers(ctx, dockerClient, true, NoopPrinter()); err != nil {
+		return "", "", container.Summary{}, fmt.Errorf("unable to prune stopped ollama runner containers: %w", err)
+	}
+
+	// Identify all ollama containers.
+	containers, err := dockerClient.ContainerList(ctx, container.ListOptions{
+		Filters: filters.NewArgs(
+			filters.Arg("label", labelDesktopService),
+			filters.Arg("label", labelRole+"="+roleOllamaController),
+		),
+	})
+	if err != nil {
+		return "", "", container.Summary{}, fmt.Errorf("unable to identify ollama runner containers: %w", err)
 	}
 	if len(containers) == 0 {
 		return "", "", container.Summary{}, nil
@@ -361,6 +393,136 @@ func PruneControllerContainers(ctx context.Context, dockerClient client.Containe
 	}
 
 	// Remove all controller containers.
+	for _, ctr := range containers {
+		if skipRunning && ctr.State == container.StateRunning {
+			continue
+		}
+		if len(ctr.Names) > 0 {
+			printer.Printf("Removing container %s (%s)...\n", strings.TrimPrefix(ctr.Names[0], "/"), ctr.ID[:12])
+		} else {
+			printer.Printf("Removing container %s...\n", ctr.ID[:12])
+		}
+		err := dockerClient.ContainerRemove(ctx, ctr.ID, container.RemoveOptions{Force: true})
+		if err != nil {
+			return fmt.Errorf("failed to remove container %s: %w", ctr.Names[0], err)
+		}
+	}
+	return nil
+}
+
+// CreateOllamaContainer creates and starts an ollama container.
+func CreateOllamaContainer(ctx context.Context, dockerClient *client.Client, port uint16, host string, gpuMode string, ollamaStorageVolume string, printer StatusPrinter) error {
+	// Determine the ollama image based on GPU mode
+	imageName := "ollama/ollama:latest"
+	if gpuMode == "rocm" {
+		imageName = "ollama/ollama:rocm"
+	}
+
+	// Set up the container configuration.
+	portStr := strconv.Itoa(int(port))
+	config := &container.Config{
+		Image: imageName,
+		ExposedPorts: nat.PortSet{
+			nat.Port(portStr + "/tcp"): struct{}{},
+		},
+		Labels: map[string]string{
+			labelDesktopService: serviceModelRunner,
+			labelRole:           roleOllamaController,
+		},
+	}
+	hostConfig := &container.HostConfig{
+		Mounts: []mount.Mount{
+			{
+				Type:   mount.TypeVolume,
+				Source: ollamaStorageVolume,
+				Target: "/root/.ollama",
+			},
+		},
+		RestartPolicy: container.RestartPolicy{
+			Name: "always",
+		},
+	}
+	portBindings := []nat.PortBinding{{HostIP: host, HostPort: portStr}}
+	if host == "127.0.0.1" {
+		if bridgeGatewayIP, err := determineBridgeGatewayIP(ctx, dockerClient); err == nil && bridgeGatewayIP != "" {
+			portBindings = append(portBindings, nat.PortBinding{HostIP: bridgeGatewayIP, HostPort: portStr})
+		}
+	}
+	hostConfig.PortBindings = nat.PortMap{
+		nat.Port(portStr + "/tcp"): portBindings,
+	}
+
+	// Add GPU support for ROCm
+	if gpuMode == "rocm" {
+		// devicePaths contains glob patterns for AMD ROCm device files.
+		devicePaths := []string{
+			"/dev/dri",
+			"/dev/kfd",
+		}
+
+		for _, path := range devicePaths {
+			devices, err := filepath.Glob(path)
+			if err != nil {
+				continue
+			}
+			for _, device := range devices {
+				hostConfig.Devices = append(hostConfig.Devices, container.DeviceMapping{
+					PathOnHost:        device,
+					PathInContainer:   device,
+					CgroupPermissions: "rwm",
+				})
+			}
+		}
+
+		if runtime.GOOS == "linux" {
+			out, err := exec.CommandContext(ctx, "getent", "group", "render").CombinedOutput()
+			if err == nil {
+				tokens := strings.Split(string(out), ":")
+				if len(tokens) > 2 {
+					gid, err := strconv.Atoi(tokens[2])
+					if err == nil {
+						hostConfig.GroupAdd = append(hostConfig.GroupAdd, strconv.Itoa(gid))
+					}
+				}
+			}
+		}
+	}
+
+	// Create the container.
+	resp, err := dockerClient.ContainerCreate(ctx, config, hostConfig, nil, nil, ollamaContainerName)
+	if err != nil && !(errdefs.IsConflict(err) || strings.Contains(err.Error(), "is already in use by container")) {
+		return fmt.Errorf("failed to create container %s: %w", ollamaContainerName, err)
+	}
+	created := err == nil
+
+	// Start the container.
+	printer.Printf("Starting ollama runner container %s...\n", ollamaContainerName)
+	if err := ensureContainerStarted(ctx, dockerClient, ollamaContainerName); err != nil {
+		if created {
+			_ = dockerClient.ContainerRemove(ctx, resp.ID, container.RemoveOptions{Force: true})
+		}
+		return fmt.Errorf("failed to start container %s: %w", ollamaContainerName, err)
+	}
+
+	return nil
+}
+
+// PruneOllamaContainers stops and removes any ollama runner controller
+// containers.
+func PruneOllamaContainers(ctx context.Context, dockerClient client.ContainerAPIClient, skipRunning bool, printer StatusPrinter) error {
+	// Identify all ollama containers.
+	containers, err := dockerClient.ContainerList(ctx, container.ListOptions{
+		All: true,
+		Filters: filters.NewArgs(
+			filters.Arg("label", labelDesktopService),
+			filters.Arg("label", labelRole+"="+roleOllamaController),
+		),
+	})
+	if err != nil {
+		return fmt.Errorf("unable to identify ollama runner containers: %w", err)
+	}
+
+	// Remove all ollama containers.
 	for _, ctr := range containers {
 		if skipRunning && ctr.State == container.StateRunning {
 			continue

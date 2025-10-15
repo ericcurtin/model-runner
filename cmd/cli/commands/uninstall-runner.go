@@ -2,11 +2,12 @@ package commands
 
 import (
 	"fmt"
-	"github.com/docker/model-runner/cmd/cli/pkg/types"
 
+	"github.com/docker/docker/client"
 	"github.com/docker/model-runner/cmd/cli/commands/completion"
 	"github.com/docker/model-runner/cmd/cli/desktop"
 	"github.com/docker/model-runner/cmd/cli/pkg/standalone"
+	"github.com/docker/model-runner/cmd/cli/pkg/types"
 	"github.com/spf13/cobra"
 )
 
@@ -14,6 +15,7 @@ import (
 type cleanupOptions struct {
 	models       bool
 	removeImages bool
+	ollama       bool
 }
 
 // runUninstallOrStop is shared logic for uninstall-runner and stop-runner commands
@@ -35,6 +37,11 @@ func runUninstallOrStop(cmd *cobra.Command, opts cleanupOptions) error {
 	dockerClient, err := desktop.DockerClientForContext(dockerCLI, dockerCLI.CurrentContext())
 	if err != nil {
 		return fmt.Errorf("failed to create Docker client: %w", err)
+	}
+
+	// Handle Ollama runner cleanup
+	if opts.ollama {
+		return runUninstallOrStopOllama(cmd, dockerClient, opts)
 	}
 
 	// Remove any model runner containers.
@@ -59,8 +66,25 @@ func runUninstallOrStop(cmd *cobra.Command, opts cleanupOptions) error {
 	return nil
 }
 
+// runUninstallOrStopOllama handles cleanup of the Ollama runner
+func runUninstallOrStopOllama(cmd *cobra.Command, dockerClient *client.Client, opts cleanupOptions) error {
+	// Remove any ollama runner containers.
+	if err := standalone.PruneOllamaContainers(cmd.Context(), dockerClient, false, cmd); err != nil {
+		return fmt.Errorf("unable to remove ollama runner container(s): %w", err)
+	}
+
+	// Remove ollama storage, if requested.
+	if opts.models {
+		if err := standalone.PruneOllamaStorageVolumes(cmd.Context(), dockerClient, cmd); err != nil {
+			return fmt.Errorf("unable to remove ollama storage volume(s): %w", err)
+		}
+	}
+
+	return nil
+}
+
 func newUninstallRunner() *cobra.Command {
-	var models, images bool
+	var models, images, ollama bool
 	c := &cobra.Command{
 		Use:   "uninstall-runner",
 		Short: "Uninstall Docker Model Runner (Docker Engine only)",
@@ -68,11 +92,13 @@ func newUninstallRunner() *cobra.Command {
 			return runUninstallOrStop(cmd, cleanupOptions{
 				models:       models,
 				removeImages: images,
+				ollama:       ollama,
 			})
 		},
 		ValidArgsFunction: completion.NoComplete,
 	}
 	c.Flags().BoolVar(&models, "models", false, "Remove model storage volume")
 	c.Flags().BoolVar(&images, "images", false, "Remove "+standalone.ControllerImage+" images")
+	c.Flags().BoolVar(&ollama, "ollama", false, "Uninstall Ollama runner instead of Docker Model Runner")
 	return c
 }

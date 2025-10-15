@@ -11,6 +11,9 @@ import (
 	"github.com/charmbracelet/glamour"
 	"github.com/docker/model-runner/cmd/cli/commands/completion"
 	"github.com/docker/model-runner/cmd/cli/desktop"
+	"github.com/docker/model-runner/cmd/cli/pkg/model"
+	"github.com/docker/model-runner/cmd/cli/pkg/ollama"
+	"github.com/docker/model-runner/cmd/cli/pkg/standalone"
 	"github.com/docker/model-runner/cmd/cli/readline"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
@@ -423,6 +426,64 @@ func renderMarkdown(content string) (string, error) {
 	return rendered, nil
 }
 
+// runOllamaModel runs an Ollama model with the given prompt.
+func runOllamaModel(cmd *cobra.Command, modelName, prompt string, detach bool) error {
+	// Ensure the Ollama runner is available
+	dockerClient, err := desktop.DockerClientForContext(dockerCLI, dockerCLI.CurrentContext())
+	if err != nil {
+		return fmt.Errorf("failed to create Docker client: %w", err)
+	}
+
+	// Check if ollama container is running
+	ctrID, _, _, err := standalone.FindOllamaContainer(cmd.Context(), dockerClient)
+	if err != nil {
+		return fmt.Errorf("failed to find Ollama container: %w", err)
+	}
+	if ctrID == "" {
+		return fmt.Errorf("Ollama runner is not running. Please start it with 'docker model install-runner --ollama' or 'docker model start-runner --ollama'")
+	}
+
+	// Strip the ollama.com prefix
+	strippedModelName := model.StripOllamaPrefix(modelName)
+	ollamaClient := ollama.NewClient("http://localhost:" + fmt.Sprintf("%d", standalone.DefaultOllamaPort))
+
+	// Handle detach mode - just ensure the model exists
+	if detach {
+		cmd.Printf("Ollama model %s loaded (detach mode)\n", strippedModelName)
+		return nil
+	}
+
+	// If no prompt provided and stdin is not piped, run interactive mode
+	if prompt == "" {
+		fi, err := os.Stdin.Stat()
+		if err == nil && (fi.Mode()&os.ModeCharDevice) != 0 {
+			return fmt.Errorf("interactive mode not yet implemented for Ollama models")
+		}
+		
+		// Read from stdin
+		reader := bufio.NewReader(os.Stdin)
+		input, err := io.ReadAll(reader)
+		if err == nil {
+			prompt = string(input)
+		}
+	}
+
+	if prompt == "" {
+		return fmt.Errorf("no prompt provided")
+	}
+
+	// Run the model with the prompt
+	err = ollamaClient.Run(cmd.Context(), strippedModelName, prompt, func(response string) {
+		cmd.Print(response)
+	})
+	if err != nil {
+		return fmt.Errorf("failed to run Ollama model: %w", err)
+	}
+
+	cmd.Println()
+	return nil
+}
+
 // chatWithMarkdown performs chat and streams the response with selective markdown rendering.
 func chatWithMarkdown(cmd *cobra.Command, client *desktop.Client, backend, model, prompt, apiKey string) error {
 	colorMode, _ := cmd.Flags().GetString("color")
@@ -497,11 +558,16 @@ func newRunCmd() *cobra.Command {
 				return err
 			}
 
-			model := args[0]
+			modelName := args[0]
 			prompt := ""
 			argsLen := len(args)
 			if argsLen > 1 {
 				prompt = strings.Join(args[1:], " ")
+			}
+
+			// Check if this is an Ollama model
+			if model.IsOllamaModel(modelName) {
+				return runOllamaModel(cmd, modelName, prompt, detach)
 			}
 
 			// Only read from stdin if not in detach mode
@@ -523,9 +589,9 @@ func newRunCmd() *cobra.Command {
 
 			if debug {
 				if prompt == "" {
-					cmd.Printf("Running model %s\n", model)
+					cmd.Printf("Running model %s\n", modelName)
 				} else {
-					cmd.Printf("Running model %s with prompt %s\n", model, prompt)
+					cmd.Printf("Running model %s with prompt %s\n", modelName, prompt)
 				}
 			}
 
@@ -535,13 +601,13 @@ func newRunCmd() *cobra.Command {
 
 			// Do not validate the model in case of using OpenAI's backend, let OpenAI handle it
 			if backend != "openai" {
-				_, err := desktopClient.Inspect(model, false)
+				_, err := desktopClient.Inspect(modelName, false)
 				if err != nil {
 					if !errors.Is(err, desktop.ErrNotFound) {
 						return handleNotRunningError(handleClientError(err, "Failed to inspect model"))
 					}
-					cmd.Println("Unable to find model '" + model + "' locally. Pulling from the server.")
-					if err := pullModel(cmd, desktopClient, model, ignoreRuntimeMemoryCheck); err != nil {
+					cmd.Println("Unable to find model '" + modelName + "' locally. Pulling from the server.")
+					if err := pullModel(cmd, desktopClient, modelName, ignoreRuntimeMemoryCheck); err != nil {
 						return err
 					}
 				}
@@ -550,20 +616,20 @@ func newRunCmd() *cobra.Command {
 			// Handle --detach flag: just load the model without interaction
 			if detach {
 				// Make a minimal request to load the model into memory
-				err := desktopClient.Chat(backend, model, "", apiKey, func(content string) {
+				err := desktopClient.Chat(backend, modelName, "", apiKey, func(content string) {
 					// Silently discard output in detach mode
 				}, false)
 				if err != nil {
 					return handleClientError(err, "Failed to load model")
 				}
 				if debug {
-					cmd.Printf("Model %s loaded successfully\n", model)
+					cmd.Printf("Model %s loaded successfully\n", modelName)
 				}
 				return nil
 			}
 
 			if prompt != "" {
-				if err := chatWithMarkdown(cmd, desktopClient, backend, model, prompt, apiKey); err != nil {
+				if err := chatWithMarkdown(cmd, desktopClient, backend, modelName, prompt, apiKey); err != nil {
 					return handleClientError(err, "Failed to generate a response")
 				}
 				cmd.Println()
@@ -572,11 +638,11 @@ func newRunCmd() *cobra.Command {
 
 			// Use enhanced readline-based interactive mode when terminal is available
 			if term.IsTerminal(int(os.Stdin.Fd())) {
-				return generateInteractiveWithReadline(cmd, desktopClient, backend, model, apiKey)
+				return generateInteractiveWithReadline(cmd, desktopClient, backend, modelName, apiKey)
 			}
 
 			// Fall back to basic mode if not a terminal
-			return generateInteractiveBasic(cmd, desktopClient, backend, model, apiKey)
+			return generateInteractiveBasic(cmd, desktopClient, backend, modelName, apiKey)
 		},
 		ValidArgsFunction: completion.ModelNames(getDesktopClient, 1),
 	}

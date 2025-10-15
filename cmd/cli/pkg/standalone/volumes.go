@@ -12,6 +12,9 @@ import (
 // modelStorageVolumeName is the name to use for the model storage volume.
 const modelStorageVolumeName = "docker-model-runner-models"
 
+// ollamaStorageVolumeName is the name to use for the ollama storage volume.
+const ollamaStorageVolumeName = "ollama"
+
 // EnsureModelStorageVolume ensures that a model storage volume exists, creating
 // it if necessary. It returns the name of the storage volume or any error that
 // occurred.
@@ -52,6 +55,59 @@ func PruneModelStorageVolumes(ctx context.Context, dockerClient client.VolumeAPI
 	pruned, err := dockerClient.VolumesPrune(ctx, filters.NewArgs(
 		filters.Arg("all", "true"),
 		filters.Arg("label", labelRole+"="+roleModelStorage),
+	))
+	if err != nil {
+		return err
+	}
+	for _, volume := range pruned.VolumesDeleted {
+		printer.Println("Removed volume", volume)
+	}
+	if pruned.SpaceReclaimed > 0 {
+		printer.Printf("Reclaimed %d bytes\n", pruned.SpaceReclaimed)
+	}
+	return nil
+}
+
+// EnsureOllamaStorageVolume ensures that an ollama storage volume exists, creating
+// it if necessary. It returns the name of the storage volume or any error that
+// occurred.
+func EnsureOllamaStorageVolume(ctx context.Context, dockerClient client.VolumeAPIClient, printer StatusPrinter) (string, error) {
+	// Try to identify the storage volume.
+	volumes, err := dockerClient.VolumeList(ctx, volume.ListOptions{
+		Filters: filters.NewArgs(
+			filters.Arg("label", labelRole+"="+roleOllamaStorage),
+		),
+	})
+	if err != nil {
+		return "", fmt.Errorf("unable to list volumes: %w", err)
+	}
+
+	// If any volumes with the correct role exist (ideally there should only be
+	// one), then pick the first one.
+	if len(volumes.Volumes) > 0 {
+		return volumes.Volumes[0].Name, nil
+	}
+
+	// Create the volume.
+	printer.Printf("Creating ollama storage volume %s...\n", ollamaStorageVolumeName)
+	volume, err := dockerClient.VolumeCreate(ctx, volume.CreateOptions{
+		Name: ollamaStorageVolumeName,
+		Labels: map[string]string{
+			labelDesktopService: serviceModelRunner,
+			labelRole:           roleOllamaStorage,
+		},
+	})
+	if err != nil {
+		return "", fmt.Errorf("unable to create volume: %w", err)
+	}
+	return volume.Name, nil
+}
+
+// PruneOllamaStorageVolumes removes any unused ollama storage volume(s).
+func PruneOllamaStorageVolumes(ctx context.Context, dockerClient client.VolumeAPIClient, printer StatusPrinter) error {
+	pruned, err := dockerClient.VolumesPrune(ctx, filters.NewArgs(
+		filters.Arg("all", "true"),
+		filters.Arg("label", labelRole+"="+roleOllamaStorage),
 	))
 	if err != nil {
 		return err
