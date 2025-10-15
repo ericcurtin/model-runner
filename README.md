@@ -247,6 +247,37 @@ curl http://localhost:8080/metrics
 
 Check [METRICS.md](./METRICS.md) for more details.
 
+## Kubernetes Deployment
+
+Docker Model Runner provides production-ready deployment guides for running vLLM on Kubernetes with advanced features:
+
+- **Intelligent Inference Scheduling** - Load balancing optimized for LLM workloads
+- **Prefill/Decode Disaggregation** - Improved latency and throughput
+- **Wide Expert-Parallelism** - Support for large Mixture-of-Experts models
+- **Multi-GPU Support** - NVIDIA, AMD, Google TPU, and Intel XPU
+
+### Quick Start
+
+```bash
+# List available deployment configurations
+docker model k8s list-configs
+
+# View deployment guides
+docker model k8s guide
+
+# Deploy vLLM with intelligent scheduling
+docker model k8s deploy --config inference-scheduling --namespace vllm-inference
+```
+
+### Prerequisites
+
+- Kubernetes cluster (version 1.29+)
+- kubectl configured to access your cluster
+- helm (version 3.x+)
+- GPU-enabled nodes
+
+For detailed deployment instructions, see the [k8s directory](./k8s/README.md).
+
 ## Community
 
 For general questions and discussion, please use [Docker Model Runner's Slack channel](https://app.slack.com/client/T0JK1PCN6/C09H9P5E57B).
