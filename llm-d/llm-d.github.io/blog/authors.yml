@@ -1,0 +1,97 @@
+redhat:
+  name: RedHat
+  url: https://redhat.com
+  image_url: https://www.redhat.com/rhdc/managed-files/Logo-Red_Hat-Hat_icon-Standard-RGB.svg
+
+
+robshaw:
+  name: Robert Shaw
+  title: Director of Engineering, Red Hat
+  url: https://github.com/robertgshaw2-redhat
+  image_url: https://avatars.githubusercontent.com/u/114415538?v=4
+  email: robshaw@redhat.com
+
+smarterclayton:
+  name: Clayton Coleman
+  title: Distinguished Engineer, Google
+  url: https://github.com/smarterclayton
+  image_url: https://avatars.githubusercontent.com/u/1163175?v=4
+  email: claytoncoleman@google.com
+
+chcost:
+  name: Carlos Costa
+  title: Distinguished Engineer, IBM
+  url: https://github.com/chcost
+  image_url: https://avatars.githubusercontent.com/u/26551701?v=4
+  email: chcost@us.ibm.com
+
+petecheslock:
+  name: Pete Cheslock
+  title: AI Community Architect, Red Hat
+  url: https://github.com/petecheslock
+  image_url: https://avatars.githubusercontent.com/u/511733?v=4
+  email: pete.cheslock@redhat.com
+
+cnuland:
+  name: Christopher Nuland
+  title: Principal Technical Marketing Manager for AI, Red Hat
+  url: https://github.com/cnuland
+  image_url: /img/blogs/cnuland.jpeg
+
+niliguy:
+  name: Nili Guy
+  title: R&D Manager, AI Infrastructure, IBM
+  url: https://www.linkedin.com/in/nilig/
+  image_url: /img/blogs/niliguy.jpg
+  
+etailevran:
+  name: Etai Lev Ran
+  title: Cloud Architect, IBM
+  url: https://www.linkedin.com/in/elevran/
+  image_url: /img/blogs/etailevran.jpg
+
+vitabortnikov:
+  name: Vita Bortnikov
+  title: IBM Fellow, IBM
+  url: https://www.linkedin.com/in/vita-bortnikov/
+  image_url: /img/blogs/vitabortnikov.jpg
+
+maroonayoub:
+  name: Maroon Ayoub
+  title: Research Scientist & Architect, IBM
+  url: https://www.linkedin.com/in/v-maroon/
+  image_url: /img/blogs/maroonayoub.jpg
+
+dannyharnik:
+  name: Danny Harnik
+  title: Senior Technical Staff Member, IBM
+  url: https://www.linkedin.com/in/danny-harnik-19a95436/
+  image_url: /img/blogs/dannyharnik.jpg
+
+tylersmith:
+  name: Tyler Smith
+  title: Member of Technical Staff, Red Hat
+  url: https://www.linkedin.com/in/tyler-michael-smith-017b28102/
+  image_url: /img/blogs/tylersmith.jpg
+
+kellenswain:
+  name: Kellen Swain
+  title: Software Engineer, Google
+  url: https://www.linkedin.com/in/kellen-swain/
+  image_url: /img/blogs/kellenswain.jpg
+
+xiningwang:
+  name: Xining Wang
+  title: Senior Technical Expert, Alibaba Cloud
+  image_url: /img/blogs/xiningwang.png
+
+hangyin:
+  name: Hang Yin
+  title: Senior R&D Engineer, Alibaba Cloud
+  image_url: /img/blogs/hangyin.png
+
+kayyan:
+  name: Kay Yan
+  title: Principal Software Engineer, DaoCloud
+  url: https://www.linkedin.com/in/yankay/
+  image_url: /img/blogs/kayyan.jpg
