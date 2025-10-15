@@ -72,6 +72,80 @@ func inspectStandaloneRunner(container container.Summary) *standaloneRunner {
 	return result
 }
 
+// ensureOllamaRunnerAvailable is a utility function that ensures an ollama runner
+// is available. Unlike the regular runner, ollama runners are always used via
+// controller containers on all platforms.
+func ensureOllamaRunnerAvailable(ctx context.Context, printer standalone.StatusPrinter) (*standaloneRunner, error) {
+	// For ollama, we always use controller containers on all platforms
+	// If automatic installation has been disabled, then don't do anything.
+	if os.Getenv("MODEL_RUNNER_NO_AUTO_INSTALL") != "" {
+		return nil, nil
+	}
+
+	// Ensure that the output printer is non-nil.
+	if printer == nil {
+		printer = standalone.NoopPrinter()
+	}
+
+	// Create a Docker client for the active context.
+	dockerClient, err := desktop.DockerClientForContext(dockerCLI, dockerCLI.CurrentContext())
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Docker client: %w", err)
+	}
+
+	// Check if an ollama runner container exists.
+	containerID, _, container, err := standalone.FindOllamaControllerContainer(ctx, dockerClient)
+	if err != nil {
+		return nil, fmt.Errorf("unable to identify existing ollama runner: %w", err)
+	} else if containerID != "" {
+		return inspectStandaloneRunner(container), nil
+	}
+
+	// Automatically determine GPU support.
+	gpu, err := gpupkg.ProbeGPUSupport(ctx, dockerClient)
+	if err != nil {
+		return nil, fmt.Errorf("unable to probe GPU support: %w", err)
+	}
+
+	// Ensure that we have an up-to-date copy of the ollama image.
+	if err := standalone.EnsureOllamaImage(ctx, dockerClient, gpu, "", printer); err != nil {
+		return nil, fmt.Errorf("unable to pull latest ollama image: %w", err)
+	}
+
+	// Ensure that we have an ollama storage volume.
+	modelStorageVolume, err := standalone.EnsureOllamaStorageVolume(ctx, dockerClient, printer)
+	if err != nil {
+		return nil, fmt.Errorf("unable to initialize ollama storage: %w", err)
+	}
+
+	// Create the ollama runner container.
+	port := uint16(standalone.DefaultOllamaPort)
+	host := "127.0.0.1"
+	engineKind := modelRunner.EngineKind()
+	environment := "moby"
+	if engineKind == types.ModelRunnerEngineKindCloud {
+		environment = "cloud"
+	}
+	if err := standalone.CreateOllamaControllerContainer(ctx, dockerClient, port, host, environment, false, gpu, "", modelStorageVolume, printer, engineKind); err != nil {
+		return nil, fmt.Errorf("unable to initialize ollama container: %w", err)
+	}
+
+	// Poll until we get a response from the ollama runner.
+	// Note: We reuse the same wait logic, assuming ollama responds similarly
+	if err := waitForStandaloneRunnerAfterInstall(ctx); err != nil {
+		return nil, err
+	}
+
+	// Find the runner container.
+	containerID, _, container, err = standalone.FindOllamaControllerContainer(ctx, dockerClient)
+	if err != nil {
+		return nil, fmt.Errorf("unable to identify existing ollama runner: %w", err)
+	} else if containerID == "" {
+		return nil, errors.New("ollama runner not found after installation")
+	}
+	return inspectStandaloneRunner(container), nil
+}
+
 // ensureStandaloneRunnerAvailable is a utility function that other commands can
 // use to initialize a default standalone model runner. It is a no-op in
 // unsupported contexts or if automatic installs have been disabled.
