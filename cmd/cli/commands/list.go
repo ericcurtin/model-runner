@@ -2,6 +2,7 @@ package commands
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"slices"
@@ -14,6 +15,7 @@ import (
 	"github.com/docker/model-runner/cmd/cli/desktop"
 	"github.com/docker/model-runner/cmd/cli/pkg/ollama"
 	"github.com/docker/model-runner/cmd/cli/pkg/standalone"
+	disttypes "github.com/docker/model-runner/pkg/distribution/types"
 	dmrm "github.com/docker/model-runner/pkg/inference/models"
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
@@ -28,14 +30,15 @@ func listOllamaModels() ([]ollama.Model, error) {
 		return nil, nil // Silently skip if we can't get a docker client
 	}
 
-	ctrID, _, _, err := standalone.FindOllamaContainer(dockerCLI.CurrentContext(), dockerClient)
+	ctx := context.Background()
+	ctrID, _, _, err := standalone.FindOllamaContainer(ctx, dockerClient)
 	if err != nil || ctrID == "" {
 		return nil, nil // Ollama runner not available, skip silently
 	}
 
 	// List models from Ollama
 	ollamaClient := ollama.NewClient("http://localhost:" + fmt.Sprintf("%d", standalone.DefaultOllamaPort))
-	models, err := ollamaClient.List(dockerCLI.CurrentContext())
+	models, err := ollamaClient.List(ctx)
 	if err != nil {
 		return nil, nil // Silently skip on error
 	}
@@ -123,7 +126,7 @@ func listModels(openai bool, backend string, desktopClient *desktop.Client, quie
 				ID:      "ollama:" + om.Digest,
 				Tags:    []string{"ollama.com/" + om.Name},
 				Created: 0, // We don't have creation time from Ollama
-				Config: dmrm.ModelConfig{
+				Config: disttypes.Config{
 					Size: units.HumanSize(float64(om.Size)),
 				},
 			}
