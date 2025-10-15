@@ -14,6 +14,8 @@ import (
 	"github.com/charmbracelet/glamour"
 	"github.com/docker/model-runner/cmd/cli/commands/completion"
 	"github.com/docker/model-runner/cmd/cli/desktop"
+	"github.com/docker/model-runner/cmd/cli/pkg/ollama"
+	"github.com/docker/model-runner/cmd/cli/pkg/standalone"
 	"github.com/docker/model-runner/cmd/cli/readline"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
@@ -599,9 +601,7 @@ func newRunCmd() *cobra.Command {
 				if _, err := ensureOllamaRunnerAvailable(cmd.Context(), cmd); err != nil {
 					return fmt.Errorf("unable to initialize ollama runner: %w", err)
 				}
-				// TODO: Implement ollama-specific run logic that communicates
-				// with the ollama daemon on port 11434
-				return fmt.Errorf("ollama model run not yet implemented - please use 'docker exec -it docker-ollama-runner ollama run %s'", model)
+				return runOllamaModel(cmd, model, prompt, detach, debug)
 			}
 
 			if _, err := ensureStandaloneRunnerAvailable(cmd.Context(), cmd); err != nil {
@@ -675,4 +675,270 @@ func newRunCmd() *cobra.Command {
 	c.Flags().BoolVarP(&detach, "detach", "d", false, "Load the model in the background without interaction")
 
 	return c
+}
+
+func runOllamaModel(cmd *cobra.Command, model, prompt string, detach, debug bool) error {
+	// Extract the model name from the ollama.com URL
+	modelName := ollama.ExtractModelName(model)
+	
+	// Create an ollama client
+	ollamaClient := ollama.NewClient(fmt.Sprintf("http://localhost:%d", standalone.DefaultOllamaPort))
+	
+	if debug {
+		if prompt == "" {
+			cmd.Printf("Running ollama model %s\n", model)
+		} else {
+			cmd.Printf("Running ollama model %s with prompt %s\n", model, prompt)
+		}
+	}
+	
+	// Handle --detach flag: just load the model without interaction
+	if detach {
+		// Make a minimal request to load the model into memory
+		err := ollamaClient.Generate(cmd.Context(), modelName, "", func(content string) {
+			// Silently discard output in detach mode
+		})
+		if err != nil {
+			return fmt.Errorf("failed to load model: %w", err)
+		}
+		if debug {
+			cmd.Printf("Model %s loaded successfully\n", model)
+		}
+		return nil
+	}
+	
+	if prompt != "" {
+		// Single prompt mode
+		err := ollamaClient.Chat(cmd.Context(), modelName, prompt, func(content string) {
+			cmd.Print(content)
+		})
+		if err != nil {
+			return fmt.Errorf("failed to generate a response: %w", err)
+		}
+		cmd.Println()
+		return nil
+	}
+	
+	// Interactive mode
+	if term.IsTerminal(int(os.Stdin.Fd())) {
+		return runOllamaInteractiveWithReadline(cmd, ollamaClient, modelName)
+	}
+	
+	// Fall back to basic mode if not a terminal
+	return runOllamaInteractiveBasic(cmd, ollamaClient, modelName)
+}
+
+func runOllamaInteractiveWithReadline(cmd *cobra.Command, client *ollama.Client, modelName string) error {
+	usage := func() {
+		fmt.Fprintln(os.Stderr, "Available Commands:")
+		fmt.Fprintln(os.Stderr, "  /bye            Exit")
+		fmt.Fprintln(os.Stderr, "  /?, /help       Help for a command")
+		fmt.Fprintln(os.Stderr, "  /? shortcuts    Help for keyboard shortcuts")
+		fmt.Fprintln(os.Stderr, "")
+		fmt.Fprintln(os.Stderr, `Use """ to begin a multi-line message.`)
+		fmt.Fprintln(os.Stderr, "")
+	}
+
+	usageShortcuts := func() {
+		fmt.Fprintln(os.Stderr, "Available keyboard shortcuts:")
+		fmt.Fprintln(os.Stderr, "  Ctrl + a            Move to the beginning of the line (Home)")
+		fmt.Fprintln(os.Stderr, "  Ctrl + e            Move to the end of the line (End)")
+		fmt.Fprintln(os.Stderr, "   Alt + b            Move back (left) one word")
+		fmt.Fprintln(os.Stderr, "   Alt + f            Move forward (right) one word")
+		fmt.Fprintln(os.Stderr, "  Ctrl + k            Delete the sentence after the cursor")
+		fmt.Fprintln(os.Stderr, "  Ctrl + u            Delete the sentence before the cursor")
+		fmt.Fprintln(os.Stderr, "  Ctrl + w            Delete the word before the cursor")
+		fmt.Fprintln(os.Stderr, "")
+		fmt.Fprintln(os.Stderr, "  Ctrl + l            Clear the screen")
+		fmt.Fprintln(os.Stderr, "  Ctrl + c            Stop the model from responding")
+		fmt.Fprintln(os.Stderr, "  Ctrl + d            Exit (/bye)")
+		fmt.Fprintln(os.Stderr, "")
+	}
+
+	scanner, err := readline.New(readline.Prompt{
+		Prompt:         "> ",
+		AltPrompt:      ". ",
+		Placeholder:    "Send a message (/? for help)",
+		AltPlaceholder: `Use """ to end multi-line input`,
+	})
+	if err != nil {
+		// Fall back to basic input mode if readline initialization fails
+		return runOllamaInteractiveBasic(cmd, client, modelName)
+	}
+
+	// Disable history if the environment variable is set
+	if os.Getenv("DOCKER_MODEL_NOHISTORY") != "" {
+		scanner.HistoryDisable()
+	}
+
+	fmt.Print(readline.StartBracketedPaste)
+	defer fmt.Printf(readline.EndBracketedPaste)
+
+	var sb strings.Builder
+	var multiline bool
+
+	for {
+		line, err := scanner.Readline()
+		switch {
+		case errors.Is(err, io.EOF):
+			fmt.Println()
+			return nil
+		case errors.Is(err, readline.ErrInterrupt):
+			if line == "" {
+				fmt.Println("\nUse Ctrl + d or /bye to exit.")
+			}
+
+			scanner.Prompt.UseAlt = false
+			sb.Reset()
+
+			continue
+		case err != nil:
+			return err
+		}
+
+		switch {
+		case multiline:
+			// check if there's a multiline terminating string
+			before, ok := strings.CutSuffix(line, `"""`)
+			sb.WriteString(before)
+			if !ok {
+				fmt.Fprintln(&sb)
+				continue
+			}
+
+			multiline = false
+			scanner.Prompt.UseAlt = false
+		case strings.HasPrefix(line, `"""`):
+			line := strings.TrimPrefix(line, `"""`)
+			line, ok := strings.CutSuffix(line, `"""`)
+			sb.WriteString(line)
+			if !ok {
+				// no multiline terminating string; need more input
+				fmt.Fprintln(&sb)
+				multiline = true
+				scanner.Prompt.UseAlt = true
+			}
+		case scanner.Pasting:
+			fmt.Fprintln(&sb, line)
+			continue
+		case strings.HasPrefix(line, "/help"), strings.HasPrefix(line, "/?"):
+			args := strings.Fields(line)
+			if len(args) > 1 {
+				switch args[1] {
+				case "shortcut", "shortcuts":
+					usageShortcuts()
+				default:
+					usage()
+				}
+			} else {
+				usage()
+			}
+			continue
+		case strings.HasPrefix(line, "/exit"), strings.HasPrefix(line, "/bye"):
+			return nil
+		case strings.HasPrefix(line, "/"):
+			fmt.Printf("Unknown command '%s'. Type /? for help\n", strings.Fields(line)[0])
+			continue
+		default:
+			sb.WriteString(line)
+		}
+
+		if sb.Len() > 0 && !multiline {
+			userInput := sb.String()
+
+			// Create a cancellable context for the chat request
+			chatCtx, cancelChat := context.WithCancel(cmd.Context())
+			
+			// Set up signal handler to cancel the context on Ctrl+C
+			sigChan := make(chan os.Signal, 1)
+			signal.Notify(sigChan, syscall.SIGINT)
+			go func() {
+				select {
+				case <-sigChan:
+					cancelChat()
+				case <-chatCtx.Done():
+					// Context cancelled, exit goroutine
+				}
+			}()
+
+			err := client.Chat(chatCtx, modelName, userInput, func(content string) {
+				cmd.Print(content)
+			})
+			
+			// Clean up signal handler
+			signal.Stop(sigChan)
+			cancelChat()
+
+			if err != nil {
+				// Check if the error is due to context cancellation (Ctrl+C during response)
+				if errors.Is(err, context.Canceled) {
+					cmd.Println()
+				} else {
+					cmd.PrintErrln(fmt.Errorf("failed to generate a response: %w", err))
+				}
+				sb.Reset()
+				continue
+			}
+
+			cmd.Println()
+			sb.Reset()
+		}
+	}
+}
+
+func runOllamaInteractiveBasic(cmd *cobra.Command, client *ollama.Client, modelName string) error {
+	scanner := bufio.NewScanner(os.Stdin)
+	for {
+		userInput, err := readMultilineInput(cmd, scanner)
+		if err != nil {
+			if err.Error() == "EOF" {
+				break
+			}
+			return fmt.Errorf("error reading input: %v", err)
+		}
+
+		if strings.ToLower(strings.TrimSpace(userInput)) == "/bye" {
+			break
+		}
+
+		if strings.TrimSpace(userInput) == "" {
+			continue
+		}
+
+		// Create a cancellable context for the chat request
+		chatCtx, cancelChat := context.WithCancel(cmd.Context())
+		
+		// Set up signal handler to cancel the context on Ctrl+C
+		sigChan := make(chan os.Signal, 1)
+		signal.Notify(sigChan, syscall.SIGINT)
+		go func() {
+			select {
+			case <-sigChan:
+				cancelChat()
+			case <-chatCtx.Done():
+				// Context cancelled, exit goroutine
+			}
+		}()
+
+		err = client.Chat(chatCtx, modelName, userInput, func(content string) {
+			cmd.Print(content)
+		})
+		
+		cancelChat()
+		signal.Stop(sigChan)
+		cancelChat()
+
+		if err != nil {
+			// Check if the error is due to context cancellation (Ctrl+C during response)
+			if errors.Is(err, context.Canceled) {
+				fmt.Println("\nUse Ctrl + d or /bye to exit.")
+			} else {
+				cmd.PrintErrln(fmt.Errorf("failed to generate a response: %w", err))
+			}
+			continue
+		}
+
+		cmd.Println()
+	}
+	return nil
 }
