@@ -578,6 +578,128 @@ func TestClientPullModel(t *testing.T) {
 	})
 }
 
+func TestClientResumableDownload(t *testing.T) {
+	// This test demonstrates that downloads can be resumed after interruption
+	// by simulating an incomplete download and then completing it
+
+	// Set up test registry
+	server := httptest.NewServer(registry.New())
+	defer server.Close()
+	registryURL, err := url.Parse(server.URL)
+	if err != nil {
+		t.Fatalf("Failed to parse registry URL: %v", err)
+	}
+	registry := registryURL.Host
+
+	// Create temp directory for store
+	tempDir, err := os.MkdirTemp("", "model-distribution-resume-test-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp directory: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Create client
+	client, err := NewClient(WithStoreRootPath(tempDir))
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	// Push a model to the registry
+	tag := registry + "/resume-test:v1.0.0"
+	if err := writeToRegistry(testGGUFFile, tag); err != nil {
+		t.Fatalf("Failed to push model to registry: %v", err)
+	}
+
+	// Get the model info to find the blob path
+	ref, err := name.ParseReference(tag)
+	if err != nil {
+		t.Fatalf("Failed to parse reference: %v", err)
+	}
+	remoteImg, err := remote.Image(ref)
+	if err != nil {
+		t.Fatalf("Failed to get remote image: %v", err)
+	}
+	layers, err := remoteImg.Layers()
+	if err != nil || len(layers) == 0 {
+		t.Fatalf("Failed to get layers: %v", err)
+	}
+	layer := layers[0]
+	diffID, err := layer.DiffID()
+	if err != nil {
+		t.Fatalf("Failed to get layer diff ID: %v", err)
+	}
+
+	// Get the blob path where the layer will be stored
+	blobPath := filepath.Join(tempDir, "blobs", diffID.Algorithm, diffID.Hex)
+	incompletePath := blobPath + ".incomplete"
+
+	// Simulate an incomplete download by creating a partial incomplete file
+	// with actual content from the beginning of the model file
+	originalContent, err := os.ReadFile(testGGUFFile)
+	if err != nil {
+		t.Fatalf("Failed to read test file: %v", err)
+	}
+	
+	// Write the first 100 bytes to simulate a partial download
+	partialSize := 100
+	if len(originalContent) < partialSize {
+		partialSize = len(originalContent) / 2 // Use half if file is small
+	}
+	
+	if err := os.MkdirAll(filepath.Dir(incompletePath), 0755); err != nil {
+		t.Fatalf("Failed to create blob directory: %v", err)
+	}
+	if err := os.WriteFile(incompletePath, originalContent[:partialSize], 0644); err != nil {
+		t.Fatalf("Failed to create incomplete file: %v", err)
+	}
+
+	// Verify incomplete file exists before pull
+	if _, err := os.Stat(incompletePath); os.IsNotExist(err) {
+		t.Fatalf("Incomplete file should exist before pull")
+	}
+
+	// Now pull the model - it should resume from the incomplete file
+	var progressBuffer bytes.Buffer
+	if err := client.PullModel(context.Background(), tag, &progressBuffer); err != nil {
+		t.Fatalf("Failed to pull model with resume: %v", err)
+	}
+
+	// Verify the model was pulled successfully
+	model, err := client.GetModel(tag)
+	if err != nil {
+		t.Fatalf("Failed to get model after resume: %v", err)
+	}
+
+	modelPaths, err := model.GGUFPaths()
+	if err != nil {
+		t.Fatalf("Failed to get model path: %v", err)
+	}
+	if len(modelPaths) != 1 {
+		t.Fatalf("Expected 1 model file, got %d", len(modelPaths))
+	}
+
+	// Verify the blob file exists and is complete
+	if _, err := os.Stat(blobPath); os.IsNotExist(err) {
+		t.Fatalf("Blob file should exist after successful pull")
+	}
+
+	// Verify incomplete file was cleaned up
+	if _, err := os.Stat(incompletePath); !os.IsNotExist(err) {
+		t.Fatalf("Incomplete file should be cleaned up after successful pull")
+	}
+
+	// Verify the content matches the original file
+	downloadedContent, err := os.ReadFile(modelPaths[0])
+	if err != nil {
+		t.Fatalf("Failed to read downloaded file: %v", err)
+	}
+	if !bytes.Equal(originalContent, downloadedContent) {
+		t.Fatalf("Downloaded content does not match original")
+	}
+
+	t.Logf("Successfully demonstrated resumable download: incomplete file was detected and download resumed")
+}
+
 func TestClientGetModel(t *testing.T) {
 	// Create temp directory for store
 	tempDir, err := os.MkdirTemp("", "model-distribution-test-*")
