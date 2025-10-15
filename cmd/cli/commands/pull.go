@@ -6,6 +6,8 @@ import (
 
 	"github.com/docker/model-runner/cmd/cli/commands/completion"
 	"github.com/docker/model-runner/cmd/cli/desktop"
+	"github.com/docker/model-runner/cmd/cli/pkg/ollama"
+	"github.com/docker/model-runner/cmd/cli/pkg/standalone"
 	"github.com/mattn/go-isatty"
 	"github.com/spf13/cobra"
 )
@@ -34,9 +36,7 @@ func newPullCmd() *cobra.Command {
 				if _, err := ensureOllamaRunnerAvailable(cmd.Context(), cmd); err != nil {
 					return fmt.Errorf("unable to initialize ollama runner: %w", err)
 				}
-				// TODO: Implement ollama-specific pull logic that communicates
-				// with the ollama daemon on port 11434
-				return fmt.Errorf("ollama model pull not yet implemented - please use 'docker exec docker-ollama-runner ollama pull %s'", model)
+				return pullOllamaModel(cmd, model)
 			}
 			if _, err := ensureStandaloneRunnerAvailable(cmd.Context(), cmd); err != nil {
 				return fmt.Errorf("unable to initialize standalone model runner: %w", err)
@@ -79,4 +79,34 @@ func TUIProgress(message string) {
 
 func RawProgress(message string) {
 	fmt.Println(message)
+}
+
+func pullOllamaModel(cmd *cobra.Command, model string) error {
+	// Extract the model name from the ollama.com URL
+	modelName := ollama.ExtractModelName(model)
+
+	// Create an ollama client
+	ollamaClient := ollama.NewClient(fmt.Sprintf("http://localhost:%d", standalone.DefaultOllamaPort))
+
+	var progress func(string)
+	if isatty.IsTerminal(os.Stdout.Fd()) {
+		progress = TUIProgress
+	} else {
+		progress = RawProgress
+	}
+
+	// Pull the model
+	err := ollamaClient.Pull(cmd.Context(), modelName, progress)
+
+	// Add a newline after progress if shown
+	if isatty.IsTerminal(os.Stdout.Fd()) {
+		cmd.Println()
+	}
+
+	if err != nil {
+		return fmt.Errorf("failed to pull model: %w", err)
+	}
+
+	cmd.Printf("Successfully pulled %s\n", model)
+	return nil
 }
