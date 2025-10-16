@@ -119,7 +119,7 @@ func listModels(openai bool, backend string, desktopClient *desktop.Client, quie
 			err = handleClientError(err, "Failed to list models")
 			return "", handleNotRunningError(err)
 		}
-		
+
 		// Support different output formats
 		if openai || jsonFormat {
 			return formatter.ToStandardJSON(models)
