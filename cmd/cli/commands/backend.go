@@ -23,7 +23,6 @@ type ServerPreset struct {
 
 // ServerPresets defines the available server presets
 var ServerPresets = []ServerPreset{
-	{"dmr", "http://127.0.0.1:12434/engines/llama.cpp/v1"},
 	{"llamacpp", "http://127.0.0.1:8080/v1"},
 	{"ollama", "http://127.0.0.1:11434/v1"},
 	{"openrouter", "https://openrouter.ai/api/v1"},
@@ -51,19 +50,10 @@ func ensureAPIKey(backend string) (string, error) {
 
 // resolveServerURL determines the server URL from flags
 // Returns: (url, useOpenAI, apiKey, error)
-func resolveServerURL(host, customURL string, port int, dmr, llamacpp, ollama, openrouter bool) (string, bool, string, error) {
+func resolveServerURL(host, customURL, urlAlias string, port int) (string, bool, string, error) {
 	// Count how many server options are specified
 	presetCount := 0
-	if dmr {
-		presetCount++
-	}
-	if llamacpp {
-		presetCount++
-	}
-	if ollama {
-		presetCount++
-	}
-	if openrouter {
+	if urlAlias != "" {
 		presetCount++
 	}
 	if customURL != "" {
@@ -72,15 +62,15 @@ func resolveServerURL(host, customURL string, port int, dmr, llamacpp, ollama, o
 
 	// Check for conflicting options
 	if presetCount > 1 {
-		return "", false, "", errors.New("only one of --url, --dmr, --llamacpp, --ollama, or --openrouter can be specified")
+		return "", false, "", errors.New("only one of --url or --url-alias can be specified")
 	}
 
 	// Check for conflicting host/port with URL/preset options
 	hostPortSpecified := host != "" || port != 0
-	urlPresetSpecified := customURL != "" || dmr || llamacpp || ollama || openrouter
+	urlPresetSpecified := customURL != "" || urlAlias != ""
 
 	if hostPortSpecified && urlPresetSpecified {
-		return "", false, "", errors.New("cannot specify both --host/--port and --url/preset options (--dmr, --llamacpp, --ollama, --openrouter)")
+		return "", false, "", errors.New("cannot specify both --host/--port and --url/--url-alias options")
 	}
 
 	// Resolve the URL
@@ -91,23 +81,22 @@ func resolveServerURL(host, customURL string, port int, dmr, llamacpp, ollama, o
 	if customURL != "" {
 		serverURL = customURL
 		useOpenAI = true
-	} else if dmr {
-		serverURL = "http://127.0.0.1:12434/engines/llama.cpp/v1"
-		useOpenAI = true
-	} else if llamacpp {
-		serverURL = "http://127.0.0.1:8080/v1"
-		useOpenAI = true
-	} else if ollama {
-		serverURL = "http://127.0.0.1:11434/v1"
-		useOpenAI = true
-	} else if openrouter {
-		serverURL = "https://openrouter.ai/api/v1"
-		useOpenAI = true
-		// For openrouter, require API key
-		apiKey = os.Getenv("OPENAI_API_KEY")
-		if apiKey == "" {
-			return "", false, "", errors.New("OPENAI_API_KEY environment variable is required when using --openrouter")
+	} else if urlAlias != "" {
+		// Find the matching preset
+		found := false
+		for _, preset := range ServerPresets {
+			if preset.Name == urlAlias {
+				serverURL = preset.URL
+				useOpenAI = true
+				found = true
+				break
+			}
 		}
+		if !found {
+			return "", false, "", fmt.Errorf("invalid url-alias '%s'. Valid options are: llamacpp, ollama, openrouter", urlAlias)
+		}
+
+		apiKey = os.Getenv("OPENAI_API_KEY")
 	} else if hostPortSpecified {
 		// Use custom host/port for model-runner endpoint
 		if host == "" {
