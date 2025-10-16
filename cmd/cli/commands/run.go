@@ -535,6 +535,10 @@ func newRunCmd() *cobra.Command {
 	var ignoreRuntimeMemoryCheck bool
 	var colorMode string
 	var detach bool
+	var host string
+	var port int
+	var customURL string
+	var dmr, llamacpp, ollama, openrouter bool
 
 	const cmdArgs = "MODEL [PROMPT]"
 	c := &cobra.Command{
@@ -549,6 +553,23 @@ func newRunCmd() *cobra.Command {
 			}
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// Resolve server URL from flags
+			serverURL, useOpenAI, apiKey, err := resolveServerURL(host, customURL, port, dmr, llamacpp, ollama, openrouter)
+			if err != nil {
+				return err
+			}
+
+			// Override model runner context if server URL is specified
+			if serverURL != "" {
+				if err := overrideModelRunnerContextFromURL(serverURL, useOpenAI); err != nil {
+					return err
+				}
+			} else if host != "" || port != 0 {
+				if err := overrideModelRunnerContext(host, port); err != nil {
+					return err
+				}
+			}
+
 			// Validate backend if specified
 			if backend != "" {
 				if err := validateBackend(backend); err != nil {
@@ -556,10 +577,17 @@ func newRunCmd() *cobra.Command {
 				}
 			}
 
-			// Validate API key for OpenAI backend
-			apiKey, err := ensureAPIKey(backend)
-			if err != nil {
-				return err
+			// Validate API key for OpenAI backend (legacy backend flag)
+			if backend != "" && apiKey == "" {
+				apiKey, err = ensureAPIKey(backend)
+				if err != nil {
+					return err
+				}
+			}
+
+			// If using OpenAI-compatible endpoints, set backend to "openai"
+			if useOpenAI && backend == "" {
+				backend = "openai"
 			}
 
 			// Normalize model name to add default org and tag if missing
@@ -664,6 +692,15 @@ func newRunCmd() *cobra.Command {
 	c.Flags().BoolVar(&ignoreRuntimeMemoryCheck, "ignore-runtime-memory-check", false, "Do not block pull if estimated runtime memory for model exceeds system resources.")
 	c.Flags().StringVar(&colorMode, "color", "auto", "Use colored output (auto|yes|no)")
 	c.Flags().BoolVarP(&detach, "detach", "d", false, "Load the model in the background without interaction")
+
+	// Server connection flags
+	c.Flags().StringVar(&host, "host", "", "Host address to bind Docker Model Runner (default \"127.0.0.1\")")
+	c.Flags().IntVar(&port, "port", 0, "Docker container port for Docker Model Runner (default: 12434)")
+	c.Flags().StringVar(&customURL, "url", "", "Base URL for the model API")
+	c.Flags().BoolVar(&dmr, "dmr", false, "Use docker model runner (default: http://127.0.0.1:12434/engines/llama.cpp/v1)")
+	c.Flags().BoolVar(&llamacpp, "llamacpp", false, "Use llama.cpp server (default: http://127.0.0.1:8080/v1)")
+	c.Flags().BoolVar(&ollama, "ollama", false, "Use ollama server (default: http://127.0.0.1:11434/v1)")
+	c.Flags().BoolVar(&openrouter, "openrouter", false, "Use openrouter server (default: https://openrouter.ai/api/v1)")
 
 	return c
 }

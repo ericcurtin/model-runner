@@ -20,11 +20,33 @@ import (
 func newListCmd() *cobra.Command {
 	var jsonFormat, openai, quiet bool
 	var backend string
+	var host string
+	var port int
+	var customURL string
+	var dmr, llamacpp, ollama, openrouter bool
+
 	c := &cobra.Command{
 		Use:     "list [OPTIONS]",
 		Aliases: []string{"ls"},
 		Short:   "List the models pulled to your local environment",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// Resolve server URL from flags
+			serverURL, useOpenAI, apiKey, err := resolveServerURL(host, customURL, port, dmr, llamacpp, ollama, openrouter)
+			if err != nil {
+				return err
+			}
+
+			// Override model runner context if server URL is specified
+			if serverURL != "" {
+				if err := overrideModelRunnerContextFromURL(serverURL, useOpenAI); err != nil {
+					return err
+				}
+			} else if host != "" || port != 0 {
+				if err := overrideModelRunnerContext(host, port); err != nil {
+					return err
+				}
+			}
+
 			// Validate backend if specified
 			if backend != "" {
 				if err := validateBackend(backend); err != nil {
@@ -32,14 +54,24 @@ func newListCmd() *cobra.Command {
 				}
 			}
 
+			// If using OpenAI-compatible endpoints, set backend to "openai" and openai flag
+			if useOpenAI {
+				if backend == "" {
+					backend = "openai"
+				}
+				openai = true
+			}
+
 			if (backend == "openai" || openai) && quiet {
 				return fmt.Errorf("--quiet flag cannot be used with --openai flag or OpenAI backend")
 			}
 
-			// Validate API key for OpenAI backend
-			apiKey, err := ensureAPIKey(backend)
-			if err != nil {
-				return err
+			// Validate API key for OpenAI backend (legacy backend flag)
+			if backend != "" && apiKey == "" {
+				apiKey, err = ensureAPIKey(backend)
+				if err != nil {
+					return err
+				}
 			}
 
 			// If we're doing an automatic install, only show the installation
@@ -69,6 +101,16 @@ func newListCmd() *cobra.Command {
 	c.Flags().BoolVarP(&quiet, "quiet", "q", false, "Only show model IDs")
 	c.Flags().StringVar(&backend, "backend", "", fmt.Sprintf("Specify the backend to use (%s)", ValidBackendsKeys()))
 	c.Flags().MarkHidden("backend")
+
+	// Server connection flags
+	c.Flags().StringVar(&host, "host", "", "Host address to bind Docker Model Runner (default \"127.0.0.1\")")
+	c.Flags().IntVar(&port, "port", 0, "Docker container port for Docker Model Runner (default: 12434)")
+	c.Flags().StringVar(&customURL, "url", "", "Base URL for the model API")
+	c.Flags().BoolVar(&dmr, "dmr", false, "Use docker model runner (default: http://127.0.0.1:12434/engines/llama.cpp/v1)")
+	c.Flags().BoolVar(&llamacpp, "llamacpp", false, "Use llama.cpp server (default: http://127.0.0.1:8080/v1)")
+	c.Flags().BoolVar(&ollama, "ollama", false, "Use ollama server (default: http://127.0.0.1:11434/v1)")
+	c.Flags().BoolVar(&openrouter, "openrouter", false, "Use openrouter server (default: https://openrouter.ai/api/v1)")
+
 	return c
 }
 
