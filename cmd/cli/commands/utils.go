@@ -83,9 +83,9 @@ func overrideModelRunnerContext(host string, port int) error {
 }
 
 // overrideModelRunnerContextFromURL updates the model runner context with a custom URL
-func overrideModelRunnerContextFromURL(url string) error {
+func overrideModelRunnerContextFromURL(url string, external bool) error {
 	// Create a new model runner context with the custom URL
-	newContext, err := desktop.NewContextWithURL(dockerCLI, url)
+	newContext, err := desktop.NewContextWithURLExternal(dockerCLI, url, external)
 	if err != nil {
 		return fmt.Errorf("unable to create model runner context with URL %s: %w", url, err)
 	}

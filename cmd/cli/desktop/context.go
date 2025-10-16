@@ -89,6 +89,8 @@ type ModelRunnerContext struct {
 	urlPrefix *url.URL
 	// client is the model runner client.
 	client DockerHttpClient
+	// externalOpenAI indicates if this context points to an external OpenAI-compatible endpoint
+	externalOpenAI bool
 }
 
 // NewContextForMock is a ModelRunnerContext constructor exposed only for the
@@ -198,7 +200,14 @@ func NewContextWithHostPort(cli *command.DockerCli, host string, port int) (*Mod
 }
 
 // NewContextWithURL creates a new ModelRunnerContext with a custom URL.
+// If external is true, this is an external OpenAI-compatible endpoint.
 func NewContextWithURL(cli *command.DockerCli, rawURL string) (*ModelRunnerContext, error) {
+	return NewContextWithURLExternal(cli, rawURL, false)
+}
+
+// NewContextWithURLExternal creates a new ModelRunnerContext with a custom URL.
+// The external parameter indicates if this is an external OpenAI-compatible endpoint.
+func NewContextWithURLExternal(cli *command.DockerCli, rawURL string, external bool) (*ModelRunnerContext, error) {
 	urlPrefix, err := url.Parse(rawURL)
 	if err != nil {
 		return nil, fmt.Errorf("invalid model runner URL (%s): %w", rawURL, err)
@@ -212,10 +221,16 @@ func NewContextWithURL(cli *command.DockerCli, rawURL string) (*ModelRunnerConte
 	}
 
 	return &ModelRunnerContext{
-		kind:      types.ModelRunnerEngineKindMobyManual,
-		urlPrefix: urlPrefix,
-		client:    client,
+		kind:           types.ModelRunnerEngineKindMobyManual,
+		urlPrefix:      urlPrefix,
+		client:         client,
+		externalOpenAI: external,
 	}, nil
+}
+
+// IsExternalOpenAI returns true if this context points to an external OpenAI-compatible endpoint.
+func (c *ModelRunnerContext) IsExternalOpenAI() bool {
+	return c.externalOpenAI
 }
 
 // EngineKind returns the Docker engine kind associated with the model runner.

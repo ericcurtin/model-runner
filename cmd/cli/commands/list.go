@@ -36,9 +36,9 @@ func newListCmd() *cobra.Command {
 				return err
 			}
 
-			// Override model runner context if host/port is specified (for model-runner endpoints)
-			if serverURL != "" && !useOpenAI {
-				if err := overrideModelRunnerContextFromURL(serverURL); err != nil {
+			// Override model runner context if server URL is specified
+			if serverURL != "" {
+				if err := overrideModelRunnerContextFromURL(serverURL, useOpenAI); err != nil {
 					return err
 				}
 			} else if host != "" || port != 0 {
