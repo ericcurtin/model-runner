@@ -10,11 +10,8 @@ func TestResolveServerURL(t *testing.T) {
 		name        string
 		host        string
 		customURL   string
+		urlAlias    string
 		port        int
-		dmr         bool
-		llamacpp    bool
-		ollama      bool
-		openrouter  bool
 		expectURL   string
 		expectOAI   bool
 		wantErr     bool
@@ -50,37 +47,30 @@ func TestResolveServerURL(t *testing.T) {
 			wantErr:   false,
 		},
 		{
-			name:      "dmr flag specified",
-			dmr:       true,
-			expectURL: "http://127.0.0.1:12434/engines/llama.cpp/v1",
-			expectOAI: true,
-			wantErr:   false,
-		},
-		{
-			name:      "llamacpp flag specified",
-			llamacpp:  true,
+			name:      "llamacpp url-alias specified",
+			urlAlias:  "llamacpp",
 			expectURL: "http://127.0.0.1:8080/v1",
 			expectOAI: true,
 			wantErr:   false,
 		},
 		{
-			name:      "ollama flag specified",
-			ollama:    true,
+			name:      "ollama url-alias specified",
+			urlAlias:  "ollama",
 			expectURL: "http://127.0.0.1:11434/v1",
 			expectOAI: true,
 			wantErr:   false,
 		},
 		{
-			name:       "openrouter flag without API key",
-			openrouter: true,
-			wantErr:    true,
+			name:     "openrouter url-alias without API key",
+			urlAlias: "openrouter",
+			wantErr:  true,
 		},
 		{
-			name:       "openrouter flag with API key",
-			openrouter: true,
-			expectURL:  "https://openrouter.ai/api/v1",
-			expectOAI:  true,
-			wantErr:    false,
+			name:      "openrouter url-alias with API key",
+			urlAlias:  "openrouter",
+			expectURL: "https://openrouter.ai/api/v1",
+			expectOAI: true,
+			wantErr:   false,
 			setupEnv: func() {
 				os.Setenv("OPENAI_API_KEY", "test-key")
 			},
@@ -96,28 +86,27 @@ func TestResolveServerURL(t *testing.T) {
 			wantErr:   false,
 		},
 		{
-			name:      "multiple preset flags (dmr + llamacpp)",
-			dmr:       true,
-			llamacpp:  true,
-			wantErr:   true,
-		},
-		{
-			name:      "multiple preset flags (url + ollama)",
+			name:      "multiple preset flags (url + url-alias)",
 			customURL: "http://test.com/v1",
-			ollama:    true,
+			urlAlias:  "ollama",
 			wantErr:   true,
 		},
 		{
-			name:      "host/port with preset flag (host + dmr)",
-			host:      "192.168.1.1",
-			dmr:       true,
-			wantErr:   true,
+			name:     "host/port with url-alias",
+			host:     "192.168.1.1",
+			urlAlias: "llamacpp",
+			wantErr:  true,
 		},
 		{
 			name:      "host/port with url",
 			host:      "192.168.1.1",
 			customURL: "http://test.com/v1",
 			wantErr:   true,
+		},
+		{
+			name:     "invalid url-alias",
+			urlAlias: "invalid",
+			wantErr:  true,
 		},
 	}
 
@@ -130,7 +119,7 @@ func TestResolveServerURL(t *testing.T) {
 				defer tt.cleanupEnv()
 			}
 
-			url, useOAI, apiKey, err := resolveServerURL(tt.host, tt.customURL, tt.port, tt.dmr, tt.llamacpp, tt.ollama, tt.openrouter)
+			url, useOAI, apiKey, err := resolveServerURL(tt.host, tt.customURL, tt.urlAlias, tt.port)
 
 			if (err != nil) != tt.wantErr {
 				t.Errorf("resolveServerURL() error = %v, wantErr %v", err, tt.wantErr)
@@ -150,7 +139,7 @@ func TestResolveServerURL(t *testing.T) {
 			}
 
 			// For openrouter, check that API key is returned
-			if tt.openrouter && !tt.wantErr {
+			if tt.urlAlias == "openrouter" && !tt.wantErr {
 				if apiKey == "" {
 					t.Errorf("resolveServerURL() expected API key for openrouter, got empty string")
 				}
