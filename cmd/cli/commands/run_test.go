@@ -188,16 +188,13 @@ func TestRunCmdServerConnectionFlags(t *testing.T) {
 		t.Errorf("Expected url flag type to be 'string', got '%s'", urlFlag.Value.Type())
 	}
 
-	// Test preset flags
-	presetFlags := []string{"dmr", "llamacpp", "ollama", "openrouter"}
-	for _, flagName := range presetFlags {
-		flag := cmd.Flags().Lookup(flagName)
-		if flag == nil {
-			t.Fatalf("--%s flag not found", flagName)
-		}
-		if flag.Value.Type() != "bool" {
-			t.Errorf("Expected %s flag type to be 'bool', got '%s'", flagName, flag.Value.Type())
-		}
+	// Test --url-alias flag
+	urlAliasFlag := cmd.Flags().Lookup("url-alias")
+	if urlAliasFlag == nil {
+		t.Fatal("--url-alias flag not found")
+	}
+	if urlAliasFlag.Value.Type() != "string" {
+		t.Errorf("Expected url-alias flag type to be 'string', got '%s'", urlAliasFlag.Value.Type())
 	}
 }
 
@@ -232,16 +229,13 @@ func TestListCmdServerConnectionFlags(t *testing.T) {
 		t.Errorf("Expected url flag type to be 'string', got '%s'", urlFlag.Value.Type())
 	}
 
-	// Test preset flags
-	presetFlags := []string{"dmr", "llamacpp", "ollama", "openrouter"}
-	for _, flagName := range presetFlags {
-		flag := cmd.Flags().Lookup(flagName)
-		if flag == nil {
-			t.Fatalf("--%s flag not found", flagName)
-		}
-		if flag.Value.Type() != "bool" {
-			t.Errorf("Expected %s flag type to be 'bool', got '%s'", flagName, flag.Value.Type())
-		}
+	// Test --url-alias flag
+	urlAliasFlag := cmd.Flags().Lookup("url-alias")
+	if urlAliasFlag == nil {
+		t.Fatal("--url-alias flag not found")
+	}
+	if urlAliasFlag.Value.Type() != "string" {
+		t.Errorf("Expected url-alias flag type to be 'string', got '%s'", urlAliasFlag.Value.Type())
 	}
 }
 

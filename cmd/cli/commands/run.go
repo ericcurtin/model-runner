@@ -538,7 +538,7 @@ func newRunCmd() *cobra.Command {
 	var host string
 	var port int
 	var customURL string
-	var dmr, llamacpp, ollama, openrouter bool
+	var urlAlias string
 
 	const cmdArgs = "MODEL [PROMPT]"
 	c := &cobra.Command{
@@ -554,7 +554,7 @@ func newRunCmd() *cobra.Command {
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Resolve server URL from flags
-			serverURL, useOpenAI, apiKey, err := resolveServerURL(host, customURL, port, dmr, llamacpp, ollama, openrouter)
+			serverURL, useOpenAI, apiKey, err := resolveServerURL(host, customURL, urlAlias, port)
 			if err != nil {
 				return err
 			}
@@ -697,10 +697,7 @@ func newRunCmd() *cobra.Command {
 	c.Flags().StringVar(&host, "host", "", "Host address to bind Docker Model Runner (default \"127.0.0.1\")")
 	c.Flags().IntVar(&port, "port", 0, "Docker container port for Docker Model Runner (default: 12434)")
 	c.Flags().StringVar(&customURL, "url", "", "Base URL for the model API")
-	c.Flags().BoolVar(&dmr, "dmr", false, "Use docker model runner (default: http://127.0.0.1:12434/engines/llama.cpp/v1)")
-	c.Flags().BoolVar(&llamacpp, "llamacpp", false, "Use llama.cpp server (default: http://127.0.0.1:8080/v1)")
-	c.Flags().BoolVar(&ollama, "ollama", false, "Use ollama server (default: http://127.0.0.1:11434/v1)")
-	c.Flags().BoolVar(&openrouter, "openrouter", false, "Use openrouter server (default: https://openrouter.ai/api/v1)")
+	c.Flags().StringVar(&urlAlias, "url-alias", "", "Use openai alias server output (llamacpp|ollama|openrouter)")
 
 	return c
 }
