@@ -247,6 +247,41 @@ curl http://localhost:8080/metrics
 
 Check [METRICS.md](./METRICS.md) for more details.
 
+## Security
+
+### CORS Protection
+
+When running the Model Runner with TCP port access (using `MODEL_RUNNER_PORT`), CORS (Cross-Origin Resource Sharing) protection is enabled by default to prevent unauthorized access from web pages.
+
+#### Default Behavior
+
+- **TCP Mode (with `MODEL_RUNNER_PORT` set)**: Only requests from `localhost` and `127.0.0.1` origins (both HTTP and HTTPS) are allowed by default. This protects against CSRF attacks from arbitrary web pages.
+- **Unix Socket Mode**: CORS is disabled as it's not needed for socket-based communication.
+
+#### Configuration
+
+You can customize allowed origins using the `DMR_ORIGINS` environment variable:
+
+```sh
+# Allow specific origins (comma-separated)
+DMR_ORIGINS="http://example.com,https://trusted.org" MODEL_RUNNER_PORT=8080 ./model-runner
+
+# Allow all origins (NOT RECOMMENDED for public-facing services)
+DMR_ORIGINS="*" MODEL_RUNNER_PORT=8080 ./model-runner
+
+# Default secure behavior (localhost only)
+MODEL_RUNNER_PORT=8080 ./model-runner
+```
+
+**Security Warning**: Using `DMR_ORIGINS="*"` allows requests from any website, which may expose your API to unauthorized access. Only use this in controlled environments.
+
+#### Example: Docker with Custom Origins
+
+```sh
+# Run with custom allowed origins
+make docker-run PORT=8080 MODELS_PATH=/path/to/models DMR_ORIGINS="http://localhost:3000,http://127.0.0.1:3000"
+```
+
 ##  Kubernetes
 
 Experimental support for running in Kubernetes is available
