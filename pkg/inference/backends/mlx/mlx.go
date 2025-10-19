@@ -1,5 +1,19 @@
 package mlx
 
+// Package mlx provides an inference backend using Apple's MLX framework.
+// MLX is optimized for Apple Silicon and uses the unified memory architecture
+// for efficient model inference.
+//
+// This backend:
+//   - Only works on macOS with Apple Silicon (arm64)
+//   - Requires Python 3.8 or later
+//   - Uses models in safetensors format
+//   - Automatically installs mlx-lm Python package in a virtual environment
+//   - Runs mlx_lm.server to provide OpenAI-compatible API
+//
+// The mlx-lm server is invoked as:
+//   python -m mlx_lm.server --model <path> --host <socket>
+
 import (
 	"context"
 	"errors"
@@ -87,11 +101,11 @@ func (m *mlx) Install(ctx context.Context, httpClient *http.Client) error {
 	}
 
 	venvPath := filepath.Join(m.mlxEnvPath, "mlx-venv")
-	
+
 	// Check if virtual environment already exists and is valid
 	pipPath := filepath.Join(venvPath, "bin", "pip")
 	venvPythonPath := filepath.Join(venvPath, "bin", "python3")
-	
+
 	// Check if mlx-lm is already installed by trying to import it
 	if _, err := os.Stat(venvPythonPath); err == nil {
 		// Try to verify mlx_lm installation

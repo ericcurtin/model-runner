@@ -12,7 +12,7 @@ import (
 func TestNew(t *testing.T) {
 	log := logrus.New()
 	log.SetOutput(logrus.StandardLogger().Out)
-	
+
 	modelManager := models.NewManager(
 		log,
 		models.ClientConfig{
@@ -40,7 +40,7 @@ func TestNew(t *testing.T) {
 func TestInstallPlatformCheck(t *testing.T) {
 	log := logrus.New()
 	log.SetOutput(logrus.StandardLogger().Out)
-	
+
 	modelManager := models.NewManager(
 		log,
 		models.ClientConfig{
@@ -75,7 +75,7 @@ func TestInstallPlatformCheck(t *testing.T) {
 func TestGetDiskUsage(t *testing.T) {
 	log := logrus.New()
 	log.SetOutput(logrus.StandardLogger().Out)
-	
+
 	modelManager := models.NewManager(
 		log,
 		models.ClientConfig{
@@ -96,7 +96,7 @@ func TestGetDiskUsage(t *testing.T) {
 	if err != nil {
 		t.Errorf("GetDiskUsage failed: %v", err)
 	}
-	
+
 	// Size should be >= 0
 	if size < 0 {
 		t.Errorf("Expected non-negative disk usage, got %d", size)
