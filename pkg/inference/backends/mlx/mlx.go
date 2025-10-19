@@ -90,33 +90,39 @@ func (m *mlx) Install(ctx context.Context, httpClient *http.Client) error {
 	
 	// Check if virtual environment already exists and is valid
 	pipPath := filepath.Join(venvPath, "bin", "pip")
-	mlxLMPath := filepath.Join(venvPath, "bin", "mlx_lm.server")
+	venvPythonPath := filepath.Join(venvPath, "bin", "python3")
 	
-	if _, err := os.Stat(mlxLMPath); err == nil {
-		// MLX-LM is already installed
-		m.log.Info("MLX-LM is already installed")
-		m.status = "installed"
-		return nil
+	// Check if mlx-lm is already installed by trying to import it
+	if _, err := os.Stat(venvPythonPath); err == nil {
+		// Try to verify mlx_lm installation
+		cmd := exec.CommandContext(ctx, venvPythonPath, "-c", "import mlx_lm")
+		if err := cmd.Run(); err == nil {
+			// MLX-LM is already installed
+			m.log.Info("MLX-LM is already installed")
+			m.status = "installed"
+			return nil
+		}
 	}
 
 	// Create virtual environment
 	m.log.Info("Creating Python virtual environment for MLX...")
-	cmd := exec.CommandContext(ctx, pythonPath, "-m", "venv", venvPath)
-	if output, err := cmd.CombinedOutput(); err != nil {
+	venvCmd := exec.CommandContext(ctx, pythonPath, "-m", "venv", venvPath)
+	if output, err := venvCmd.CombinedOutput(); err != nil {
 		m.status = "failed to create venv"
 		return fmt.Errorf("failed to create virtual environment: %w\nOutput: %s", err, output)
 	}
 
 	// Install mlx-lm package
 	m.log.Info("Installing mlx-lm package (this may take a few minutes)...")
-	cmd = exec.CommandContext(ctx, pipPath, "install", "-q", "mlx-lm")
-	if output, err := cmd.CombinedOutput(); err != nil {
+	pipCmd := exec.CommandContext(ctx, pipPath, "install", "-q", "mlx-lm")
+	if output, err := pipCmd.CombinedOutput(); err != nil {
 		m.status = "failed to install mlx-lm"
 		return fmt.Errorf("failed to install mlx-lm: %w\nOutput: %s", err, output)
 	}
 
 	// Verify installation
-	if _, err := os.Stat(mlxLMPath); err != nil {
+	verifyCmd := exec.CommandContext(ctx, venvPythonPath, "-c", "import mlx_lm")
+	if err := verifyCmd.Run(); err != nil {
 		m.status = "installation verification failed"
 		return fmt.Errorf("mlx-lm installation verification failed: %w", err)
 	}
@@ -151,16 +157,17 @@ func (m *mlx) Run(ctx context.Context, socket, model string, mode inference.Back
 	}
 
 	venvPath := filepath.Join(m.mlxEnvPath, "mlx-venv")
-	mlxLMServerPath := filepath.Join(venvPath, "bin", "mlx_lm.server")
+	pythonPath := filepath.Join(venvPath, "bin", "python3")
 
-	// Verify MLX-LM is installed
-	if _, err := os.Stat(mlxLMServerPath); err != nil {
-		return fmt.Errorf("mlx-lm not installed, run installation first: %w", err)
+	// Verify Python is available in venv
+	if _, err := os.Stat(pythonPath); err != nil {
+		return fmt.Errorf("python3 not found in MLX virtual environment: %w", err)
 	}
 
 	// Build arguments for mlx_lm.server
-	// The server expects: mlx_lm.server --model <path> --host <socket>
+	// The server is run as: python -m mlx_lm.server --model <path> --host <socket>
 	args := []string{
+		"-m", "mlx_lm.server",
 		"--model", safetensorsPath,
 		"--host", socket,
 	}
@@ -185,8 +192,8 @@ func (m *mlx) Run(ctx context.Context, socket, model string, mode inference.Back
 			command.Stdout = serverLogStream
 			command.Stderr = out
 		},
-		m.mlxEnvPath,
-		mlxLMServerPath,
+		venvPath,
+		pythonPath,
 		args...,
 	)
 	if err != nil {
