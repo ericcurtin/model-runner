@@ -283,13 +283,22 @@ func (l *loader) idleCheckDuration() time.Duration {
 	// Compute the oldest usage time for any idle runner.
 	var oldest time.Time
 	for _, runnerInfo := range l.runners {
+		// Check if this runner is defunct (process has exited)
+		defunct := false
 		select {
 		case <-l.slots[runnerInfo.slot].done:
-			// Check immediately if a runner is defunct
-			return 0
+			defunct = true
 		default:
 		}
+		
+		// Only check unused runners. Defunct runners that are still in use
+		// will be handled when they become unused, so we don't schedule
+		// immediate checks for them (which would cause a tight CPU loop).
 		if l.references[runnerInfo.slot] == 0 {
+			if defunct {
+				// Check immediately if an unused runner is defunct
+				return 0
+			}
 			timestamp := l.timestamps[runnerInfo.slot]
 			if oldest.IsZero() || timestamp.Before(oldest) {
 				oldest = timestamp
@@ -363,8 +372,6 @@ func (l *loader) run(ctx context.Context) {
 				if nextCheck := l.idleCheckDuration(); nextCheck >= 0 {
 					idleTimer.Reset(nextCheck)
 				}
-				// If nextCheck is negative (no runners), the timer is stopped and won't fire again
-				// until l.idleCheck is signaled (when a runner is added and then released)
 				l.unlock()
 			}
 		case <-l.idleCheck:
@@ -374,7 +381,6 @@ func (l *loader) run(ctx context.Context) {
 				if nextCheck := l.idleCheckDuration(); nextCheck >= 0 {
 					idleTimer.Reset(nextCheck)
 				}
-				// If nextCheck is negative (no runners), the timer remains stopped
 				l.unlock()
 			}
 		}
