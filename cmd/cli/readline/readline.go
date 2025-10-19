@@ -123,6 +123,10 @@ func (i *Instance) Readline() (string, error) {
 				buf.MoveLeft()
 			case KeyRight:
 				buf.MoveRight()
+			case 'b':
+				buf.MoveLeftWord()
+			case 'f':
+				buf.MoveRightWord()
 			case CharBracketedPaste:
 				var code string
 				for range 3 {
