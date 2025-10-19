@@ -247,6 +247,35 @@ curl http://localhost:8080/metrics
 
 Check [METRICS.md](./METRICS.md) for more details.
 
+## Configuration
+
+Docker Model Runner can be configured using environment variables:
+
+### Model Timeout Configuration
+
+Control how long models stay loaded in memory after their last use:
+
+- `MODEL_RUNNER_IDLE_TIMEOUT`: Duration before unloading idle models from memory
+  - **Default**: `5m` (5 minutes)
+  - **Format**: Go duration string (e.g., `1m`, `30m`, `1h`, `24h`)
+  - **Range**: `1m` (1 minute) to `24h` (24 hours)
+  - **Special value**: `0` = no timeout (models stay loaded indefinitely)
+  - **Example**: `MODEL_RUNNER_IDLE_TIMEOUT=30m ./model-runner`
+  
+  **Use cases**:
+  - **Latency-sensitive applications**: Set to `0` to keep models always loaded
+  - **Long-running tasks**: Set to `1h` or more to avoid cold starts between requests
+  - **Resource-constrained environments**: Set to `1m` to free memory quickly
+
+### Other Configuration Options
+
+- `DISABLE_METRICS`: Disable the metrics endpoint (set to `1` to disable)
+- `MODEL_RUNNER_PORT`: TCP port to listen on (default: Unix socket)
+- `MODELS_PATH`: Directory for storing models (default: `~/.docker/models`)
+- `LLAMA_ARGS`: Custom arguments for llama.cpp backend
+- `LLAMA_SERVER_VERSION`: Version of llama.cpp server to use
+- `LLAMA_SERVER_PATH`: Path to llama.cpp server binaries
+
 ##  Kubernetes
 
 Experimental support for running in Kubernetes is available

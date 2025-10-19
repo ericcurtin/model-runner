@@ -26,6 +26,10 @@ const (
 	// defaultRunnerIdleTimeout is the default maximum amount of time that a
 	// runner can sit idle (i.e. without any requests) before being terminated.
 	defaultRunnerIdleTimeout = 5 * time.Minute
+	// minimumRunnerIdleTimeout is the minimum configurable idle timeout.
+	minimumRunnerIdleTimeout = 1 * time.Minute
+	// maximumRunnerIdleTimeout is the maximum configurable idle timeout.
+	maximumRunnerIdleTimeout = 24 * time.Hour
 )
 
 var (
@@ -38,6 +42,33 @@ var (
 	// and therefore can't be reconfigured for example
 	errRunnerAlreadyActive = errors.New("runner already active")
 )
+
+// parseIdleTimeout parses the MODEL_RUNNER_IDLE_TIMEOUT environment variable.
+// It supports Go duration strings (e.g., "5m", "1h", "24h").
+// Special value "0" means no timeout (models stay loaded indefinitely).
+// Returns error if the value is invalid or out of allowed range.
+func parseIdleTimeout(timeoutStr string) (time.Duration, error) {
+	// Handle special case: "0" means no timeout
+	if timeoutStr == "0" {
+		// Use a very large duration to effectively disable timeouts
+		return time.Duration(1<<63 - 1), nil // max duration
+	}
+
+	timeout, err := time.ParseDuration(timeoutStr)
+	if err != nil {
+		return 0, fmt.Errorf("invalid duration format: %w", err)
+	}
+
+	if timeout < minimumRunnerIdleTimeout {
+		return 0, fmt.Errorf("timeout must be at least %v (got %v)", minimumRunnerIdleTimeout, timeout)
+	}
+
+	if timeout > maximumRunnerIdleTimeout {
+		return 0, fmt.Errorf("timeout must not exceed %v (got %v)", maximumRunnerIdleTimeout, timeout)
+	}
+
+	return timeout, nil
+}
 
 // runnerKey is used to index runners.
 type runnerKey struct {
@@ -126,10 +157,18 @@ func newLoader(
 
 	// Compute the idle runner timeout.
 	//
-	// HACK: On GPU-enabled cloud engines, we'll bump this to 8 hours. We can
-	// remove this once we have configurable TTLs.
+	// Check for MODEL_RUNNER_IDLE_TIMEOUT environment variable first.
+	// If not set, use default (5 minutes) or 8 hours for GPU cloud environments.
 	runnerIdleTimeout := defaultRunnerIdleTimeout
-	if isGPUEnabledCloudEnvironment {
+	if timeoutStr := os.Getenv("MODEL_RUNNER_IDLE_TIMEOUT"); timeoutStr != "" {
+		if parsedTimeout, err := parseIdleTimeout(timeoutStr); err != nil {
+			log.Warnf("Invalid MODEL_RUNNER_IDLE_TIMEOUT value '%s': %v. Using default timeout.", timeoutStr, err)
+		} else {
+			runnerIdleTimeout = parsedTimeout
+			log.Infof("Using configured idle timeout: %v", runnerIdleTimeout)
+		}
+	} else if isGPUEnabledCloudEnvironment {
+		// Default to 8 hours for GPU-enabled cloud environments if not explicitly configured
 		runnerIdleTimeout = 8 * time.Hour
 	}
 
