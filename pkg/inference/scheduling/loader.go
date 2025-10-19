@@ -363,6 +363,8 @@ func (l *loader) run(ctx context.Context) {
 				if nextCheck := l.idleCheckDuration(); nextCheck >= 0 {
 					idleTimer.Reset(nextCheck)
 				}
+				// If nextCheck is negative (no runners), the timer is stopped and won't fire again
+				// until l.idleCheck is signaled (when a runner is added and then released)
 				l.unlock()
 			}
 		case <-l.idleCheck:
@@ -372,6 +374,7 @@ func (l *loader) run(ctx context.Context) {
 				if nextCheck := l.idleCheckDuration(); nextCheck >= 0 {
 					idleTimer.Reset(nextCheck)
 				}
+				// If nextCheck is negative (no runners), the timer remains stopped
 				l.unlock()
 			}
 		}
