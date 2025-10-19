@@ -199,9 +199,20 @@ The binary path in the image follows this pattern: `/com.docker.llama-server.nat
 
 ### Running with GPU Support
 
-To use NVIDIA GPU acceleration, you need to use the CUDA variant of the image and enable GPU access:
+To use NVIDIA GPU acceleration, you need to use the CUDA variant of the image and enable GPU access.
 
-#### Building the CUDA Image
+#### Using Pre-built CUDA Image
+
+The easiest way is to use the pre-built CUDA image from Docker Hub:
+
+```sh
+# Pull the CUDA variant (optional - docker run will pull automatically)
+docker pull docker/model-runner:latest-cuda
+```
+
+#### Building the CUDA Image (Optional)
+
+If you need to build the CUDA variant yourself:
 
 ```sh
 # Build the CUDA variant
