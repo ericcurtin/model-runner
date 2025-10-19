@@ -166,7 +166,12 @@ make docker-run
 
 # Customize port and model storage location
 make docker-run PORT=3000 MODELS_PATH=/path/to/your/models
+
+# Or use Docker Compose
+docker compose up
 ```
+
+See `docker-compose.yml` for a complete Docker Compose example.
 
 This will:
 - Create a `models` directory in your current working directory (or use the specified path)
@@ -215,7 +220,12 @@ docker run --rm --gpus all \
 
 # Or use the Makefile with GPU flag
 make docker-run LLAMA_SERVER_VARIANT=cuda BASE_IMAGE=nvidia/cuda:12.9.0-runtime-ubuntu24.04 DOCKER_IMAGE=docker/model-runner:latest-cuda GPUS=all
+
+# Or use Docker Compose (recommended for persistent deployments)
+docker compose -f docker-compose.gpu.yml up
 ```
+
+See `docker-compose.gpu.yml` for a complete Docker Compose example with GPU support.
 
 > **Important:** Before running with GPU support, ensure you have:
 > 1. NVIDIA GPU drivers installed on your host

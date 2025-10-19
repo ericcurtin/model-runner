@@ -1,0 +1,33 @@
+# Docker Compose example for running Model Runner with GPU support
+#
+# Prerequisites:
+# - NVIDIA GPU drivers installed
+# - NVIDIA Container Toolkit installed (see README for installation instructions)
+# - Docker Compose with GPU support (Docker Compose 1.28.0+)
+#
+# Usage:
+#   docker compose -f docker-compose.gpu.yml up
+#
+# Or with Docker Desktop:
+#   docker compose -f docker-compose.gpu.yml up
+
+services:
+  model-runner:
+    image: docker/model-runner:latest-cuda
+    ports:
+      - "12434:12434"
+    volumes:
+      - ./models:/models
+    environment:
+      - MODEL_RUNNER_PORT=12434
+      - MODELS_PATH=/models
+      # Optional: Configure llama.cpp arguments
+      # - LLAMA_ARGS=--verbose --jinja -ngl 999 --ctx-size 2048
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all  # or specify count: 1 for single GPU
+              capabilities: [gpu]
+    restart: unless-stopped
