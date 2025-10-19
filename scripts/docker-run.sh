@@ -35,7 +35,13 @@ add_optional_args() {
     args+=(-e "DEBUG=$DEBUG")
   fi
 
-  add_accelerators
+  # Add GPU support if GPUS is set
+  if [ -n "${GPUS-}" ]; then
+    args+=("--gpus" "$GPUS")
+  else
+    # Only add generic accelerators if GPUS is not set
+    add_accelerators
+  fi
 }
 
 main() {

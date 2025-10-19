@@ -37,6 +37,30 @@ Before building from source, ensure you have the following installed:
   - On Linux: gcc/g++ and development headers
   - On Windows: MinGW-w64 or Visual Studio Build Tools
 
+#### GPU Support Prerequisites
+
+For NVIDIA GPU acceleration, you need to install the NVIDIA Container Toolkit on Linux:
+
+```bash
+# Configure the production repository
+curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg \
+  && curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list | \
+    sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | \
+    sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
+
+# Update the packages list and install the toolkit
+sudo apt-get update
+sudo apt-get install -y nvidia-container-toolkit
+
+# Configure Docker to use the NVIDIA runtime
+sudo nvidia-ctk runtime configure --runtime=docker
+sudo systemctl restart docker
+```
+
+For more details, see the [NVIDIA Container Toolkit Installation Guide](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html).
+
+> **Note:** Docker Desktop on Windows and macOS includes built-in GPU support and does not require the NVIDIA Container Toolkit.
+
 ### Building the Complete Stack
 
 #### Step 1: Clone and Build model-runner (Server/Daemon)
@@ -168,6 +192,51 @@ Default values:
 
 The binary path in the image follows this pattern: `/com.docker.llama-server.native.linux.${LLAMA_SERVER_VARIANT}.${TARGETARCH}`
 
+### Running with GPU Support
+
+To use NVIDIA GPU acceleration, you need to use the CUDA variant of the image and enable GPU access:
+
+#### Building the CUDA Image
+
+```sh
+# Build the CUDA variant
+make docker-build LLAMA_SERVER_VARIANT=cuda BASE_IMAGE=nvidia/cuda:12.9.0-runtime-ubuntu24.04 DOCKER_IMAGE=docker/model-runner:latest-cuda
+```
+
+#### Running with GPU
+
+```sh
+# Run with GPU support using docker run directly
+docker run --rm --gpus all \
+  -p 8080:8080 \
+  -e MODEL_RUNNER_PORT=8080 \
+  -v $(pwd)/models:/models \
+  docker/model-runner:latest-cuda
+
+# Or use the Makefile with GPU flag
+make docker-run LLAMA_SERVER_VARIANT=cuda BASE_IMAGE=nvidia/cuda:12.9.0-runtime-ubuntu24.04 DOCKER_IMAGE=docker/model-runner:latest-cuda GPUS=all
+```
+
+> **Important:** Before running with GPU support, ensure you have:
+> 1. NVIDIA GPU drivers installed on your host
+> 2. NVIDIA Container Toolkit installed (Linux only - see GPU Support Prerequisites)
+> 3. Docker configured to use the NVIDIA runtime
+
+#### Verifying GPU Access
+
+You can verify GPU access inside the container:
+
+```sh
+# Check if NVIDIA GPU is detected
+docker run --rm --gpus all docker/model-runner:latest-cuda nvidia-smi
+
+# Check GPU with model-runner
+docker logs <container-id>
+# Look for GPU-related messages in the logs
+```
+
+When models are loaded, they will automatically use GPU acceleration if available. The llama.cpp backend will show GPU layers being offloaded in the logs.
+
 ## API Examples
 
 The Model Runner exposes a REST API that can be accessed via TCP port. You can interact with it using curl commands.
@@ -254,6 +323,61 @@ in the form of [a Helm chart and static YAML](charts/docker-model-runner/README.
 
 If you are interested in a specific Kubernetes use-case, please start a
 discussion on the issue tracker.
+
+## Troubleshooting
+
+### GPU Not Detected
+
+If you're using the CUDA image but the GPU is not being utilized:
+
+1. **Verify NVIDIA drivers are installed:**
+   ```sh
+   nvidia-smi
+   ```
+   This should display your GPU information.
+
+2. **Verify NVIDIA Container Toolkit is installed (Linux only):**
+   ```sh
+   docker run --rm --gpus all nvidia/cuda:12.9.0-base-ubuntu24.04 nvidia-smi
+   ```
+   If this fails, reinstall the NVIDIA Container Toolkit (see GPU Support Prerequisites).
+
+3. **Ensure you're using the `--gpus` flag:**
+   ```sh
+   # Correct - enables GPU access
+   docker run --rm --gpus all -p 8080:8080 docker/model-runner:latest-cuda
+   
+   # Incorrect - GPU won't be accessible
+   docker run --rm -p 8080:8080 docker/model-runner:latest-cuda
+   ```
+
+4. **Verify you're using the CUDA variant:**
+   ```sh
+   # Check the image tag includes 'cuda'
+   docker images | grep model-runner
+   ```
+   Make sure you're using `docker/model-runner:latest-cuda` not `docker/model-runner:latest`.
+
+5. **Check container logs:**
+   ```sh
+   docker logs <container-id>
+   ```
+   Look for messages about GPU detection and layer offloading.
+
+6. **Verify GPU is accessible inside the container:**
+   ```sh
+   docker exec <container-id> nvidia-smi
+   ```
+   This should show your GPU information inside the running container.
+
+### Models Running Slowly
+
+If models are running slower than expected:
+
+- Ensure you're using the CUDA variant with `--gpus all` flag for GPU acceleration
+- Check CPU/GPU usage with `htop` or `nvidia-smi`
+- Verify model layers are being offloaded to GPU (check container logs)
+- Consider increasing the number of GPU layers with `LLAMA_ARGS="-ngl 999"`
 
 ## Community
 
