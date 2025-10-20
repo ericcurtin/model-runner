@@ -219,25 +219,38 @@ func (s *LocalStore) Write(mdl v1.Image, tags []string, w io.Writer) error {
 		imageSize += size
 	}
 
+	// Create a multi-layer tracker to aggregate progress across all layers
+	var tracker *progress.MultiLayerTracker
+	if w != nil {
+		tracker = progress.NewMultiLayerTracker(w, progress.PullMsg, imageSize)
+	}
+
 	for _, layer := range layers {
-		var pr *progress.Reporter
 		var progressChan chan<- v1.Update
-		if w != nil {
-			pr = progress.NewProgressReporter(w, progress.PullMsg, imageSize, layer)
-			progressChan = pr.Updates()
+		if tracker != nil {
+			var err error
+			progressChan, err = tracker.AddLayer(layer)
+			if err != nil {
+				fmt.Printf("Failed to add layer to tracker: %v\n", err)
+				progressChan = nil
+			}
 		}
 
 		err := s.writeLayer(layer, progressChan)
 
 		if progressChan != nil {
 			close(progressChan)
-			if err := pr.Wait(); err != nil {
-				fmt.Printf("reporter finished with non-fatal error: %v\n", err)
-			}
 		}
 
 		if err != nil {
 			return fmt.Errorf("writing blob: %w", err)
+		}
+	}
+
+	// Wait for tracker to finish
+	if tracker != nil {
+		if err := tracker.Wait(); err != nil {
+			fmt.Printf("tracker finished with non-fatal error: %v\n", err)
 		}
 	}
 
