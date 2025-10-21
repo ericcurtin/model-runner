@@ -221,6 +221,41 @@ Default values:
 
 The binary path in the image follows this pattern: `/com.docker.llama-server.native.linux.${LLAMA_SERVER_VARIANT}.${TARGETARCH}`
 
+### MLX backend (Apple Silicon)
+
+The MLX backend is available on macOS with Apple Silicon (M1/M2/M3 chips) and provides optimized inference using Apple's MLX framework.
+
+**Features:**
+- Optimized for Apple Silicon architecture
+- Uses unified memory architecture efficiently
+- Supports models in safetensors format
+- Automatically installs mlx-lm Python package on first use
+
+**Requirements:**
+- macOS with Apple Silicon (arm64)
+- Python 3.8 or later
+- Models in safetensors format
+
+**Usage:**
+
+The MLX backend is automatically enabled on compatible systems. When you run a model in safetensors format on macOS with Apple Silicon, the MLX backend will be available alongside llama.cpp.
+
+To use a model with MLX backend, ensure your model is packaged in safetensors format:
+
+```sh
+# Package a safetensors model
+docker model package --safetensors-dir ./my-model-dir --tag myregistry/mymodel:latest
+
+# Run the model (MLX backend will be automatically selected if available)
+docker model run myregistry/mymodel:latest "Hello, world!"
+```
+
+The MLX backend will automatically:
+1. Create a Python virtual environment in `./mlx-env`
+2. Install the `mlx-lm` package
+3. Run the model using MLX's optimized inference engine
+
+
 ## API Examples
 
 The Model Runner exposes a REST API that can be accessed via TCP port. You can interact with it using curl commands.

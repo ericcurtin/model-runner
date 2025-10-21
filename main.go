@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"syscall"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/docker/model-runner/pkg/gpuinfo"
 	"github.com/docker/model-runner/pkg/inference"
 	"github.com/docker/model-runner/pkg/inference/backends/llamacpp"
+	"github.com/docker/model-runner/pkg/inference/backends/mlx"
 	"github.com/docker/model-runner/pkg/inference/config"
 	"github.com/docker/model-runner/pkg/inference/memory"
 	"github.com/docker/model-runner/pkg/inference/models"
@@ -109,10 +111,37 @@ func main() {
 
 	memEstimator.SetDefaultBackend(llamaCppBackend)
 
+	// Initialize backends map with llama.cpp
+	backends := map[string]inference.Backend{llamacpp.Name: llamaCppBackend}
+	defaultBackend := llamaCppBackend
+
+	// Initialize MLX backend on macOS with Apple Silicon
+	if runtime.GOOS == "darwin" && runtime.GOARCH == "arm64" {
+		mlxEnvPath := func() string {
+			wd, _ := os.Getwd()
+			d := filepath.Join(wd, "mlx-env")
+			_ = os.MkdirAll(d, 0o755)
+			return d
+		}()
+
+		mlxBackend, err := mlx.New(
+			log,
+			modelManager,
+			log.WithFields(logrus.Fields{"component": "mlx"}),
+			mlxEnvPath,
+		)
+		if err != nil {
+			log.Warnf("unable to initialize %s backend: %v", mlx.Name, err)
+		} else {
+			backends[mlx.Name] = mlxBackend
+			log.Infof("MLX backend initialized for Apple Silicon")
+		}
+	}
+
 	scheduler := scheduling.NewScheduler(
 		log,
-		map[string]inference.Backend{llamacpp.Name: llamaCppBackend},
-		llamaCppBackend,
+		backends,
+		defaultBackend,
 		modelManager,
 		http.DefaultClient,
 		nil,
