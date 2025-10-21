@@ -1,0 +1,20 @@
+# Docker Compose example for running Model Runner (CPU version)
+#
+# Usage:
+#   docker compose up
+#
+# This will start the model-runner on port 12434 with persistent model storage.
+
+services:
+  model-runner:
+    image: docker/model-runner:latest
+    ports:
+      - "12434:12434"
+    volumes:
+      - ./models:/models
+    environment:
+      - MODEL_RUNNER_PORT=12434
+      - MODELS_PATH=/models
+      # Optional: Configure llama.cpp arguments
+      # - LLAMA_ARGS=--verbose --jinja --ctx-size 2048
+    restart: unless-stopped
