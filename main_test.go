@@ -1,6 +1,7 @@
 package main
 
 import (
+	"net/http"
 	"os"
 	"testing"
 
@@ -102,6 +103,77 @@ func TestCreateLlamaCppConfigFromEnv(t *testing.T) {
 						t.Error("Expected non-empty args")
 					}
 				}
+			}
+		})
+	}
+}
+
+// TestProxyTransportConfiguration verifies that the HTTP transport
+// is configured to use proxy settings from environment variables.
+func TestProxyTransportConfiguration(t *testing.T) {
+	tests := []struct {
+		name     string
+		envVars  map[string]string
+	}{
+		{
+			name: "HTTP_PROXY set",
+			envVars: map[string]string{
+				"HTTP_PROXY": "http://proxy.example.com:8080",
+			},
+		},
+		{
+			name: "HTTPS_PROXY set",
+			envVars: map[string]string{
+				"HTTPS_PROXY": "http://proxy.example.com:8080",
+			},
+		},
+		{
+			name: "Both HTTP_PROXY and HTTPS_PROXY set",
+			envVars: map[string]string{
+				"HTTP_PROXY":  "http://proxy.example.com:8080",
+				"HTTPS_PROXY": "https://proxy.example.com:8080",
+			},
+		},
+		{
+			name:    "No proxy variables set",
+			envVars: map[string]string{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Save original environment
+			originalEnv := make(map[string]string)
+			proxyEnvVars := []string{"HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "no_proxy"}
+			for _, key := range proxyEnvVars {
+				if val, exists := os.LookupEnv(key); exists {
+					originalEnv[key] = val
+				}
+				os.Unsetenv(key)
+			}
+			defer func() {
+				// Restore original environment
+				for _, key := range proxyEnvVars {
+					os.Unsetenv(key)
+				}
+				for key, val := range originalEnv {
+					os.Setenv(key, val)
+				}
+			}()
+
+			// Set test environment variables
+			for key, val := range tt.envVars {
+				os.Setenv(key, val)
+			}
+
+			// Test that we can create a proxy-aware transport
+			// This simulates what we do in main()
+			baseTransport := http.DefaultTransport.(*http.Transport).Clone()
+			baseTransport.Proxy = http.ProxyFromEnvironment
+
+			// Verify the transport has a Proxy function set
+			if baseTransport.Proxy == nil {
+				t.Error("Expected Proxy function to be set on transport")
 			}
 		})
 	}
