@@ -14,6 +14,7 @@ import (
 	"github.com/google/go-containerregistry/pkg/v1/remote/transport"
 
 	"github.com/docker/model-runner/pkg/distribution/internal/progress"
+	"github.com/docker/model-runner/pkg/distribution/transport/resumable"
 	"github.com/docker/model-runner/pkg/distribution/types"
 )
 
@@ -22,7 +23,8 @@ const (
 )
 
 var (
-	DefaultTransport = remote.DefaultTransport
+	// DefaultTransport wraps the go-containerregistry default transport with resumable support
+	DefaultTransport = resumable.New(remote.DefaultTransport)
 )
 
 type Client struct {
