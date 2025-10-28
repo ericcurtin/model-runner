@@ -65,6 +65,22 @@ func isCloudContext(cli *command.DockerCli) bool {
 
 // DockerClientForContext creates a Docker client for the specified context.
 func DockerClientForContext(cli *command.DockerCli, name string) (*clientpkg.Client, error) {
+	// If the requested context is the current context, reuse the existing client
+	// from the CLI. This ensures proper handling of special transports like SSH.
+	if name == cli.CurrentContext() {
+		// The CLI's client is already properly initialized for the current context,
+		// including special handling for SSH and other transport types.
+		if apiClient := cli.Client(); apiClient != nil {
+			// Return the client wrapped as a concrete *clientpkg.Client type.
+			// Since cli.Client() returns client.APIClient interface, we need to
+			// assert it to the concrete type.
+			if concreteClient, ok := apiClient.(*clientpkg.Client); ok {
+				return concreteClient, nil
+			}
+		}
+	}
+
+	// For non-current contexts, create a new client using the context metadata
 	c, err := cli.ContextStore().GetMetadata(name)
 	if err != nil {
 		return nil, fmt.Errorf("unable to load context metadata: %w", err)
