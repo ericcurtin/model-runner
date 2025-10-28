@@ -62,7 +62,7 @@ func isDesktopContext(ctx context.Context, cli *command.DockerCli) bool {
 	if lastErr != nil {
 		if debugMode := os.Getenv("MODEL_RUNNER_DEBUG"); debugMode != "" {
 			fmt.Fprintf(os.Stderr, "Warning: Failed to detect Docker context after %d attempts: %v\n", maxRetries, lastErr)
-			fmt.Fprintf(os.Stderr, "Assuming non-Desktop context. Set MODEL_RUNNER_DEBUG=1 for details.\n")
+			fmt.Fprintf(os.Stderr, "Assuming non-Desktop context for safety.\n")
 		}
 		return false
 	}
