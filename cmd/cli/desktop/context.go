@@ -13,6 +13,7 @@ import (
 
 	"github.com/docker/cli/cli/command"
 	"github.com/docker/cli/cli/context/docker"
+	"github.com/docker/docker/api/types/system"
 	clientpkg "github.com/docker/docker/client"
 	"github.com/docker/model-runner/cmd/cli/pkg/standalone"
 	"github.com/docker/model-runner/cmd/cli/pkg/types"
@@ -22,9 +23,49 @@ import (
 // isDesktopContext returns true if the CLI instance points to a Docker Desktop
 // context and false otherwise.
 func isDesktopContext(ctx context.Context, cli *command.DockerCli) bool {
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-	serverInfo, _ := cli.Client().Info(ctx)
+	// Try to get server info with retries to handle transient failures during
+	// updates or when Docker Desktop is busy. This prevents misidentifying
+	// Docker Desktop as Moby CE, which would cause installation of wrong images.
+	const maxRetries = 3
+	const retryDelay = 1 * time.Second
+	const infoTimeout = 5 * time.Second
+
+	var serverInfo system.Info
+	var lastErr error
+
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		if attempt > 0 {
+			// Wait before retrying
+			select {
+			case <-time.After(retryDelay):
+			case <-ctx.Done():
+				// Parent context cancelled, stop retrying
+				return false
+			}
+		}
+
+		infoCtx, cancel := context.WithTimeout(ctx, infoTimeout)
+		info, err := cli.Client().Info(infoCtx)
+		cancel()
+
+		if err == nil {
+			serverInfo = info
+			lastErr = nil
+			break
+		}
+		lastErr = err
+	}
+
+	// If we failed to get server info after retries, be conservative and
+	// assume it's not Desktop to avoid incorrect behavior. Log the error
+	// for debugging.
+	if lastErr != nil {
+		if debugMode := os.Getenv("MODEL_RUNNER_DEBUG"); debugMode != "" {
+			fmt.Fprintf(os.Stderr, "Warning: Failed to detect Docker context after %d attempts: %v\n", maxRetries, lastErr)
+			fmt.Fprintf(os.Stderr, "Assuming non-Desktop context. Set MODEL_RUNNER_DEBUG=1 for details.\n")
+		}
+		return false
+	}
 
 	// We don't currently support Docker Model Runner in Docker Desktop for
 	// Linux, so we won't treat that as a Docker Desktop case (though it will
