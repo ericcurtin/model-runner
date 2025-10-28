@@ -22,7 +22,7 @@ const (
 )
 
 var (
-	DefaultTransport = remote.DefaultTransport
+	DefaultTransport = NewDefaultTransport()
 )
 
 type Client struct {
@@ -63,7 +63,7 @@ func WithAuthConfig(username, password string) ClientOption {
 
 func NewClient(opts ...ClientOption) *Client {
 	client := &Client{
-		transport: remote.DefaultTransport,
+		transport: DefaultTransport,
 		userAgent: DefaultUserAgent,
 		keychain:  authn.DefaultKeychain,
 	}
