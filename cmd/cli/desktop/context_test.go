@@ -10,17 +10,21 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestDockerClientForContext_CurrentContext(t *testing.T) {
-	// Create a mock Docker CLI with default options
+// setupTestDockerCLI creates and initializes a test Docker CLI instance
+func setupTestDockerCLI(t *testing.T) *command.DockerCli {
+	t.Helper()
 	opts := flags.NewClientOptions()
 	cli, err := command.NewDockerCli()
 	require.NoError(t, err)
 
-	// Initialize the CLI with default options
 	err = cli.Initialize(opts)
 	require.NoError(t, err)
 
-	// Get the current context name
+	return cli
+}
+
+func TestDockerClientForContext_CurrentContext(t *testing.T) {
+	cli := setupTestDockerCLI(t)
 	currentContext := cli.CurrentContext()
 
 	// Call DockerClientForContext with the current context
@@ -50,13 +54,7 @@ func TestDockerClientForContext_CurrentContextReusesClient(t *testing.T) {
 	// we get the same client instance back, which ensures proper handling of
 	// special transports like SSH.
 
-	opts := flags.NewClientOptions()
-	cli, err := command.NewDockerCli()
-	require.NoError(t, err)
-
-	err = cli.Initialize(opts)
-	require.NoError(t, err)
-
+	cli := setupTestDockerCLI(t)
 	currentContext := cli.CurrentContext()
 
 	// Call DockerClientForContext twice with the current context
