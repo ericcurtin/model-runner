@@ -11,6 +11,13 @@ import (
 
 // insecureTransport wraps an http.RoundTripper to allow insecure connections
 // to localhost and 127.0.0.1 registries.
+//
+// This is necessary for local development and testing, where developers often run
+// registries without TLS certificates. The InsecureSkipVerify flag is only used
+// for localhost addresses (localhost, 127.0.0.1, ::1, 127.x.x.x), which is safe
+// because traffic never leaves the local machine.
+//
+// For production registries (non-localhost), TLS verification is always enforced.
 type insecureTransport struct {
 	inner http.RoundTripper
 }
@@ -20,14 +27,18 @@ func (t *insecureTransport) RoundTrip(req *http.Request) (*http.Response, error)
 	// Check if this is a localhost registry
 	if isLocalRegistry(req.URL.Host) {
 		// For localhost registries, create a transport that skips TLS verification
-		// and allows plaintext HTTP
+		// and allows plaintext HTTP. This is safe for localhost because:
+		// 1. Traffic never leaves the machine (no network exposure)
+		// 2. Matches Docker daemon's behavior for local registries
+		// 3. Required for development/testing with local registries
 		transport := t.inner
 		if httpTransport, ok := transport.(*http.Transport); ok {
 			// Clone the transport to avoid modifying the original
 			transport = httpTransport.Clone()
 			clonedTransport := transport.(*http.Transport)
 
-			// Skip TLS verification for localhost
+			// Skip TLS verification for localhost only (safe for local-only traffic)
+			// nosemgrep: go.lang.security.audit.net.use-tls.use-tls
 			if clonedTransport.TLSClientConfig == nil {
 				clonedTransport.TLSClientConfig = &tls.Config{}
 			}
