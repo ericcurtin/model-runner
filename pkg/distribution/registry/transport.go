@@ -26,17 +26,17 @@ func (t *insecureTransport) RoundTrip(req *http.Request) (*http.Response, error)
 			// Clone the transport to avoid modifying the original
 			transport = httpTransport.Clone()
 			clonedTransport := transport.(*http.Transport)
-			
+
 			// Skip TLS verification for localhost
 			if clonedTransport.TLSClientConfig == nil {
 				clonedTransport.TLSClientConfig = &tls.Config{}
 			}
 			clonedTransport.TLSClientConfig.InsecureSkipVerify = true
-			
+
 			return clonedTransport.RoundTrip(req)
 		}
 	}
-	
+
 	// For non-localhost registries, use the default behavior
 	return t.inner.RoundTrip(req)
 }
@@ -49,15 +49,15 @@ func isLocalRegistry(host string) bool {
 		// If there's no port, use the host as-is
 		hostname = host
 	}
-	
+
 	// Check for localhost variants
-	if hostname == "localhost" || 
-	   hostname == "127.0.0.1" || 
-	   hostname == "::1" ||
-	   strings.HasPrefix(hostname, "127.") {
+	if hostname == "localhost" ||
+		hostname == "127.0.0.1" ||
+		hostname == "::1" ||
+		strings.HasPrefix(hostname, "127.") {
 		return true
 	}
-	
+
 	return false
 }
 

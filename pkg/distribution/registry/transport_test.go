@@ -34,18 +34,18 @@ func TestIsLocalRegistry(t *testing.T) {
 
 func TestInsecureTransport(t *testing.T) {
 	transport := NewDefaultTransport()
-	
+
 	// Verify it's wrapped
 	if _, ok := transport.(*insecureTransport); !ok {
 		t.Errorf("NewDefaultTransport() should return *insecureTransport, got %T", transport)
 	}
-	
+
 	// Verify the inner transport exists
 	insecure := transport.(*insecureTransport)
 	if insecure.inner == nil {
 		t.Error("insecureTransport.inner should not be nil")
 	}
-	
+
 	// Verify it implements http.RoundTripper
 	var _ http.RoundTripper = transport
 }
