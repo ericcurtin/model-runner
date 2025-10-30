@@ -347,6 +347,13 @@ func (c *Client) Chat(model, prompt string, imageURLs []string, outputFunc func(
 
 // ChatWithContext performs a chat request with context support for cancellation and streams the response content with selective markdown rendering.
 func (c *Client) ChatWithContext(ctx context.Context, model, prompt string, imageURLs []string, outputFunc func(string), shouldUseMarkdown bool) error {
+	return c.ChatWithMessagesContext(ctx, model, nil, prompt, imageURLs, outputFunc, shouldUseMarkdown)
+}
+
+// ChatWithMessagesContext performs a chat request with conversation history and context support for cancellation.
+// If conversationHistory is nil or empty, it behaves like ChatWithContext.
+// conversationHistory should contain the previous messages in the conversation (without the current prompt).
+func (c *Client) ChatWithMessagesContext(ctx context.Context, model string, conversationHistory []OpenAIChatMessage, prompt string, imageURLs []string, outputFunc func(string), shouldUseMarkdown bool) error {
 	model = dmrm.NormalizeModelName(model)
 	if !strings.Contains(strings.Trim(model, "/"), "/") {
 		// Do an extra API call to check if the model parameter isn't a model ID.
@@ -385,15 +392,22 @@ func (c *Client) ChatWithContext(ctx context.Context, model, prompt string, imag
 		messageContent = prompt
 	}
 
+	// Build messages array starting with conversation history
+	messages := make([]OpenAIChatMessage, 0, len(conversationHistory)+1)
+	if len(conversationHistory) > 0 {
+		messages = append(messages, conversationHistory...)
+	}
+	
+	// Add the current user message
+	messages = append(messages, OpenAIChatMessage{
+		Role:    "user",
+		Content: messageContent,
+	})
+
 	reqBody := OpenAIChatRequest{
-		Model: model,
-		Messages: []OpenAIChatMessage{
-			{
-				Role:    "user",
-				Content: messageContent,
-			},
-		},
-		Stream: true,
+		Model:    model,
+		Messages: messages,
+		Stream:   true,
 	}
 
 	jsonData, err := json.Marshal(reqBody)

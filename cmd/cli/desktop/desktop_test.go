@@ -225,3 +225,76 @@ func TestInspectOpenAIHuggingFaceModel(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, expectedLowercase, model.ID)
 }
+
+func TestChatWithConversationHistory(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	modelName := "ai/llama3.2"
+	conversationHistory := []OpenAIChatMessage{
+		{
+			Role:    "user",
+			Content: "What is 42?",
+		},
+		{
+			Role:    "assistant",
+			Content: "42 is the Answer to the Ultimate Question of Life, the Universe, and Everything.",
+		},
+	}
+	prompt := "And what is 43?"
+
+	mockClient := mockdesktop.NewMockDockerHttpClient(ctrl)
+	mockContext := NewContextForMock(mockClient)
+	client := New(mockContext)
+
+	mockClient.EXPECT().Do(gomock.Any()).Do(func(req *http.Request) {
+		var reqBody OpenAIChatRequest
+		err := json.NewDecoder(req.Body).Decode(&reqBody)
+		require.NoError(t, err)
+		
+		// Verify that the conversation history is included
+		assert.Equal(t, 3, len(reqBody.Messages), "Should have 3 messages: 2 from history + 1 new")
+		assert.Equal(t, "user", reqBody.Messages[0].Role)
+		assert.Equal(t, "What is 42?", reqBody.Messages[0].Content)
+		assert.Equal(t, "assistant", reqBody.Messages[1].Role)
+		assert.Equal(t, "42 is the Answer to the Ultimate Question of Life, the Universe, and Everything.", reqBody.Messages[1].Content)
+		assert.Equal(t, "user", reqBody.Messages[2].Role)
+		assert.Equal(t, "And what is 43?", reqBody.Messages[2].Content)
+	}).Return(&http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(bytes.NewBufferString("data: {\"choices\":[{\"delta\":{\"content\":\"43 is the number that comes after 42.\"}}]}\ndata: [DONE]\n")),
+	}, nil)
+
+	err := client.ChatWithMessagesContext(t.Context(), modelName, conversationHistory, prompt, nil, func(s string) {}, false)
+	assert.NoError(t, err)
+}
+
+func TestChatWithoutConversationHistory(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	modelName := "ai/llama3.2"
+	prompt := "Hello"
+
+	mockClient := mockdesktop.NewMockDockerHttpClient(ctrl)
+	mockContext := NewContextForMock(mockClient)
+	client := New(mockContext)
+
+	mockClient.EXPECT().Do(gomock.Any()).Do(func(req *http.Request) {
+		var reqBody OpenAIChatRequest
+		err := json.NewDecoder(req.Body).Decode(&reqBody)
+		require.NoError(t, err)
+		
+		// Verify that only the current message is sent
+		assert.Equal(t, 1, len(reqBody.Messages), "Should have only 1 message")
+		assert.Equal(t, "user", reqBody.Messages[0].Role)
+		assert.Equal(t, "Hello", reqBody.Messages[0].Content)
+	}).Return(&http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(bytes.NewBufferString("data: {\"choices\":[{\"delta\":{\"content\":\"Hello there!\"}}]}\n")),
+	}, nil)
+
+	// Test with nil conversation history - using Chat method which calls ChatWithMessagesContext internally
+	err := client.Chat(modelName, prompt, nil, func(s string) {}, false)
+	assert.NoError(t, err)
+}

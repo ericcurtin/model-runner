@@ -154,6 +154,9 @@ func generateInteractiveWithReadline(cmd *cobra.Command, desktopClient *desktop.
 
 	var sb strings.Builder
 	var multiline bool
+	
+	// Maintain conversation history for context
+	var conversationHistory []desktop.OpenAIChatMessage
 
 	// Add a helper function to handle file inclusion when @ is pressed
 	// We'll implement a basic version here that shows a message when @ is pressed
@@ -245,7 +248,7 @@ func generateInteractiveWithReadline(cmd *cobra.Command, desktopClient *desktop.
 				}
 			}()
 
-			err := chatWithMarkdownContext(chatCtx, cmd, desktopClient, model, userInput)
+			assistantMsg, err := chatWithMarkdownAndHistoryContext(chatCtx, cmd, desktopClient, model, conversationHistory, userInput)
 
 			// Clean up signal handler
 			signal.Stop(sigChan)
@@ -263,6 +266,13 @@ func generateInteractiveWithReadline(cmd *cobra.Command, desktopClient *desktop.
 				continue
 			}
 
+			// Add user message and assistant response to conversation history
+			conversationHistory = append(conversationHistory, desktop.OpenAIChatMessage{
+				Role:    "user",
+				Content: userInput,
+			})
+			conversationHistory = append(conversationHistory, assistantMsg)
+
 			cmd.Println()
 			sb.Reset()
 		}
@@ -272,6 +282,9 @@ func generateInteractiveWithReadline(cmd *cobra.Command, desktopClient *desktop.
 // generateInteractiveBasic provides a basic interactive mode (fallback)
 func generateInteractiveBasic(cmd *cobra.Command, desktopClient *desktop.Client, model string) error {
 	scanner := bufio.NewScanner(os.Stdin)
+	// Maintain conversation history for context
+	var conversationHistory []desktop.OpenAIChatMessage
+	
 	for {
 		userInput, err := readMultilineInput(cmd, scanner)
 		if err != nil {
@@ -306,7 +319,7 @@ func generateInteractiveBasic(cmd *cobra.Command, desktopClient *desktop.Client,
 			}
 		}()
 
-		err = chatWithMarkdownContext(chatCtx, cmd, desktopClient, model, userInput)
+		assistantMsg, err := chatWithMarkdownAndHistoryContext(chatCtx, cmd, desktopClient, model, conversationHistory, userInput)
 
 		cancelChat()
 		signal.Stop(sigChan)
@@ -321,6 +334,13 @@ func generateInteractiveBasic(cmd *cobra.Command, desktopClient *desktop.Client,
 			}
 			continue
 		}
+
+		// Add user message and assistant response to conversation history
+		conversationHistory = append(conversationHistory, desktop.OpenAIChatMessage{
+			Role:    "user",
+			Content: userInput,
+		})
+		conversationHistory = append(conversationHistory, assistantMsg)
 
 		cmd.Println()
 	}
@@ -509,11 +529,18 @@ func renderMarkdown(content string) (string, error) {
 
 // chatWithMarkdown performs chat and streams the response with selective markdown rendering.
 func chatWithMarkdown(cmd *cobra.Command, client *desktop.Client, model, prompt string) error {
-	return chatWithMarkdownContext(cmd.Context(), cmd, client, model, prompt)
+	_, err := chatWithMarkdownContext(cmd.Context(), cmd, client, model, prompt)
+	return err
 }
 
 // chatWithMarkdownContext performs chat with context support and streams the response with selective markdown rendering.
-func chatWithMarkdownContext(ctx context.Context, cmd *cobra.Command, client *desktop.Client, model, prompt string) error {
+func chatWithMarkdownContext(ctx context.Context, cmd *cobra.Command, client *desktop.Client, model, prompt string) (desktop.OpenAIChatMessage, error) {
+	return chatWithMarkdownAndHistoryContext(ctx, cmd, client, model, nil, prompt)
+}
+
+// chatWithMarkdownAndHistoryContext performs chat with conversation history, context support and streams the response with selective markdown rendering.
+// Returns the assistant's response message for conversation history tracking.
+func chatWithMarkdownAndHistoryContext(ctx context.Context, cmd *cobra.Command, client *desktop.Client, model string, conversationHistory []desktop.OpenAIChatMessage, prompt string) (desktop.OpenAIChatMessage, error) {
 	colorMode, _ := cmd.Flags().GetString("color")
 	useMarkdown := shouldUseMarkdown(colorMode)
 	debug, _ := cmd.Flags().GetBool("debug")
@@ -521,28 +548,42 @@ func chatWithMarkdownContext(ctx context.Context, cmd *cobra.Command, client *de
 	// Process file inclusions first (files referenced with @ symbol)
 	prompt, err := processFileInclusions(prompt)
 	if err != nil {
-		return fmt.Errorf("failed to process file inclusions: %w", err)
+		return desktop.OpenAIChatMessage{}, fmt.Errorf("failed to process file inclusions: %w", err)
 	}
 
 	var imageURLs []string
 	cleanedPrompt, imgs, err := processImagesInPrompt(prompt)
 	if err != nil {
-		return fmt.Errorf("failed to process images: %w", err)
+		return desktop.OpenAIChatMessage{}, fmt.Errorf("failed to process images: %w", err)
 	}
 	prompt = cleanedPrompt
 	imageURLs = imgs
 
+	// Track the assistant's response for conversation history
+	var assistantResponse strings.Builder
+
 	if !useMarkdown {
 		// Simple case: just stream as plain text
-		return client.ChatWithContext(ctx, model, prompt, imageURLs, func(content string) {
+		err = client.ChatWithMessagesContext(ctx, model, conversationHistory, prompt, imageURLs, func(content string) {
 			cmd.Print(content)
+			assistantResponse.WriteString(content)
 		}, false)
+		if err != nil {
+			return desktop.OpenAIChatMessage{}, err
+		}
+		return desktop.OpenAIChatMessage{
+			Role:    "assistant",
+			Content: assistantResponse.String(),
+		}, nil
 	}
 
 	// For markdown: use streaming buffer to render code blocks as they complete
 	markdownBuffer := NewStreamingMarkdownBuffer()
 
-	err = client.ChatWithContext(ctx, model, prompt, imageURLs, func(content string) {
+	err = client.ChatWithMessagesContext(ctx, model, conversationHistory, prompt, imageURLs, func(content string) {
+		// Track raw content for conversation history
+		assistantResponse.WriteString(content)
+		
 		// Use the streaming markdown buffer to intelligently render content
 		rendered, err := markdownBuffer.AddContent(content, true)
 		if err != nil {
@@ -556,7 +597,7 @@ func chatWithMarkdownContext(ctx context.Context, cmd *cobra.Command, client *de
 		}
 	}, true)
 	if err != nil {
-		return err
+		return desktop.OpenAIChatMessage{}, err
 	}
 
 	// Flush any remaining content from the markdown buffer
@@ -564,7 +605,10 @@ func chatWithMarkdownContext(ctx context.Context, cmd *cobra.Command, client *de
 		cmd.Print(remaining)
 	}
 
-	return nil
+	return desktop.OpenAIChatMessage{
+		Role:    "assistant",
+		Content: assistantResponse.String(),
+	}, nil
 }
 
 func newRunCmd() *cobra.Command {
