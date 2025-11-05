@@ -474,6 +474,9 @@ func PruneControllerContainers(ctx context.Context, dockerClient client.Containe
 	}
 
 	// Merge both lists, avoiding duplicates.
+	// Using a map ensures each container is processed only once, regardless
+	// of whether it appears in both label and name searches. Map iteration
+	// order doesn't matter here since all matching containers need to be removed.
 	containerMap := make(map[string]container.Summary)
 	for _, ctr := range containers {
 		containerMap[ctr.ID] = ctr
