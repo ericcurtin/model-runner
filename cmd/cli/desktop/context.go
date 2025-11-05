@@ -33,7 +33,20 @@ func isDesktopContext(ctx context.Context, cli *command.DockerCli) bool {
 		if strings.Contains(serverInfo.KernelVersion, "-microsoft-standard-WSL2") {
 			// We can use Docker Desktop from within a WSL2 integrated distro.
 			// https://github.com/search?q=repo%3Amicrosoft%2FWSL2-Linux-Kernel+path%3A%2F%5Earch%5C%2F.*%5C%2Fconfigs%5C%2Fconfig-wsl%2F+CONFIG_LOCALVERSION&type=code
-			return serverInfo.OperatingSystem == "Docker Desktop"
+			// Check if the OperatingSystem field reports Docker Desktop
+			if serverInfo.OperatingSystem == "Docker Desktop" {
+				return true
+			}
+			// If OperatingSystem is not "Docker Desktop", check the context name.
+			// When Docker Desktop is accessed from WSL2, the context name is typically
+			// "desktop-linux". If a user has both Docker Engine and Docker Desktop
+			// installed and switches contexts, checking the context name helps distinguish
+			// between them.
+			contextName := cli.CurrentContext()
+			if contextName == "desktop-linux" {
+				return true
+			}
+			return false
 		}
 		return false
 	}
