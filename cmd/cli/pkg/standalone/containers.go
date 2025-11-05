@@ -139,7 +139,7 @@ func FindControllerContainer(ctx context.Context, dockerClient client.ContainerA
 		return "", "", container.Summary{}, fmt.Errorf("unable to prune stopped model runner containers: %w", err)
 	}
 
-	// Identify all controller containers.
+	// Identify all controller containers by labels.
 	containers, err := dockerClient.ContainerList(ctx, container.ListOptions{
 		Filters: filters.NewArgs(
 			// Don't include a value on this first label selector; Docker Cloud
@@ -151,14 +151,33 @@ func FindControllerContainer(ctx context.Context, dockerClient client.ContainerA
 	if err != nil {
 		return "", "", container.Summary{}, fmt.Errorf("unable to identify model runner containers: %w", err)
 	}
-	if len(containers) == 0 {
-		return "", "", container.Summary{}, nil
+	if len(containers) > 0 {
+		var containerName string
+		if len(containers[0].Names) > 0 {
+			containerName = strings.TrimPrefix(containers[0].Names[0], "/")
+		}
+		return containers[0].ID, containerName, containers[0], nil
 	}
-	var containerName string
-	if len(containers[0].Names) > 0 {
-		containerName = strings.TrimPrefix(containers[0].Names[0], "/")
+
+	// Fallback: search for container by name in case it lacks proper labels
+	// (e.g., from an older version or manual creation).
+	containersByName, err := dockerClient.ContainerList(ctx, container.ListOptions{
+		Filters: filters.NewArgs(
+			filters.Arg("name", "^/"+controllerContainerName+"$"),
+		),
+	})
+	if err != nil {
+		return "", "", container.Summary{}, fmt.Errorf("unable to search for model runner container by name: %w", err)
 	}
-	return containers[0].ID, containerName, containers[0], nil
+	if len(containersByName) > 0 {
+		var containerName string
+		if len(containersByName[0].Names) > 0 {
+			containerName = strings.TrimPrefix(containersByName[0].Names[0], "/")
+		}
+		return containersByName[0].ID, containerName, containersByName[0], nil
+	}
+
+	return "", "", container.Summary{}, nil
 }
 
 // determineBridgeGatewayIP attempts to identify the engine's host gateway IP
@@ -429,7 +448,7 @@ func CreateControllerContainer(ctx context.Context, dockerClient *client.Client,
 // PruneControllerContainers stops and removes any model runner controller
 // containers.
 func PruneControllerContainers(ctx context.Context, dockerClient client.ContainerAPIClient, skipRunning bool, printer StatusPrinter) error {
-	// Identify all controller containers.
+	// Identify all controller containers by labels.
 	containers, err := dockerClient.ContainerList(ctx, container.ListOptions{
 		All: true,
 		Filters: filters.NewArgs(
@@ -443,8 +462,28 @@ func PruneControllerContainers(ctx context.Context, dockerClient client.Containe
 		return fmt.Errorf("unable to identify model runner containers: %w", err)
 	}
 
-	// Remove all controller containers.
+	// Also look for containers by name (fallback for containers without proper labels).
+	containersByName, err := dockerClient.ContainerList(ctx, container.ListOptions{
+		All: true,
+		Filters: filters.NewArgs(
+			filters.Arg("name", "^/"+controllerContainerName+"$"),
+		),
+	})
+	if err != nil {
+		return fmt.Errorf("unable to search for model runner container by name: %w", err)
+	}
+
+	// Merge both lists, avoiding duplicates.
+	containerMap := make(map[string]container.Summary)
 	for _, ctr := range containers {
+		containerMap[ctr.ID] = ctr
+	}
+	for _, ctr := range containersByName {
+		containerMap[ctr.ID] = ctr
+	}
+
+	// Remove all controller containers.
+	for _, ctr := range containerMap {
 		if skipRunning && ctr.State == container.StateRunning {
 			continue
 		}
