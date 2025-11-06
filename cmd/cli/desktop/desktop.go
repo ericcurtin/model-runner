@@ -162,11 +162,11 @@ func (c *Client) Pull(model string, ignoreRuntimeMemoryCheck bool, progress func
 
 			// Format docker-style progress showing overall and per-layer info
 			// Overall: "Downloaded 5GB of 10GB (4 connections active)"
-			progressMsg := fmt.Sprintf("Downloaded %s of %s (using 4 parallel connections)",
+			progressMessage := fmt.Sprintf("Downloaded %s of %s (using 4 parallel connections)",
 				units.CustomSize("%.2f%s", float64(current), 1000.0, []string{"B", "kB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"}),
 				units.CustomSize("%.2f%s", float64(progressMsg.Total), 1000.0, []string{"B", "kB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"}))
 			
-			progress(progressMsg)
+			progress(progressMessage)
 			progressShown = true
 		case "error":
 			return "", progressShown, fmt.Errorf("error pulling model: %s", progressMsg.Message)

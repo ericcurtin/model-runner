@@ -130,7 +130,7 @@ func (s *LocalStore) WriteBlob(diffID v1.Hash, r io.Reader) error {
 	var f *os.File
 	if _, statErr := os.Stat(incompletePath); statErr == nil {
 		// Resume from existing partial download by appending to the incomplete file
-		f, err = os.OpenFile(incompletePath, os.O_WRONLY|os.O_APPEND, 0666)
+		f, err = os.OpenFile(incompletePath, os.O_WRONLY|os.O_APPEND, 0644)
 		if err != nil {
 			return fmt.Errorf("open incomplete blob file for resume: %w", err)
 		}
