@@ -109,6 +109,7 @@ func (s *LocalStore) writeLayer(layer blob, updates chan<- v1.Update) (bool, v1.
 
 // WriteBlob writes the blob to the store, reporting progress to the given channel.
 // If the blob is already in the store, it is a no-op and the blob is not consumed from the reader.
+// Supports resumable downloads by checking for existing incomplete files and appending to them.
 func (s *LocalStore) WriteBlob(diffID v1.Hash, r io.Reader) error {
 	hasBlob, err := s.hasBlob(diffID)
 	if err != nil {
@@ -122,19 +123,37 @@ func (s *LocalStore) WriteBlob(diffID v1.Hash, r io.Reader) error {
 	if err != nil {
 		return fmt.Errorf("get blob path: %w", err)
 	}
-	f, err := createFile(incompletePath(path))
-	if err != nil {
-		return fmt.Errorf("create blob file: %w", err)
+
+	incompletePath := incompletePath(path)
+	
+	// Check if an incomplete file already exists (from a previous interrupted download)
+	var f *os.File
+	if _, statErr := os.Stat(incompletePath); statErr == nil {
+		// Resume from existing partial download by appending to the incomplete file
+		f, err = os.OpenFile(incompletePath, os.O_WRONLY|os.O_APPEND, 0644)
+		if err != nil {
+			return fmt.Errorf("open incomplete blob file for resume: %w", err)
+		}
+	} else {
+		// Start fresh download
+		f, err = createFile(incompletePath)
+		if err != nil {
+			return fmt.Errorf("create blob file: %w", err)
+		}
 	}
-	defer os.Remove(incompletePath(path))
+
+	defer os.Remove(incompletePath)
 	defer f.Close()
 
+	// Copy the blob data. If we're resuming, we append to the existing data.
+	// The parallel transport handles byte ranges at the HTTP level and will
+	// automatically resume interrupted downloads when possible.
 	if _, err := io.Copy(f, r); err != nil {
 		return fmt.Errorf("copy blob %q to store: %w", diffID.String(), err)
 	}
 
 	f.Close() // Rename will fail on Windows if the file is still open.
-	if err := os.Rename(incompletePath(path), path); err != nil {
+	if err := os.Rename(incompletePath, path); err != nil {
 		return fmt.Errorf("rename blob file: %w", err)
 	}
 	return nil

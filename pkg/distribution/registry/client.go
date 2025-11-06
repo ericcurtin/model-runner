@@ -16,6 +16,8 @@ import (
 	"github.com/google/go-containerregistry/pkg/v1/remote/transport"
 
 	"github.com/docker/model-runner/pkg/distribution/internal/progress"
+	"github.com/docker/model-runner/pkg/distribution/transport/parallel"
+	"github.com/docker/model-runner/pkg/distribution/transport/resumable"
 	"github.com/docker/model-runner/pkg/distribution/types"
 )
 
@@ -26,8 +28,26 @@ const (
 var (
 	defaultRegistryOpts []name.Option
 	once                sync.Once
-	DefaultTransport    = remote.DefaultTransport
+	DefaultTransport    = createDefaultTransport()
 )
+
+// createDefaultTransport creates a transport stack that provides both
+// parallel downloads (4 concurrent connections) and automatic resumption
+// of interrupted downloads for optimal performance and reliability
+func createDefaultTransport() http.RoundTripper {
+	// First, wrap the default transport with parallel downloading (4 connections)
+	parallelTransport := parallel.New(
+		remote.DefaultTransport,
+		parallel.WithMaxConcurrentPerRequest(4),
+		parallel.WithMinChunkSize(1024*1024), // 1MB chunks
+	)
+	
+	// Then wrap with resumable transport to handle connection interruptions
+	return resumable.New(
+		parallelTransport,
+		resumable.WithMaxRetries(3),
+	)
+}
 
 // GetDefaultRegistryOptions returns name.Option slice with custom default registry
 // and insecure flag if the corresponding environment variables are set.
