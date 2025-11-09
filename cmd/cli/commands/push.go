@@ -35,7 +35,8 @@ func newPushCmd() *cobra.Command {
 }
 
 func pushModel(cmd *cobra.Command, desktopClient *desktop.Client, model string) error {
-	response, progressShown, err := desktopClient.Push(model, TUIProgress)
+	printer := asPrinter(cmd)
+	response, progressShown, err := desktopClient.Push(model, printer)
 
 	// Add a newline before any output (success or error) if progress was shown.
 	if progressShown {
