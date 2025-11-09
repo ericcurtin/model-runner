@@ -2,12 +2,10 @@ package commands
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/docker/model-runner/cmd/cli/commands/completion"
 	"github.com/docker/model-runner/cmd/cli/desktop"
 
-	"github.com/mattn/go-isatty"
 	"github.com/spf13/cobra"
 )
 
@@ -42,13 +40,8 @@ func newPullCmd() *cobra.Command {
 }
 
 func pullModel(cmd *cobra.Command, desktopClient *desktop.Client, model string, ignoreRuntimeMemoryCheck bool) error {
-	var progress func(string)
-	if isatty.IsTerminal(os.Stdout.Fd()) {
-		progress = TUIProgress
-	} else {
-		progress = RawProgress
-	}
-	response, progressShown, err := desktopClient.Pull(model, ignoreRuntimeMemoryCheck, progress)
+	printer := desktop.NewCobraPrinter()
+	response, progressShown, err := desktopClient.Pull(model, ignoreRuntimeMemoryCheck, printer)
 
 	// Add a newline before any output (success or error) if progress was shown.
 	if progressShown {
@@ -61,12 +54,4 @@ func pullModel(cmd *cobra.Command, desktopClient *desktop.Client, model string, 
 
 	cmd.Println(response)
 	return nil
-}
-
-func TUIProgress(message string) {
-	fmt.Print("\r\033[K", message)
-}
-
-func RawProgress(message string) {
-	fmt.Println(message)
 }
