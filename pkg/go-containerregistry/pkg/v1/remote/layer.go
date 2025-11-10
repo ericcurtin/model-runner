@@ -64,6 +64,26 @@ func (rl *remoteLayer) Exists() (bool, error) {
 	return rl.fetcher.blobExists(rl.ctx, rl.digest)
 }
 
+// CompressedWithOffset implements a resumable download starting from the given offset.
+// This allows resuming partial downloads by using HTTP Range requests.
+func (rl *remoteLayer) CompressedWithOffset(offset int64) (io.ReadCloser, error) {
+	// We don't want to log binary layers -- this can break terminals.
+	ctx := redact.NewContext(rl.ctx, "omitting binary blobs from logs")
+	
+	// Get the total size of the blob
+	size, err := rl.Size()
+	if err != nil {
+		return nil, err
+	}
+	
+	return rl.fetcher.fetchBlobWithOffset(ctx, size, rl.digest, offset)
+}
+
+// SupportsRangeRequests checks if the remote server supports HTTP Range requests for this layer.
+func (rl *remoteLayer) SupportsRangeRequests() (bool, error) {
+	return rl.fetcher.supportsRangeRequests(rl.ctx, rl.digest)
+}
+
 // Layer reads the given blob reference from a registry as a Layer. A blob
 // reference here is just a punned name.Digest where the digest portion is the
 // digest of the blob to be read and the repository portion is the repo where

@@ -113,17 +113,21 @@ func (p *Puller) Layer(ctx context.Context, ref name.Digest) (v1.Layer, error) {
 	if err != nil {
 		return nil, err
 	}
-	l, err := partial.CompressedToLayer(&remoteLayer{
+	
+	rl := &remoteLayer{
 		fetcher: *f,
 		ctx:     ctx,
 		digest:  h,
-	})
+	}
+	
+	l, err := partial.CompressedToLayer(rl)
 	if err != nil {
 		return nil, err
 	}
 	return &MountableLayer{
-		Layer:     l,
-		Reference: ref,
+		Layer:       l,
+		Reference:   ref,
+		remoteLayer: rl,
 	}, nil
 }
 
