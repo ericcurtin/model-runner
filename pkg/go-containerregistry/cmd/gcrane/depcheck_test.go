@@ -17,7 +17,7 @@ package main
 import (
 	"testing"
 
-	"github.com/google/go-containerregistry/internal/depcheck"
+	"github.com/docker/model-runner/pkg/go-containerregistry/internal/depcheck"
 )
 
 func TestDeps(t *testing.T) {
@@ -25,8 +25,8 @@ func TestDeps(t *testing.T) {
 		t.Skip("skipping slow depcheck")
 	}
 	depcheck.AssertNoDependency(t, map[string][]string{
-		"github.com/google/go-containerregistry/cmd/gcrane": {
-			"github.com/google/go-containerregistry/pkg/v1/daemon",
+		"github.com/docker/model-runner/pkg/go-containerregistry/cmd/gcrane": {
+			"github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1/daemon",
 		},
 	})
 }

@@ -20,9 +20,9 @@ import (
 
 	ecr "github.com/awslabs/amazon-ecr-credential-helper/ecr-login"
 	"github.com/chrismellard/docker-credential-acr-env/pkg/credhelper"
-	"github.com/google/go-containerregistry/pkg/authn"
-	kauth "github.com/google/go-containerregistry/pkg/authn/kubernetes"
-	"github.com/google/go-containerregistry/pkg/v1/google"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/authn"
+	kauth "github.com/docker/model-runner/pkg/go-containerregistry/pkg/authn/kubernetes"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1/google"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"

@@ -25,9 +25,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/google/go-containerregistry/pkg/name"
-	v1 "github.com/google/go-containerregistry/pkg/v1"
-	"github.com/google/go-containerregistry/pkg/v1/partial"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/name"
+	v1 "github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1/partial"
 )
 
 // WriteToFile writes in the compressed format to a tarball, on disk.

@@ -22,7 +22,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/google/go-containerregistry/pkg/v1/tarball"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1/tarball"
 )
 
 func TestWindows(t *testing.T) {

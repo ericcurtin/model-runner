@@ -19,8 +19,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/google/go-containerregistry/pkg/authn"
-	"github.com/google/go-containerregistry/pkg/name"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/authn"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/name"
 )
 
 // New returns a new RoundTripper based on the provided RoundTripper that has been

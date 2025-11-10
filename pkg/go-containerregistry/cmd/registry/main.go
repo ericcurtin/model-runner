@@ -22,7 +22,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/google/go-containerregistry/pkg/registry"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/registry"
 )
 
 var port = flag.Int("port", 1338, "port to run registry on")

@@ -19,7 +19,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/google/go-containerregistry/pkg/v1/remote"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1/remote"
 )
 
 func TestInsecureOptionTracking(t *testing.T) {

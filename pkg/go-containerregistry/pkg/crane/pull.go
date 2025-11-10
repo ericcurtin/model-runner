@@ -18,13 +18,13 @@ import (
 	"fmt"
 	"os"
 
-	legacy "github.com/google/go-containerregistry/pkg/legacy/tarball"
-	"github.com/google/go-containerregistry/pkg/name"
-	v1 "github.com/google/go-containerregistry/pkg/v1"
-	"github.com/google/go-containerregistry/pkg/v1/empty"
-	"github.com/google/go-containerregistry/pkg/v1/layout"
-	"github.com/google/go-containerregistry/pkg/v1/remote"
-	"github.com/google/go-containerregistry/pkg/v1/tarball"
+	legacy "github.com/docker/model-runner/pkg/go-containerregistry/pkg/legacy/tarball"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/name"
+	v1 "github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1/empty"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1/layout"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1/remote"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1/tarball"
 )
 
 // Tag applied to images that were pulled by digest. This denotes that the

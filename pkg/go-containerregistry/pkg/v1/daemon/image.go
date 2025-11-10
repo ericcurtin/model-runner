@@ -23,10 +23,10 @@ import (
 
 	api "github.com/docker/docker/api/types/image"
 
-	"github.com/google/go-containerregistry/pkg/name"
-	v1 "github.com/google/go-containerregistry/pkg/v1"
-	"github.com/google/go-containerregistry/pkg/v1/tarball"
-	"github.com/google/go-containerregistry/pkg/v1/types"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/name"
+	v1 "github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1/tarball"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1/types"
 	specs "github.com/moby/docker-image-spec/specs-go/v1"
 )
 

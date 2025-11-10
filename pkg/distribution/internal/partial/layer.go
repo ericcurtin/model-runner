@@ -4,8 +4,8 @@ import (
 	"io"
 	"os"
 
-	"github.com/google/go-containerregistry/pkg/v1"
-	ggcrtypes "github.com/google/go-containerregistry/pkg/v1/types"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1"
+	ggcrtypes "github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1/types"
 )
 
 var _ v1.Layer = &Layer{}

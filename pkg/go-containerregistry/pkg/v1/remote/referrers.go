@@ -22,12 +22,12 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/google/go-containerregistry/pkg/name"
-	v1 "github.com/google/go-containerregistry/pkg/v1"
-	"github.com/google/go-containerregistry/pkg/v1/empty"
-	"github.com/google/go-containerregistry/pkg/v1/mutate"
-	"github.com/google/go-containerregistry/pkg/v1/remote/transport"
-	"github.com/google/go-containerregistry/pkg/v1/types"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/name"
+	v1 "github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1/empty"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1/mutate"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1/remote/transport"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1/types"
 )
 
 // Referrers returns a list of descriptors that refer to the given manifest digest.

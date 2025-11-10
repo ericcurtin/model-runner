@@ -17,9 +17,9 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/google/go-containerregistry/pkg/crane"
-	"github.com/google/go-containerregistry/pkg/v1/tarball"
-	"github.com/google/go-containerregistry/pkg/v1/validate"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/crane"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1/tarball"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1/validate"
 	"github.com/spf13/cobra"
 )
 

@@ -19,11 +19,11 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/google/go-containerregistry/pkg/logs"
-	"github.com/google/go-containerregistry/pkg/name"
-	v1 "github.com/google/go-containerregistry/pkg/v1"
-	"github.com/google/go-containerregistry/pkg/v1/partial"
-	"github.com/google/go-containerregistry/pkg/v1/types"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/logs"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/name"
+	v1 "github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1/partial"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1/types"
 )
 
 var allManifestMediaTypes = append(append([]types.MediaType{

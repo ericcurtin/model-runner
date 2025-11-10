@@ -20,9 +20,9 @@ import (
 	"bytes"
 	"io"
 
-	"github.com/google/go-containerregistry/internal/gzip"
-	"github.com/google/go-containerregistry/internal/zstd"
-	"github.com/google/go-containerregistry/pkg/compression"
+	"github.com/docker/model-runner/pkg/go-containerregistry/internal/gzip"
+	"github.com/docker/model-runner/pkg/go-containerregistry/internal/zstd"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/compression"
 )
 
 // Opener represents e.g. opening a file.

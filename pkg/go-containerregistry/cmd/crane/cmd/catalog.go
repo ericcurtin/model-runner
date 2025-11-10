@@ -20,9 +20,9 @@ import (
 	"io"
 	"path"
 
-	"github.com/google/go-containerregistry/pkg/crane"
-	"github.com/google/go-containerregistry/pkg/name"
-	"github.com/google/go-containerregistry/pkg/v1/remote"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/crane"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/name"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1/remote"
 	"github.com/spf13/cobra"
 )
 

@@ -17,7 +17,7 @@ package registry
 import (
 	"net/http/httptest"
 
-	ggcrtest "github.com/google/go-containerregistry/internal/httptest"
+	ggcrtest "github.com/docker/model-runner/pkg/go-containerregistry/internal/httptest"
 )
 
 // TLS returns an httptest server, with an http client that has been configured to

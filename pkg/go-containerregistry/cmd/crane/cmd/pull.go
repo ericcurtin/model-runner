@@ -17,13 +17,13 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/google/go-containerregistry/pkg/crane"
-	"github.com/google/go-containerregistry/pkg/name"
-	v1 "github.com/google/go-containerregistry/pkg/v1"
-	"github.com/google/go-containerregistry/pkg/v1/cache"
-	"github.com/google/go-containerregistry/pkg/v1/empty"
-	"github.com/google/go-containerregistry/pkg/v1/layout"
-	"github.com/google/go-containerregistry/pkg/v1/remote"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/crane"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/name"
+	v1 "github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1/cache"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1/empty"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1/layout"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1/remote"
 	"github.com/spf13/cobra"
 )
 

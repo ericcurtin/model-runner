@@ -17,9 +17,9 @@ package remote
 import (
 	"testing"
 
-	"github.com/google/go-containerregistry/pkg/name"
-	"github.com/google/go-containerregistry/pkg/v1/random"
-	"github.com/google/go-containerregistry/pkg/v1/validate"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/name"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1/random"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1/validate"
 )
 
 func TestMountableImage(t *testing.T) {

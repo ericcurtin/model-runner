@@ -15,7 +15,7 @@
 package remote
 
 import (
-	"github.com/google/go-containerregistry/pkg/name"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/name"
 	"golang.org/x/sync/errgroup"
 )
 

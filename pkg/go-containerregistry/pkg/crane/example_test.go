@@ -17,7 +17,7 @@ package crane_test
 import (
 	"fmt"
 
-	"github.com/google/go-containerregistry/pkg/crane"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/crane"
 )
 
 func Example() {

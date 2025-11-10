@@ -30,16 +30,16 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-containerregistry/internal/retry"
-	"github.com/google/go-containerregistry/pkg/logs"
-	"github.com/google/go-containerregistry/pkg/name"
-	"github.com/google/go-containerregistry/pkg/registry"
-	"github.com/google/go-containerregistry/pkg/v1/google"
-	"github.com/google/go-containerregistry/pkg/v1/partial"
-	"github.com/google/go-containerregistry/pkg/v1/random"
-	"github.com/google/go-containerregistry/pkg/v1/remote"
-	"github.com/google/go-containerregistry/pkg/v1/remote/transport"
-	"github.com/google/go-containerregistry/pkg/v1/types"
+	"github.com/docker/model-runner/pkg/go-containerregistry/internal/retry"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/logs"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/name"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/registry"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1/google"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1/partial"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1/random"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1/remote"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1/remote/transport"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1/types"
 )
 
 type fakeXCR struct {

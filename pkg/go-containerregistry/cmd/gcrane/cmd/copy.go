@@ -17,7 +17,7 @@ package cmd
 import (
 	"runtime"
 
-	"github.com/google/go-containerregistry/pkg/gcrane"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/gcrane"
 	"github.com/spf13/cobra"
 )
 

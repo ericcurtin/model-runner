@@ -18,9 +18,9 @@ import (
 	"testing"
 	"time"
 
-	v1 "github.com/google/go-containerregistry/pkg/v1"
-	"github.com/google/go-containerregistry/pkg/v1/mutate"
-	"github.com/google/go-containerregistry/pkg/v1/random"
+	v1 "github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1/mutate"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1/random"
 )
 
 func layerDigests(t *testing.T, img v1.Image) []string {

@@ -27,15 +27,15 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/google/go-containerregistry/internal/redact"
-	"github.com/google/go-containerregistry/internal/retry"
-	"github.com/google/go-containerregistry/pkg/authn"
-	"github.com/google/go-containerregistry/pkg/logs"
-	"github.com/google/go-containerregistry/pkg/name"
-	v1 "github.com/google/go-containerregistry/pkg/v1"
-	"github.com/google/go-containerregistry/pkg/v1/remote/transport"
-	"github.com/google/go-containerregistry/pkg/v1/stream"
-	"github.com/google/go-containerregistry/pkg/v1/types"
+	"github.com/docker/model-runner/pkg/go-containerregistry/internal/redact"
+	"github.com/docker/model-runner/pkg/go-containerregistry/internal/retry"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/authn"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/logs"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/name"
+	v1 "github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1/remote/transport"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1/stream"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1/types"
 )
 
 // Taggable is an interface that enables a manifest PUT (e.g. for tagging).

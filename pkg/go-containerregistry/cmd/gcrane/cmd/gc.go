@@ -18,9 +18,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/google/go-containerregistry/pkg/gcrane"
-	"github.com/google/go-containerregistry/pkg/name"
-	"github.com/google/go-containerregistry/pkg/v1/google"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/gcrane"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/name"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1/google"
 	"github.com/spf13/cobra"
 )
 

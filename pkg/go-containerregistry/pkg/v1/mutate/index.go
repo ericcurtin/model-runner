@@ -20,12 +20,12 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/google/go-containerregistry/pkg/logs"
-	v1 "github.com/google/go-containerregistry/pkg/v1"
-	"github.com/google/go-containerregistry/pkg/v1/match"
-	"github.com/google/go-containerregistry/pkg/v1/partial"
-	"github.com/google/go-containerregistry/pkg/v1/stream"
-	"github.com/google/go-containerregistry/pkg/v1/types"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/logs"
+	v1 "github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1/match"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1/partial"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1/stream"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1/types"
 )
 
 func computeDescriptor(ia IndexAddendum) (*v1.Descriptor, error) {

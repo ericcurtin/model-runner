@@ -20,8 +20,8 @@ import (
 	"net/http/httputil"
 	"time"
 
-	"github.com/google/go-containerregistry/internal/redact"
-	"github.com/google/go-containerregistry/pkg/logs"
+	"github.com/docker/model-runner/pkg/go-containerregistry/internal/redact"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/logs"
 )
 
 type logTransport struct {

@@ -23,9 +23,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/google/go-containerregistry/pkg/crane"
-	"github.com/google/go-containerregistry/pkg/registry"
-	"github.com/google/go-containerregistry/pkg/v1/random"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/crane"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/registry"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1/random"
 )
 
 func mustRegistry(t *testing.T) (*httptest.Server, string) {

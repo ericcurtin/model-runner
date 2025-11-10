@@ -17,8 +17,8 @@ package crane
 import (
 	"io"
 
-	v1 "github.com/google/go-containerregistry/pkg/v1"
-	"github.com/google/go-containerregistry/pkg/v1/mutate"
+	v1 "github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1/mutate"
 )
 
 // Export writes the filesystem contents (as a tarball) of img to w.

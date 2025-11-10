@@ -25,9 +25,9 @@ import (
 	api "github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/client"
 
-	"github.com/google/go-containerregistry/pkg/name"
-	"github.com/google/go-containerregistry/pkg/v1/empty"
-	"github.com/google/go-containerregistry/pkg/v1/tarball"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/name"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1/empty"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1/tarball"
 )
 
 type errReader struct {

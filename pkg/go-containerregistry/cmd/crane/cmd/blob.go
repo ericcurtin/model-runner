@@ -18,7 +18,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/google/go-containerregistry/pkg/crane"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/crane"
 	"github.com/spf13/cobra"
 )
 

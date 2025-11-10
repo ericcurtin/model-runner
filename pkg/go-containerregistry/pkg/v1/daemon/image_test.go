@@ -28,10 +28,10 @@ import (
 	"github.com/docker/docker/client"
 	specs "github.com/moby/docker-image-spec/specs-go/v1"
 
-	"github.com/google/go-containerregistry/pkg/name"
-	"github.com/google/go-containerregistry/pkg/v1/compare"
-	"github.com/google/go-containerregistry/pkg/v1/tarball"
-	"github.com/google/go-containerregistry/pkg/v1/validate"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/name"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1/compare"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1/tarball"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1/validate"
 )
 
 var imagePath = "../tarball/testdata/test_image_1.tar"

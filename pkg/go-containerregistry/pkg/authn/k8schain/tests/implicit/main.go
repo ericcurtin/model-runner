@@ -19,9 +19,9 @@ import (
 	"log"
 	"os"
 
-	"github.com/google/go-containerregistry/pkg/authn/k8schain"
-	"github.com/google/go-containerregistry/pkg/name"
-	"github.com/google/go-containerregistry/pkg/v1/remote"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/authn/k8schain"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/name"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1/remote"
 )
 
 func main() {
