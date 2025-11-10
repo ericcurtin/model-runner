@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/docker/model-runner/pkg/distribution/internal/progress"
 
@@ -78,6 +79,34 @@ type blob interface {
 	Uncompressed() (io.ReadCloser, error)
 }
 
+// ResumableBlob extends the blob interface to support resumable downloads.
+type ResumableBlob interface {
+	blob
+	// CompressedWithOffset returns a reader starting from the given offset.
+	CompressedWithOffset(offset int64) (io.ReadCloser, error)
+	// SupportsRangeRequests checks if the remote server supports HTTP Range requests.
+	SupportsRangeRequests() (bool, error)
+}
+
+// tryResumable attempts to extract a ResumableBlob from a layer.
+// It returns nil if the layer doesn't support resumable downloads.
+func tryResumable(layer blob) ResumableBlob {
+	// Try direct type assertion
+	if r, ok := layer.(ResumableBlob); ok {
+		return r
+	}
+	
+	// Try to unwrap compressedLayerExtender or other wrappers
+	type unwrapper interface {
+		Unwrap() blob
+	}
+	if u, ok := layer.(unwrapper); ok {
+		return tryResumable(u.Unwrap())
+	}
+	
+	return nil
+}
+
 // writeLayer writes the layer blob to the store.
 // It returns true when a new blob was created and the blob's DiffID.
 func (s *LocalStore) writeLayer(layer blob, updates chan<- v1.Update) (bool, v1.Hash, error) {
@@ -94,6 +123,13 @@ func (s *LocalStore) writeLayer(layer blob, updates chan<- v1.Update) (bool, v1.
 		return false, hash, nil
 	}
 
+	// Check if layer supports resumable downloads
+	if resumableLayer := tryResumable(layer); resumableLayer != nil {
+		created, err := s.writeBlobResumable(hash, resumableLayer, updates)
+		return created, hash, err
+	}
+
+	// Fall back to regular download
 	lr, err := layer.Uncompressed()
 	if err != nil {
 		return false, v1.Hash{}, fmt.Errorf("get blob contents: %w", err)
@@ -138,6 +174,114 @@ func (s *LocalStore) WriteBlob(diffID v1.Hash, r io.Reader) error {
 		return fmt.Errorf("rename blob file: %w", err)
 	}
 	return nil
+}
+
+// writeBlobResumable writes a blob to the store with resume support and retry logic.
+// It returns true when a new blob was created.
+func (s *LocalStore) writeBlobResumable(diffID v1.Hash, layer ResumableBlob, updates chan<- v1.Update) (bool, error) {
+	const maxRetries = 3
+	const initialBackoffSec = 1
+	const backoffMultiplier = 2
+
+	path, err := s.blobPath(diffID)
+	if err != nil {
+		return false, fmt.Errorf("get blob path: %w", err)
+	}
+	
+	incompletePath := incompletePath(path)
+	
+	// Check for existing incomplete file
+	var offset int64 = 0
+	var supportsRange bool
+	if info, statErr := os.Stat(incompletePath); statErr == nil {
+		offset = info.Size()
+		
+		// Check if server supports range requests
+		supportsRange, err = layer.SupportsRangeRequests()
+		if err != nil {
+			// If we can't check range support, log and try anyway
+			fmt.Printf("Warning: failed to check range request support: %v\n", err)
+			supportsRange = false
+		}
+		
+		if !supportsRange {
+			// Server doesn't support range requests, remove incomplete file and start fresh
+			fmt.Printf("Server doesn't support range requests, starting download from scratch\n")
+			if removeErr := os.Remove(incompletePath); removeErr != nil {
+				fmt.Printf("Warning: failed to remove incomplete file: %v\n", removeErr)
+			}
+			offset = 0
+		} else {
+			fmt.Printf("Resuming download from offset %d bytes\n", offset)
+		}
+	}
+	
+	// Retry loop with exponential backoff
+	var lastErr error
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		if attempt > 0 {
+			// Calculate backoff
+			backoffDuration := time.Duration(initialBackoffSec * (1 << uint(attempt-1)) * backoffMultiplier) * time.Second
+			fmt.Printf("Retry attempt %d/%d after %v\n", attempt, maxRetries, backoffDuration)
+			time.Sleep(backoffDuration)
+			
+			// Re-check incomplete file size in case it changed
+			if info, statErr := os.Stat(incompletePath); statErr == nil {
+				offset = info.Size()
+			}
+		}
+		
+		// Open or create the incomplete file
+		var f *os.File
+		if offset > 0 {
+			// Open for appending
+			f, err = os.OpenFile(incompletePath, os.O_WRONLY|os.O_APPEND, 0666)
+		} else {
+			// Create new file
+			f, err = createFile(incompletePath)
+		}
+		if err != nil {
+			lastErr = fmt.Errorf("open/create incomplete file: %w", err)
+			continue
+		}
+		
+		// Get the reader (with offset if resuming)
+		var lr io.ReadCloser
+		if offset > 0 && supportsRange {
+			lr, err = layer.CompressedWithOffset(offset)
+		} else {
+			lr, err = layer.Uncompressed()
+		}
+		if err != nil {
+			f.Close()
+			lastErr = fmt.Errorf("get blob contents: %w", err)
+			continue
+		}
+		
+		// Wrap with progress reporter
+		r := progress.NewReader(lr, updates)
+		
+		// Copy data
+		_, copyErr := io.Copy(f, r)
+		lr.Close()
+		f.Close()
+		
+		if copyErr != nil {
+			lastErr = fmt.Errorf("copy blob data: %w", copyErr)
+			// Don't remove incomplete file - keep it for resume
+			continue
+		}
+		
+		// Success! Rename the file
+		if err := os.Rename(incompletePath, path); err != nil {
+			return false, fmt.Errorf("rename blob file: %w", err)
+		}
+		
+		return true, nil
+	}
+	
+	// All retries failed
+	return false, fmt.Errorf("failed after %d retries: %w", maxRetries, lastErr)
 }
 
 // removeBlob removes the blob with the given hash from the store.

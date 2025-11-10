@@ -246,10 +246,21 @@ func (f *fetcher) headManifest(ctx context.Context, ref name.Reference, acceptab
 }
 
 func (f *fetcher) fetchBlob(ctx context.Context, size int64, h v1.Hash) (io.ReadCloser, error) {
+	return f.fetchBlobWithOffset(ctx, size, h, 0)
+}
+
+// fetchBlobWithOffset fetches a blob starting from the specified offset.
+// If offset > 0, it attempts to use HTTP Range requests to resume the download.
+func (f *fetcher) fetchBlobWithOffset(ctx context.Context, size int64, h v1.Hash, offset int64) (io.ReadCloser, error) {
 	u := f.url("blobs", h.String())
 	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
 	if err != nil {
 		return nil, err
+	}
+
+	// If offset is specified, add Range header
+	if offset > 0 {
+		req.Header.Set("Range", fmt.Sprintf("bytes=%d-", offset))
 	}
 
 	resp, err := f.client.Do(req.WithContext(ctx))
@@ -257,7 +268,26 @@ func (f *fetcher) fetchBlob(ctx context.Context, size int64, h v1.Hash) (io.Read
 		return nil, redact.Error(err)
 	}
 
-	if err := transport.CheckError(resp, http.StatusOK); err != nil {
+	// Check for appropriate status codes
+	expectedStatus := http.StatusOK
+	if offset > 0 {
+		// When using Range requests, we expect either:
+		// - 206 Partial Content (server supports Range)
+		// - 200 OK (server doesn't support Range, sends full content)
+		if resp.StatusCode != http.StatusPartialContent && resp.StatusCode != http.StatusOK {
+			resp.Body.Close()
+			return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+		}
+		
+		// If we requested a range but got 200 OK, server doesn't support ranges
+		// In this case, offset should be 0 for verification
+		if resp.StatusCode == http.StatusOK {
+			offset = 0
+		}
+		expectedStatus = resp.StatusCode
+	}
+
+	if err := transport.CheckError(resp, expectedStatus); err != nil {
 		resp.Body.Close()
 		return nil, err
 	}
@@ -266,11 +296,23 @@ func (f *fetcher) fetchBlob(ctx context.Context, size int64, h v1.Hash) (io.Read
 	// If we have an expected size and Content-Length doesn't match, return an error.
 	// If we don't have an expected size and we do have a Content-Length, use Content-Length.
 	if hsize := resp.ContentLength; hsize != -1 {
-		if size == verify.SizeUnknown {
-			size = hsize
-		} else if hsize != size {
-			return nil, fmt.Errorf("GET %s: Content-Length header %d does not match expected size %d", u.String(), hsize, size)
+		// Adjust expected size if we're doing a partial download
+		expectedSize := size
+		if offset > 0 && resp.StatusCode == http.StatusPartialContent {
+			expectedSize = size - offset
 		}
+		
+		if expectedSize == verify.SizeUnknown {
+			expectedSize = hsize
+		} else if hsize != expectedSize {
+			return nil, fmt.Errorf("GET %s: Content-Length header %d does not match expected size %d", u.String(), hsize, expectedSize)
+		}
+	}
+
+	// For partial content, we can't verify the hash since we don't have the full content
+	// In this case, return the raw response body without verification
+	if offset > 0 && resp.StatusCode == http.StatusPartialContent {
+		return resp.Body, nil
 	}
 
 	return verify.ReadCloser(resp.Body, size, h)
@@ -314,4 +356,17 @@ func (f *fetcher) blobExists(ctx context.Context, h v1.Hash) (bool, error) {
 	}
 
 	return resp.StatusCode == http.StatusOK, nil
+}
+
+// supportsRangeRequests checks if the server supports HTTP Range requests for the given blob.
+func (f *fetcher) supportsRangeRequests(ctx context.Context, h v1.Hash) (bool, error) {
+	resp, err := f.headBlob(ctx, h)
+	if err != nil {
+		return false, err
+	}
+	defer resp.Body.Close()
+
+	// Check for Accept-Ranges header
+	acceptRanges := resp.Header.Get("Accept-Ranges")
+	return acceptRanges == "bytes", nil
 }

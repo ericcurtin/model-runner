@@ -15,6 +15,8 @@
 package remote
 
 import (
+	"io"
+
 	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/name"
 	v1 "github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1"
 	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1/partial"
@@ -26,6 +28,28 @@ type MountableLayer struct {
 	v1.Layer
 
 	Reference name.Reference
+	
+	// remoteLayer holds the underlying remote layer if this is a remote layer,
+	// enabling resumable downloads
+	remoteLayer *remoteLayer
+}
+
+// CompressedWithOffset implements resumable downloads for remote layers.
+func (ml *MountableLayer) CompressedWithOffset(offset int64) (io.ReadCloser, error) {
+	if ml.remoteLayer != nil {
+		return ml.remoteLayer.CompressedWithOffset(offset)
+	}
+	// Fallback to regular Compressed if not a remote layer
+	return ml.Layer.Compressed()
+}
+
+// SupportsRangeRequests checks if the remote server supports HTTP Range requests.
+func (ml *MountableLayer) SupportsRangeRequests() (bool, error) {
+	if ml.remoteLayer != nil {
+		return ml.remoteLayer.SupportsRangeRequests()
+	}
+	// Non-remote layers don't support range requests
+	return false, nil
 }
 
 // Descriptor retains the original descriptor from an image manifest.
