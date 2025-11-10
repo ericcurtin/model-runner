@@ -309,13 +309,13 @@ func (f *fetcher) fetchBlobWithOffset(ctx context.Context, size int64, h v1.Hash
 		}
 	}
 
-	// For partial content, we only verify the chunk we're receiving
-	verifySize := size
+	// For partial content, we can't verify the hash since we don't have the full content
+	// In this case, return the raw response body without verification
 	if offset > 0 && resp.StatusCode == http.StatusPartialContent {
-		verifySize = verify.SizeUnknown // Can't verify hash of partial content
+		return resp.Body, nil
 	}
 
-	return verify.ReadCloser(resp.Body, verifySize, h)
+	return verify.ReadCloser(resp.Body, size, h)
 }
 
 func (f *fetcher) headBlob(ctx context.Context, h v1.Hash) (*http.Response, error) {
