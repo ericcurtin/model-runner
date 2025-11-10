@@ -20,6 +20,7 @@ import (
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/api/types/network"
+	"github.com/docker/docker/api/types/system"
 	"github.com/docker/docker/client"
 	"github.com/docker/go-connections/nat"
 	gpupkg "github.com/docker/model-runner/cmd/cli/pkg/gpu"
@@ -267,6 +268,48 @@ func tryGetBindAscendMounts(printer StatusPrinter) []mount.Mount {
 	return newMounts
 }
 
+// getProxySettings retrieves proxy settings from Docker daemon configuration
+// and environment variables. Docker daemon settings take precedence over
+// environment variables. Returns a map of proxy environment variable names to values.
+func getProxySettings(ctx context.Context, dockerClient *client.Client) map[string]string {
+	proxySettings := make(map[string]string)
+	
+	// First, check environment variables as fallback
+	proxyEnvVars := []string{"HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "no_proxy"}
+	for _, proxyVar := range proxyEnvVars {
+		if value, ok := os.LookupEnv(proxyVar); ok {
+			proxySettings[proxyVar] = value
+		}
+	}
+	
+	// Try to get proxy settings from Docker daemon configuration
+	// These settings take precedence over environment variables
+	info, err := dockerClient.Info(ctx)
+	if err == nil {
+		mergeDockerProxySettings(proxySettings, info)
+	}
+	
+	return proxySettings
+}
+
+// mergeDockerProxySettings merges Docker daemon proxy settings into the provided map.
+// Docker daemon settings take precedence over existing values.
+func mergeDockerProxySettings(proxySettings map[string]string, info system.Info) {
+	// Map Docker daemon proxy settings to both uppercase and lowercase variants
+	if info.HTTPProxy != "" {
+		proxySettings["HTTP_PROXY"] = info.HTTPProxy
+		proxySettings["http_proxy"] = info.HTTPProxy
+	}
+	if info.HTTPSProxy != "" {
+		proxySettings["HTTPS_PROXY"] = info.HTTPSProxy
+		proxySettings["https_proxy"] = info.HTTPSProxy
+	}
+	if info.NoProxy != "" {
+		proxySettings["NO_PROXY"] = info.NoProxy
+		proxySettings["no_proxy"] = info.NoProxy
+	}
+}
+
 // CreateControllerContainer creates and starts a controller container.
 func CreateControllerContainer(ctx context.Context, dockerClient *client.Client, port uint16, host string, environment string, doNotTrack bool, gpu gpupkg.GPUSupport, backend string, modelStorageVolume string, printer StatusPrinter, engineKind types.ModelRunnerEngineKind) error {
 	imageName := controllerImageName(gpu, backend)
@@ -281,11 +324,13 @@ func CreateControllerContainer(ctx context.Context, dockerClient *client.Client,
 		env = append(env, "DO_NOT_TRACK=1")
 	}
 
-	// Pass proxy environment variables to the container if they are set
-	proxyEnvVars := []string{"HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "no_proxy"}
-	for _, proxyVar := range proxyEnvVars {
-		if value, ok := os.LookupEnv(proxyVar); ok {
-			env = append(env, proxyVar+"="+value)
+	// Pass proxy environment variables to the container
+	// First, try to get proxy settings from Docker daemon configuration
+	// If not available, fall back to environment variables
+	proxySettings := getProxySettings(ctx, dockerClient)
+	for key, value := range proxySettings {
+		if value != "" {
+			env = append(env, key+"="+value)
 		}
 	}
 	config := &container.Config{
