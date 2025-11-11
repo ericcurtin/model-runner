@@ -40,9 +40,9 @@ func DisplayProgress(body io.Reader, printer standalone.StatusPrinter) (string, 
 
 	// Convert progress messages to JSONMessage format
 	scanner := bufio.NewScanner(body)
-	layerStatus := make(map[string]string) // Track status of each layer
 	var finalMessage string
-	progressShown := false // Track if we actually showed any progress bars
+	progressShown := false        // Track if we actually showed any progress bars
+	var lastCompletedLayer string // Track the last layer that completed
 
 	for scanner.Scan() {
 		progressLine := scanner.Text()
@@ -58,11 +58,12 @@ func DisplayProgress(body io.Reader, printer standalone.StatusPrinter) (string, 
 
 		switch progressMsg.Type {
 		case "progress":
-			progressShown = true // We're showing actual progress
-			if err := writeDockerProgress(pw, &progressMsg, layerStatus); err != nil {
-				pw.Close()
-				return "", false, err
+			// Track if this layer has completed
+			if progressMsg.Layer.Current >= progressMsg.Layer.Size && progressMsg.Layer.Size > 0 {
+				progressShown = true
+				lastCompletedLayer = progressMsg.Layer.ID
 			}
+			// Don't write any progress updates - we'll only show the final "Pull complete"
 
 		case "success":
 			finalMessage = progressMsg.Message
@@ -78,6 +79,14 @@ func DisplayProgress(body io.Reader, printer standalone.StatusPrinter) (string, 
 	if err := scanner.Err(); err != nil {
 		pw.Close()
 		return "", false, err
+	}
+
+	// After processing all messages, write only the final layer's "Pull complete"
+	if lastCompletedLayer != "" {
+		if err := writeDockerComplete(pw, lastCompletedLayer); err != nil {
+			pw.Close()
+			return finalMessage, progressShown, err
+		}
 	}
 
 	pw.Close()
@@ -184,6 +193,28 @@ func writeDockerProgress(w io.Writer, msg *ProgressMessage, layerStatus map[stri
 		ID:       displayID,
 		Status:   status,
 		Progress: progressDetail,
+	}
+
+	data, err := json.Marshal(dockerMsg)
+	if err != nil {
+		return err
+	}
+
+	_, err = fmt.Fprintf(w, "%s\n", data)
+	return err
+}
+
+// writeDockerComplete writes a "Pull complete" message for a layer
+func writeDockerComplete(w io.Writer, layerID string) error {
+	// Shorten layer ID for display (similar to Docker)
+	displayID := strings.TrimPrefix(layerID, "sha256:")
+	if len(displayID) > 12 {
+		displayID = displayID[:12]
+	}
+
+	dockerMsg := jsonmessage.JSONMessage{
+		ID:     displayID,
+		Status: "Pull complete",
 	}
 
 	data, err := json.Marshal(dockerMsg)
