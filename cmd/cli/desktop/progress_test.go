@@ -53,7 +53,7 @@ func TestDisplayProgress_ShowsOnlyLastCompletedLayer(t *testing.T) {
 
 	// Verify output contains only the last layer's "Pull complete"
 	outputStr := output.String()
-	
+
 	// Should contain the last layer's ID (shortened)
 	shortLayer2ID := layer2ID[7:19] // sha256: prefix removed, first 12 chars
 	assert.Contains(t, outputStr, shortLayer2ID, "Should show the last completed layer")

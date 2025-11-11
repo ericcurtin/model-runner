@@ -41,7 +41,7 @@ func DisplayProgress(body io.Reader, printer standalone.StatusPrinter) (string, 
 	// Convert progress messages to JSONMessage format
 	scanner := bufio.NewScanner(body)
 	var finalMessage string
-	progressShown := false // Track if we actually showed any progress bars
+	progressShown := false        // Track if we actually showed any progress bars
 	var lastCompletedLayer string // Track the last layer that completed
 
 	for scanner.Scan() {
