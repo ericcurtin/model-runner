@@ -101,7 +101,7 @@ func (s *LocalStore) writeLayer(layer blob, updates chan<- v1.Update) (bool, v1.
 	defer lr.Close()
 	r := progress.NewReader(lr, updates)
 
-	if err := s.WriteBlob(hash, r); err != nil {
+	if err := s.WriteBlobResumable(hash, r); err != nil {
 		return false, hash, err
 	}
 	return true, hash, nil
@@ -137,6 +137,109 @@ func (s *LocalStore) WriteBlob(diffID v1.Hash, r io.Reader) error {
 	if err := os.Rename(incompletePath(path), path); err != nil {
 		return fmt.Errorf("rename blob file: %w", err)
 	}
+	return nil
+}
+
+// WriteBlobResumable writes the blob to the store with support for resumable downloads.
+// If an incomplete download exists from a previous attempt, it will be resumed.
+// This implements resumable downloads similar to the approach in distribution/pull_v2.go
+// 
+// The function attempts to resume from a partial download in the following ways:
+// 1. If the reader supports seeking (io.Seeker), it will seek to the existing offset
+// 2. If the reader doesn't support seeking, it will discard bytes until reaching the offset
+// 3. If discarding fails or the incomplete file is invalid, it starts over
+func (s *LocalStore) WriteBlobResumable(diffID v1.Hash, r io.Reader) error {
+	hasBlob, err := s.hasBlob(diffID)
+	if err != nil {
+		return fmt.Errorf("check blob existence: %w", err)
+	}
+	if hasBlob {
+		return nil
+	}
+
+	path, err := s.blobPath(diffID)
+	if err != nil {
+		return fmt.Errorf("get blob path: %w", err)
+	}
+
+	incompleteBlobPath := incompletePath(path)
+	var f *os.File
+	var offset int64
+
+	// Check if an incomplete download exists from a previous attempt
+	if fileInfo, statErr := os.Stat(incompleteBlobPath); statErr == nil && fileInfo.Size() > 0 {
+		// Incomplete file exists, attempt to resume
+		offset = fileInfo.Size()
+		f, err = os.OpenFile(incompleteBlobPath, os.O_WRONLY|os.O_APPEND, 0666)
+		if err != nil {
+			// If we can't open for append, start over
+			os.Remove(incompleteBlobPath)
+			f, err = createFile(incompleteBlobPath)
+			if err != nil {
+				return fmt.Errorf("create blob file: %w", err)
+			}
+			offset = 0
+		} else {
+			// Successfully opened for append
+			// Try to skip to the offset in the reader
+			resumed := false
+
+			// First try: if reader supports seeking, use that
+			if seeker, ok := r.(io.Seeker); ok {
+				if _, seekErr := seeker.Seek(offset, io.SeekStart); seekErr == nil {
+					resumed = true
+				}
+			}
+
+			// Second try: if seeking didn't work, try discarding bytes
+			// This handles the case where the remote sends data from the beginning
+			// but we want to skip already-downloaded bytes
+			if !resumed && offset > 0 {
+				discarded, discardErr := io.CopyN(io.Discard, r, offset)
+				if discardErr == nil && discarded == offset {
+					resumed = true
+				}
+			}
+
+			// If we couldn't resume, start over
+			if !resumed {
+				f.Close()
+				os.Remove(incompleteBlobPath)
+				f, err = createFile(incompleteBlobPath)
+				if err != nil {
+					return fmt.Errorf("create blob file: %w", err)
+				}
+				offset = 0
+			}
+		}
+	} else {
+		// No incomplete file or it's empty, create a new one
+		f, err = createFile(incompleteBlobPath)
+		if err != nil {
+			return fmt.Errorf("create blob file: %w", err)
+		}
+		offset = 0
+	}
+
+	// Don't defer os.Remove here - we want to keep incomplete files for resumption
+	defer f.Close()
+
+	_, copyErr := io.Copy(f, r)
+	if copyErr != nil {
+		// Keep the incomplete file for potential resume on next attempt
+		return fmt.Errorf("copy blob %q to store: %w", diffID.String(), copyErr)
+	}
+
+	f.Close() // Close before rename (required on Windows)
+	
+	// Download completed successfully, rename to final location
+	if err := os.Rename(incompleteBlobPath, path); err != nil {
+		return fmt.Errorf("rename blob file: %w", err)
+	}
+
+	// Remove the incomplete file marker if it exists
+	os.Remove(incompleteBlobPath)
+
 	return nil
 }
 
