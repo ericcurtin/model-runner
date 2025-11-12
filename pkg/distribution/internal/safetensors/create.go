@@ -172,7 +172,7 @@ func configFromFiles(paths []string) (types.Config, error) {
 }
 
 // extractContextSizeFromConfig attempts to read and parse config.json to extract the context size.
-// It looks for max_position_embeddings, n_positions, or max_length fields which typically represent context size.
+// It looks for max_position_embeddings, n_positions, max_length, or n_ctx fields which typically represent context size.
 // Returns 0 if the file doesn't exist or context size cannot be determined.
 func extractContextSizeFromConfig(configPath string) uint64 {
 	// Read config.json if it exists

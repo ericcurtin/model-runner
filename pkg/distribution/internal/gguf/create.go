@@ -55,17 +55,20 @@ func configFromFile(path string) types.Config {
 		return types.Config{} // continue without metadata
 	}
 	
+	// Extract GGUF metadata once and reuse it
+	metadata := extractGGUFMetadata(&gguf.Header)
+	
 	cfg := types.Config{
 		Format:       types.FormatGGUF,
 		Parameters:   strings.TrimSpace(gguf.Metadata().Parameters.String()),
 		Architecture: strings.TrimSpace(gguf.Metadata().Architecture),
 		Quantization: strings.TrimSpace(gguf.Metadata().FileType.String()),
 		Size:         strings.TrimSpace(gguf.Metadata().Size.String()),
-		GGUF:         extractGGUFMetadata(&gguf.Header),
+		GGUF:         metadata,
 	}
 	
 	// Extract context size from GGUF metadata if present
-	if metadata := extractGGUFMetadata(&gguf.Header); metadata != nil {
+	if metadata != nil {
 		if contextLengthStr, ok := metadata["llama.context_length"]; ok {
 			if parsed, err := strconv.ParseUint(contextLengthStr, 10, 64); err == nil {
 				cfg.ContextSize = &parsed
