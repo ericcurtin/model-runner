@@ -18,6 +18,7 @@ import (
 	reg "github.com/docker/model-runner/pkg/distribution/registry"
 	"github.com/docker/model-runner/pkg/inference"
 	"github.com/docker/model-runner/pkg/inference/memory"
+	"github.com/docker/model-runner/pkg/logging"
 
 	"github.com/sirupsen/logrus"
 )
@@ -122,11 +123,11 @@ func TestPullModel(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			log := logrus.NewEntry(logrus.StandardLogger())
+			log := logging.NewLogrusAdapter(logrus.StandardLogger())
 			memEstimator := &mockMemoryEstimator{}
 			m := NewManager(log, ClientConfig{
 				StoreRootPath: tempDir,
-				Logger:        log.WithFields(logrus.Fields{"component": "model-manager"}),
+				Logger:        log.WithFields(map[string]interface{}{"component": "model-manager"}),
 			}, nil, memEstimator)
 
 			r := httptest.NewRequest("POST", "/models/create", strings.NewReader(`{"from": "`+tag+`"}`))
@@ -233,11 +234,11 @@ func TestHandleGetModel(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			log := logrus.NewEntry(logrus.StandardLogger())
+			log := logging.NewLogrusAdapter(logrus.StandardLogger())
 			memEstimator := &mockMemoryEstimator{}
 			m := NewManager(log, ClientConfig{
 				StoreRootPath: tempDir,
-				Logger:        log.WithFields(logrus.Fields{"component": "model-manager"}),
+				Logger:        log.WithFields(map[string]interface{}{"component": "model-manager"}),
 				Transport:     http.DefaultTransport,
 				UserAgent:     "test-agent",
 			}, nil, memEstimator)
@@ -318,7 +319,7 @@ func TestCors(t *testing.T) {
 			memEstimator := &mockMemoryEstimator{}
 			discard := logrus.New()
 			discard.SetOutput(io.Discard)
-			log := logrus.NewEntry(discard)
+			log := logging.NewLogrusAdapter(discard)
 			m := NewManager(log, ClientConfig{}, []string{"*"}, memEstimator)
 			req := httptest.NewRequest(http.MethodOptions, "http://model-runner.docker.internal"+tt.path, nil)
 			req.Header.Set("Origin", "docker.com")

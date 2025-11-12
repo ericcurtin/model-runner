@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/docker/model-runner/pkg/inference/backends/llamacpp"
-	"github.com/sirupsen/logrus"
+	"github.com/docker/model-runner/pkg/logging"
 )
 
 func TestCreateLlamaCppConfigFromEnv(t *testing.T) {
@@ -68,13 +68,16 @@ func TestCreateLlamaCppConfigFromEnv(t *testing.T) {
 			originalLog := log
 			defer func() { log = originalLog }()
 
-			// Create a new logger that will exit with a special exit code
-			testLog := logrus.New()
+			// Initialize logger for testing
+			initLogger()
+			
+			// Set exit function to capture exit code
 			var exitCode int
-			testLog.ExitFunc = func(code int) {
-				exitCode = code
+			if slogLogger, ok := log.(*logging.SlogLogger); ok {
+				slogLogger.SetExitFunc(func(code int) {
+					exitCode = code
+				})
 			}
-			log = testLog
 
 			config := createLlamaCppConfigFromEnv()
 

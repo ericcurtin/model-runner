@@ -13,7 +13,6 @@ import (
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
-	"github.com/sirupsen/logrus"
 )
 
 type Tracker struct {
@@ -48,13 +47,7 @@ func NewTracker(httpClient *http.Client, log logging.Logger, userAgent string, d
 		userAgent = userAgent + " docker-model-runner"
 	}
 
-	if os.Getenv("DEBUG") == "1" {
-		if logger, ok := log.(*logrus.Logger); ok {
-			logger.SetLevel(logrus.DebugLevel)
-		} else if entry, ok := log.(*logrus.Entry); ok {
-			entry.Logger.SetLevel(logrus.DebugLevel)
-		}
-	}
+	// Note: Log level is now configured globally in main.go via DEBUG environment variable
 
 	return &Tracker{
 		doNotTrack: os.Getenv("DO_NOT_TRACK") == "1" || doNotTrack,
