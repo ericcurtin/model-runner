@@ -55,8 +55,8 @@ func NewLayer(path string, mt ggcrtypes.MediaType) (*Layer, error) {
 
 	// Create annotations
 	annotations := map[string]string{
-		types.AnnotationFilePath:           path,
-		types.AnnotationFileMetadata:       string(metadataJSON),
+		types.AnnotationFilePath:          path,
+		types.AnnotationFileMetadata:      string(metadataJSON),
 		types.AnnotationMediaTypeUntested: "false", // Media types are tested in this implementation
 	}
 
