@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -20,12 +21,22 @@ import (
 	"github.com/docker/model-runner/pkg/inference/memory"
 	"github.com/docker/model-runner/pkg/inference/models"
 	"github.com/docker/model-runner/pkg/inference/scheduling"
+	"github.com/docker/model-runner/pkg/logging"
 	"github.com/docker/model-runner/pkg/metrics"
 	"github.com/docker/model-runner/pkg/routing"
-	"github.com/sirupsen/logrus"
 )
 
-var log = logrus.New()
+var log logging.Logger
+
+func initLogger() {
+	// Determine log level based on DEBUG environment variable
+	level := slog.LevelInfo
+	if os.Getenv("DEBUG") == "1" {
+		level = slog.LevelDebug
+	}
+	
+	log = logging.NewSlogLogger(level, os.Stderr)
+}
 
 // V1AliasHandler provides an alias from /v1/ to /engines/v1/ paths
 type V1AliasHandler struct {
@@ -49,6 +60,8 @@ func (h *V1AliasHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	initLogger()
+	
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
@@ -107,7 +120,7 @@ func main() {
 		log,
 		models.ClientConfig{
 			StoreRootPath: modelPath,
-			Logger:        log.WithFields(logrus.Fields{"component": "model-manager"}),
+			Logger:        log.WithFields(map[string]interface{}{"component": "model-manager"}),
 			Transport:     resumable.New(baseTransport),
 		},
 		nil,
@@ -122,7 +135,7 @@ func main() {
 	llamaCppBackend, err := llamacpp.New(
 		log,
 		modelManager,
-		log.WithFields(logrus.Fields{"component": llamacpp.Name}),
+		log.WithFields(map[string]interface{}{"component": llamacpp.Name}),
 		llamaServerPath,
 		func() string {
 			wd, _ := os.Getwd()
@@ -145,7 +158,7 @@ func main() {
 	vllmBackend, err := vllm.New(
 		log,
 		modelManager,
-		log.WithFields(logrus.Fields{"component": vllm.Name}),
+		log.WithFields(map[string]interface{}{"component": vllm.Name}),
 		nil,
 	)
 	if err != nil {

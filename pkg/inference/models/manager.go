@@ -22,7 +22,6 @@ import (
 	"github.com/docker/model-runner/pkg/logging"
 	"github.com/docker/model-runner/pkg/middleware"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
-	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -59,7 +58,7 @@ type ClientConfig struct {
 	// StoreRootPath is the root path for the model store.
 	StoreRootPath string
 	// Logger is the logger to use.
-	Logger *logrus.Entry
+	Logger logging.Logger
 	// Transport is the HTTP transport to use.
 	Transport http.RoundTripper
 	// UserAgent is the user agent to use.

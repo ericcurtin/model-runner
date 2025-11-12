@@ -5,11 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"slices"
 
 	"github.com/docker/model-runner/pkg/internal/utils"
-	"github.com/sirupsen/logrus"
+	"github.com/docker/model-runner/pkg/logging"
 
 	"github.com/docker/model-runner/pkg/distribution/internal/progress"
 	"github.com/docker/model-runner/pkg/distribution/internal/store"
@@ -22,7 +23,7 @@ import (
 // Client provides model distribution functionality
 type Client struct {
 	store    *store.LocalStore
-	log      *logrus.Entry
+	log      logging.Logger
 	registry *registry.Client
 }
 
@@ -37,7 +38,7 @@ type Option func(*options)
 // options holds the configuration for a new Client
 type options struct {
 	storeRootPath string
-	logger        *logrus.Entry
+	logger        logging.Logger
 	transport     http.RoundTripper
 	userAgent     string
 	username      string
@@ -54,7 +55,7 @@ func WithStoreRootPath(path string) Option {
 }
 
 // WithLogger sets the logger
-func WithLogger(logger *logrus.Entry) Option {
+func WithLogger(logger logging.Logger) Option {
 	return func(o *options) {
 		if logger != nil {
 			o.logger = logger
@@ -92,7 +93,7 @@ func WithRegistryAuth(username, password string) Option {
 
 func defaultOptions() *options {
 	return &options{
-		logger:    logrus.NewEntry(logrus.StandardLogger()),
+		logger:    logging.NewSlogLogger(slog.LevelInfo, nil),
 		transport: registry.DefaultTransport,
 		userAgent: registry.DefaultUserAgent,
 	}

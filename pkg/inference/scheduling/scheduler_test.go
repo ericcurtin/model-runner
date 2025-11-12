@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/docker/model-runner/pkg/inference"
+	"github.com/docker/model-runner/pkg/logging"
 	"github.com/sirupsen/logrus"
 )
 
@@ -43,7 +44,7 @@ func TestCors(t *testing.T) {
 			t.Parallel()
 			discard := logrus.New()
 			discard.SetOutput(io.Discard)
-			log := logrus.NewEntry(discard)
+			log := logging.NewLogrusAdapter(discard)
 			s := NewScheduler(log, nil, nil, nil, nil, []string{"*"}, nil, systemMemoryInfo{})
 			req := httptest.NewRequest(http.MethodOptions, "http://model-runner.docker.internal"+tt.path, nil)
 			req.Header.Set("Origin", "docker.com")

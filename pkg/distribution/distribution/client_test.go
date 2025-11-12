@@ -27,6 +27,7 @@ import (
 	"github.com/docker/model-runner/pkg/distribution/internal/safetensors"
 	mdregistry "github.com/docker/model-runner/pkg/distribution/registry"
 	"github.com/docker/model-runner/pkg/inference/platform"
+	"github.com/docker/model-runner/pkg/logging"
 )
 
 var (
@@ -773,7 +774,7 @@ func TestClientDefaultLogger(t *testing.T) {
 	}
 
 	// Create client with custom logger
-	customLogger := logrus.NewEntry(logrus.New())
+	customLogger := logging.NewLogrusAdapter(logrus.New())
 	client, err = NewClient(
 		WithStoreRootPath(tempDir),
 		WithLogger(customLogger),
