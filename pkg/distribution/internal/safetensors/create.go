@@ -1,6 +1,7 @@
 package safetensors
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -150,12 +151,70 @@ func configFromFiles(paths []string) (types.Config, error) {
 		architecture = fmt.Sprintf("%v", arch)
 	}
 
-	return types.Config{
+	cfg := types.Config{
 		Format:       types.FormatSafetensors,
 		Parameters:   formatParameters(params),
 		Quantization: header.GetQuantization(),
 		Size:         formatSize(totalSize),
 		Architecture: architecture,
 		Safetensors:  header.ExtractMetadata(),
-	}, nil
+	}
+
+	// Try to extract context size from config.json if it exists in the same directory
+	if len(paths) > 0 {
+		configJSONPath := filepath.Join(filepath.Dir(paths[0]), "config.json")
+		if contextSize := extractContextSizeFromConfig(configJSONPath); contextSize > 0 {
+			cfg.ContextSize = &contextSize
+		}
+	}
+
+	return cfg, nil
+}
+
+// extractContextSizeFromConfig attempts to read and parse config.json to extract the context size.
+// It looks for max_position_embeddings, n_positions, max_length, or n_ctx fields which typically represent context size.
+// Returns 0 if the file doesn't exist or context size cannot be determined.
+func extractContextSizeFromConfig(configPath string) uint64 {
+	// Read config.json if it exists
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		return 0 // File doesn't exist or can't be read
+	}
+
+	// Parse JSON
+	var config map[string]interface{}
+	if err := json.Unmarshal(data, &config); err != nil {
+		return 0 // Invalid JSON
+	}
+
+	// Try to find context size in common field names
+	// Different model architectures use different field names
+	contextFields := []string{
+		"max_position_embeddings", // Most common (BERT, GPT, LLaMA, etc.)
+		"n_positions",             // GPT-2
+		"max_length",              // Some T5 variants
+		"n_ctx",                   // Some other models
+	}
+
+	for _, field := range contextFields {
+		if val, ok := config[field]; ok {
+			// Try to convert to uint64
+			switch v := val.(type) {
+			case float64:
+				if v > 0 {
+					return uint64(v)
+				}
+			case int:
+				if v > 0 {
+					return uint64(v)
+				}
+			case int64:
+				if v > 0 {
+					return uint64(v)
+				}
+			}
+		}
+	}
+
+	return 0
 }
