@@ -157,13 +157,13 @@ func writeDockerProgress(w io.Writer, msg *ProgressMessage, layerStatus map[stri
 		// Calculate completion percentage to avoid showing near-complete downloads
 		// that will immediately be followed by "Pull complete"
 		percentComplete := float64(msg.Layer.Current) / float64(msg.Layer.Size)
-		
+
 		// Skip showing "Downloading" if the layer is >= 99.5% complete
 		// to reduce visual noise before the "Pull complete" message
 		if percentComplete >= 0.995 {
 			return nil
 		}
-		
+
 		status = "Downloading"
 		progressDetail = &jsonmessage.JSONProgress{
 			Current: int64(msg.Layer.Current),

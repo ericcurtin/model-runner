@@ -40,36 +40,36 @@ func (m *mockStatusPrinter) GetFdInfo() (uintptr, bool) {
 
 func TestWriteDockerProgress_SkipsNearComplete(t *testing.T) {
 	tests := []struct {
-		name           string
-		current        uint64
-		size           uint64
-		expectSkipped  bool
-		description    string
+		name          string
+		current       uint64
+		size          uint64
+		expectSkipped bool
+		description   string
 	}{
 		{
 			name:          "early progress",
-			current:       10 * 1024 * 1024, // 10MB
+			current:       10 * 1024 * 1024,  // 10MB
 			size:          100 * 1024 * 1024, // 100MB
 			expectSkipped: false,
 			description:   "10% complete - should show",
 		},
 		{
 			name:          "mid progress",
-			current:       50 * 1024 * 1024, // 50MB
+			current:       50 * 1024 * 1024,  // 50MB
 			size:          100 * 1024 * 1024, // 100MB
 			expectSkipped: false,
 			description:   "50% complete - should show",
 		},
 		{
 			name:          "high progress",
-			current:       90 * 1024 * 1024, // 90MB
+			current:       90 * 1024 * 1024,  // 90MB
 			size:          100 * 1024 * 1024, // 100MB
 			expectSkipped: false,
 			description:   "90% complete - should show",
 		},
 		{
 			name:          "very close to complete",
-			current:       99900000, // 99.9MB
+			current:       99900000,  // 99.9MB
 			size:          100000000, // 100MB
 			expectSkipped: true,
 			description:   "99.9% complete - should skip (>99.5% threshold)",
@@ -83,7 +83,7 @@ func TestWriteDockerProgress_SkipsNearComplete(t *testing.T) {
 		},
 		{
 			name:          "small file near complete",
-			current:       4050, // 4.05kB
+			current:       4050,  // 4.05kB
 			size:          12620, // 12.62kB
 			expectSkipped: false,
 			description:   "32% complete - should show (like the issue, but this is not near complete)",
@@ -115,12 +115,12 @@ func TestWriteDockerProgress_SkipsNearComplete(t *testing.T) {
 			require.NoError(t, err)
 
 			output := buf.String()
-			
+
 			if tt.expectSkipped {
 				assert.Empty(t, output, "Expected output to be empty for %s", tt.description)
 			} else {
 				assert.NotEmpty(t, output, "Expected output to not be empty for %s", tt.description)
-				
+
 				// Parse the JSON output to verify it's valid
 				if output != "" {
 					lines := strings.Split(strings.TrimSpace(output), "\n")
@@ -131,7 +131,7 @@ func TestWriteDockerProgress_SkipsNearComplete(t *testing.T) {
 						var dockerMsg jsonmessage.JSONMessage
 						err := json.Unmarshal([]byte(line), &dockerMsg)
 						require.NoError(t, err, "Failed to parse JSON output for %s", tt.description)
-						
+
 						// Verify the status is either Downloading or Pull complete
 						assert.Contains(t, []string{"Downloading", "Pull complete", "Waiting"}, dockerMsg.Status)
 					}
@@ -145,13 +145,13 @@ func TestWriteDockerProgress_IssueScenario(t *testing.T) {
 	// Test the specific scenario from the issue where we have:
 	// Layer 1: downloading normally, then almost complete, then complete
 	// Layer 2: small progress, then near complete, then complete
-	
+
 	var buf bytes.Buffer
 	layerStatus := make(map[string]string)
-	
+
 	// Track all messages that were written
 	var messages []string
-	
+
 	// Layer 1: normal progress (should be shown)
 	msg1 := &ProgressMessage{
 		Type:  "progress",
@@ -168,7 +168,7 @@ func TestWriteDockerProgress_IssueScenario(t *testing.T) {
 	if buf.Len() > 0 {
 		messages = append(messages, "Layer1: 10MB/91.73MB - Downloading")
 	}
-	
+
 	// Layer 1: almost complete (should be skipped due to 99.9% threshold)
 	msg2 := &ProgressMessage{
 		Type:  "progress",
@@ -185,7 +185,7 @@ func TestWriteDockerProgress_IssueScenario(t *testing.T) {
 	if buf.Len() > 0 {
 		messages = append(messages, "Layer1: 91.69MB/91.73MB - Downloading (SHOULD BE SKIPPED)")
 	}
-	
+
 	// Layer 1: complete (should show "Pull complete")
 	msg3 := &ProgressMessage{
 		Type:  "progress",
@@ -202,7 +202,7 @@ func TestWriteDockerProgress_IssueScenario(t *testing.T) {
 	if buf.Len() > 0 {
 		messages = append(messages, "Layer1: Complete")
 	}
-	
+
 	// Layer 2: small progress (32% complete, should be shown)
 	msg4 := &ProgressMessage{
 		Type:  "progress",
@@ -219,7 +219,7 @@ func TestWriteDockerProgress_IssueScenario(t *testing.T) {
 	if buf.Len() > 0 {
 		messages = append(messages, "Layer2: 4.05kB/12.62kB - Downloading")
 	}
-	
+
 	// Layer 2: near complete (should be skipped due to 99.9% threshold)
 	msg5 := &ProgressMessage{
 		Type:  "progress",
@@ -236,7 +236,7 @@ func TestWriteDockerProgress_IssueScenario(t *testing.T) {
 	if buf.Len() > 0 {
 		messages = append(messages, "Layer2: 12.60kB/12.62kB - Downloading (SHOULD BE SKIPPED)")
 	}
-	
+
 	// Layer 2: complete (should show "Pull complete")
 	msg6 := &ProgressMessage{
 		Type:  "progress",
@@ -253,7 +253,7 @@ func TestWriteDockerProgress_IssueScenario(t *testing.T) {
 	if buf.Len() > 0 {
 		messages = append(messages, "Layer2: Complete")
 	}
-	
+
 	// Verify the expected messages
 	expectedMessages := []string{
 		"Layer1: 10MB/91.73MB - Downloading",
@@ -261,7 +261,7 @@ func TestWriteDockerProgress_IssueScenario(t *testing.T) {
 		"Layer2: 4.05kB/12.62kB - Downloading",
 		"Layer2: Complete",
 	}
-	
+
 	assert.Equal(t, expectedMessages, messages, "Should skip near-complete progress messages")
 }
 
