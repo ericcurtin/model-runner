@@ -2,6 +2,7 @@ package gguf
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -53,7 +54,8 @@ func configFromFile(path string) types.Config {
 	if err != nil {
 		return types.Config{} // continue without metadata
 	}
-	return types.Config{
+	
+	cfg := types.Config{
 		Format:       types.FormatGGUF,
 		Parameters:   strings.TrimSpace(gguf.Metadata().Parameters.String()),
 		Architecture: strings.TrimSpace(gguf.Metadata().Architecture),
@@ -61,4 +63,15 @@ func configFromFile(path string) types.Config {
 		Size:         strings.TrimSpace(gguf.Metadata().Size.String()),
 		GGUF:         extractGGUFMetadata(&gguf.Header),
 	}
+	
+	// Extract context size from GGUF metadata if present
+	if metadata := extractGGUFMetadata(&gguf.Header); metadata != nil {
+		if contextLengthStr, ok := metadata["llama.context_length"]; ok {
+			if parsed, err := strconv.ParseUint(contextLengthStr, 10, 64); err == nil {
+				cfg.ContextSize = &parsed
+			}
+		}
+	}
+	
+	return cfg
 }
