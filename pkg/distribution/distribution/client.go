@@ -9,6 +9,7 @@ import (
 	"slices"
 
 	"github.com/docker/model-runner/pkg/internal/utils"
+	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/sirupsen/logrus"
 
 	"github.com/docker/model-runner/pkg/distribution/internal/progress"
@@ -184,7 +185,22 @@ func (c *Client) PullModel(ctx context.Context, reference string, progressWriter
 
 	// Model doesn't exist in local store or digests don't match, pull from remote
 
-	if err = c.store.Write(remoteModel, []string{reference}, progressWriter); err != nil {
+	// Create registry context for resumable downloads with HTTP Range support
+	regCtx := &store.RegistryContext{
+		Reference: reference,
+		BlobURLFunc: func(digest v1.Hash) (string, error) {
+			return c.registry.BlobURL(reference, digest)
+		},
+		TokenFunc: func() (string, error) {
+			return c.registry.BearerToken(ctx, reference)
+		},
+		HTTPClient: &http.Client{
+			Transport: http.DefaultTransport,
+		},
+		Ctx: ctx,
+	}
+
+	if err = c.store.WriteWithRegistry(remoteModel, []string{reference}, progressWriter, regCtx); err != nil {
 		if writeErr := progress.WriteError(progressWriter, fmt.Sprintf("Error: %s", err.Error())); writeErr != nil {
 			c.log.Warnf("Failed to write error message: %v", writeErr)
 			// If we fail to write error message, don't try again

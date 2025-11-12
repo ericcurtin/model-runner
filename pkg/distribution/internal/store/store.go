@@ -1,9 +1,11 @@
 package store
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 
@@ -271,6 +273,216 @@ func (s *LocalStore) Write(mdl v1.Image, tags []string, w io.Writer) (err error)
 		}
 
 		created, diffID, err := s.writeLayer(layer, progressChan)
+
+		if progressChan != nil {
+			close(progressChan)
+			if pr != nil {
+				if err := pr.Wait(); err != nil {
+					fmt.Printf("reporter finished with non-fatal error: %v\n", err)
+				}
+			}
+		}
+
+		if err != nil {
+			return fmt.Errorf("writing blob: %w", err)
+		}
+		if created {
+			newLayerDigests = append(newLayerDigests, diffID)
+		}
+	}
+
+	if len(newLayerDigests) > 0 {
+		digests := append([]v1.Hash(nil), newLayerDigests...)
+		cleanups = append(cleanups, func() error {
+			var errs []error
+			for _, dg := range digests {
+				if err := s.removeBlob(dg); err != nil && !errors.Is(err, os.ErrNotExist) {
+					errs = append(errs, fmt.Errorf("remove blob %s: %w", dg, err))
+				}
+			}
+			if len(errs) > 0 {
+				return errors.Join(errs...)
+			}
+			return nil
+		})
+	}
+
+	// Write the manifest
+	digest, err := mdl.Digest()
+	if err != nil {
+		return fmt.Errorf("get digest: %w", err)
+	}
+	rm, err := mdl.RawManifest()
+	if err != nil {
+		return fmt.Errorf("get raw manifest: %w", err)
+	}
+	manifestExists := false
+	if _, statErr := os.Stat(s.manifestPath(digest)); statErr == nil {
+		manifestExists = true
+	} else if !errors.Is(statErr, os.ErrNotExist) {
+		return fmt.Errorf("stat manifest: %w", statErr)
+	}
+	if err := s.WriteManifest(digest, rm); err != nil {
+		return fmt.Errorf("write manifest: %w", err)
+	}
+	if !manifestExists {
+		cleanups = append(cleanups, func() error {
+			if err := s.removeManifest(digest); err != nil && !errors.Is(err, os.ErrNotExist) {
+				return fmt.Errorf("remove manifest: %w", err)
+			}
+			return nil
+		})
+	}
+	cleanups = append(cleanups, func() error {
+		if err := s.writeIndex(initialIndex); err != nil {
+			return fmt.Errorf("restore models index: %w", err)
+		}
+		return nil
+	})
+	if err := s.AddTags(digest.String(), tags); err != nil {
+		return fmt.Errorf("adding tags: %w", err)
+	}
+	success = true
+	return nil
+}
+
+// RegistryContext contains information needed for resumable downloads with HTTP Range requests
+type RegistryContext struct {
+	Reference     string
+	BlobURLFunc   func(digest v1.Hash) (string, error)
+	TokenFunc     func() (string, error)
+	HTTPClient    *http.Client
+	Ctx           context.Context
+}
+
+// WriteWithRegistry writes a model to the store with registry context for resumable downloads.
+// This method wraps layers with ResumableDownloadLayer to enable HTTP Range requests.
+func (s *LocalStore) WriteWithRegistry(mdl v1.Image, tags []string, w io.Writer, regCtx *RegistryContext) error {
+	// If no registry context provided, fall back to regular Write
+	if regCtx == nil {
+		return s.Write(mdl, tags, w)
+	}
+
+	// We'll use a custom implementation that wraps layers
+	initialIndex, err := s.readIndex()
+	if err != nil {
+		return fmt.Errorf("reading models index: %w", err)
+	}
+
+	type cleanupFunc func() error
+	var cleanups []cleanupFunc
+	success := false
+	var rollbackErrors []error
+	defer func() {
+		if success {
+			return
+		}
+		for i := len(cleanups) - 1; i >= 0; i-- {
+			if cleanupErr := cleanups[i](); cleanupErr != nil && !errors.Is(cleanupErr, os.ErrNotExist) {
+				rollbackErrors = append(rollbackErrors, cleanupErr)
+			}
+		}
+		if len(rollbackErrors) > 0 {
+			joined := errors.Join(rollbackErrors...)
+			wrapped := fmt.Errorf("rollback cleanup errors: %w", joined)
+			if err != nil {
+				err = errors.Join(err, wrapped)
+			} else {
+				err = wrapped
+			}
+		}
+	}()
+
+	configCreated, err := s.writeConfigFile(mdl)
+	if err != nil {
+		return fmt.Errorf("writing config file: %w", err)
+	}
+	if configCreated {
+		cfgHash, hashErr := mdl.ConfigName()
+		if hashErr != nil {
+			return fmt.Errorf("config digest: %w", hashErr)
+		}
+		cleanups = append(cleanups, func() error {
+			if err := s.removeBlob(cfgHash); err != nil && !errors.Is(err, os.ErrNotExist) {
+				return fmt.Errorf("remove config blob: %w", err)
+			}
+			return nil
+		})
+	}
+
+	layers, err := mdl.Layers()
+	if err != nil {
+		return fmt.Errorf("getting layers: %w", err)
+	}
+
+	imageSize := int64(0)
+	for _, layer := range layers {
+		size, err := layer.Size()
+		if err != nil {
+			return fmt.Errorf("getting layer size: %w", err)
+		}
+		imageSize += size
+	}
+
+	// Get authorization token
+	var authorization string
+	if regCtx.TokenFunc != nil {
+		token, err := regCtx.TokenFunc()
+		if err != nil {
+			// Log but don't fail - we'll try without token
+			fmt.Printf("Warning: failed to get bearer token: %v\n", err)
+		} else {
+			authorization = "Bearer " + token
+		}
+	}
+
+	var newLayerDigests []v1.Hash
+	for _, layer := range layers {
+		// Get layer digest for blob URL
+		layerDigest, err := layer.Digest()
+		if err != nil {
+			return fmt.Errorf("getting layer digest: %w", err)
+		}
+
+		// Get blob URL
+		var blobURL string
+		if regCtx.BlobURLFunc != nil {
+			blobURL, err = regCtx.BlobURLFunc(layerDigest)
+			if err != nil {
+				// Log but continue with non-resumable download
+				fmt.Printf("Warning: failed to get blob URL: %v\n", err)
+			}
+		}
+
+		// Get the path for the incomplete file
+		diffID, err := layer.DiffID()
+		if err != nil {
+			return fmt.Errorf("getting layer diffID: %w", err)
+		}
+		blobPath, err := s.blobPath(diffID)
+		if err != nil {
+			return fmt.Errorf("getting blob path: %w", err)
+		}
+		tmpFilePath := incompletePath(blobPath)
+
+		// Wrap the layer with ResumableDownloadLayer
+		resumableLayer := NewResumableDownloadLayer(
+			regCtx.Ctx,
+			layer,
+			blobURL,
+			regCtx.HTTPClient,
+			authorization,
+			tmpFilePath,
+		)
+
+		var pr *progress.Reporter
+		var progressChan chan<- v1.Update
+		if w != nil {
+			pr = progress.NewProgressReporter(w, progress.PullMsg, imageSize, layer)
+			progressChan = pr.Updates()
+		}
+
+		created, diffID, err := s.writeLayer(resumableLayer, progressChan)
 
 		if progressChan != nil {
 			close(progressChan)
