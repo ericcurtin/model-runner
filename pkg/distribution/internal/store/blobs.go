@@ -142,12 +142,20 @@ func (s *LocalStore) WriteBlob(diffID v1.Hash, r io.Reader) error {
 
 // WriteBlobResumable writes the blob to the store with support for resumable downloads.
 // If an incomplete download exists from a previous attempt, it will be resumed.
-// This implements resumable downloads similar to the approach in distribution/pull_v2.go
+//
+// This implements resumable downloads similar to the approach in distribution/pull_v2.go,
+// but with an important limitation: it does not use HTTP Range requests.
+// This means that on retry, the entire blob is downloaded from the network and 
+// already-saved bytes are discarded, which is bandwidth-inefficient.
 // 
 // The function attempts to resume from a partial download in the following ways:
 // 1. If the reader supports seeking (io.Seeker), it will seek to the existing offset
 // 2. If the reader doesn't support seeking, it will discard bytes until reaching the offset
+//    (Note: this still downloads those bytes from the network)
 // 3. If discarding fails or the incomplete file is invalid, it starts over
+//
+// For true bandwidth-efficient resumable downloads, use ResumableDownloadLayer
+// which supports HTTP Range requests when blob URLs and HTTP clients are available.
 func (s *LocalStore) WriteBlobResumable(diffID v1.Hash, r io.Reader) error {
 	hasBlob, err := s.hasBlob(diffID)
 	if err != nil {
