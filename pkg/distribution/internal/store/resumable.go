@@ -1,0 +1,198 @@
+package store
+
+import (
+	"compress/gzip"
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+
+	"github.com/docker/model-runner/pkg/distribution/internal/progress"
+	v1 "github.com/google/go-containerregistry/pkg/v1"
+)
+
+// ResumableLayer wraps a v1.Layer and adds resumable download capability
+type ResumableLayer struct {
+	v1.Layer
+	store      *LocalStore
+	httpClient *http.Client
+	blobURL    string
+	authToken  string
+}
+
+// NewResumableLayer creates a resumable layer wrapper
+func NewResumableLayer(
+	layer v1.Layer,
+	store *LocalStore,
+	httpClient *http.Client,
+	blobURL string,
+	authToken string,
+) *ResumableLayer {
+	return &ResumableLayer{
+		Layer:      layer,
+		store:      store,
+		httpClient: httpClient,
+		blobURL:    blobURL,
+		authToken:  authToken,
+	}
+}
+
+// Compressed returns an io.ReadCloser for the compressed layer contents with resume support
+func (rl *ResumableLayer) Compressed() (io.ReadCloser, error) {
+	// If we don't have HTTP client or URL, fall back to original
+	if rl.httpClient == nil || rl.blobURL == "" {
+		return rl.Layer.Compressed()
+	}
+
+	// Get the compressed digest to identify where to store the compressed data
+	compressedDigest, err := rl.Digest()
+	if err != nil {
+		return rl.Layer.Compressed()
+	}
+
+	// Get path for incomplete compressed file
+	compressedPath, err := rl.store.blobPath(compressedDigest)
+	if err != nil {
+		return rl.Layer.Compressed()
+	}
+	incompletePath := incompletePath(compressedPath)
+
+	// Check for existing incomplete file
+	var offset int64
+	if stat, err := os.Stat(incompletePath); err == nil {
+		offset = stat.Size()
+	}
+
+	// If no offset, use original layer
+	if offset == 0 {
+		return rl.Layer.Compressed()
+	}
+
+	// Make HTTP request with Range header
+	req, err := http.NewRequest("GET", rl.blobURL, nil)
+	if err != nil {
+		// Fall back to original on error
+		return rl.Layer.Compressed()
+	}
+
+	req.Header.Set("Range", fmt.Sprintf("bytes=%d-", offset))
+	if rl.authToken != "" {
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", rl.authToken))
+	}
+
+	resp, err := rl.httpClient.Do(req)
+	if err != nil {
+		// Fall back to original on error
+		return rl.Layer.Compressed()
+	}
+
+	// Check if server supports range
+	if resp.StatusCode == http.StatusPartialContent {
+		// Successfully resumed!
+		return resp.Body, nil
+	}
+
+	// Server doesn't support range or other error, close and fall back
+	resp.Body.Close()
+	
+	// Remove incomplete file if range not supported
+	os.Remove(incompletePath)
+	
+	return rl.Layer.Compressed()
+}
+
+// DownloadAndDecompress downloads the layer with resume support and decompresses it
+func (rl *ResumableLayer) DownloadAndDecompress(updates chan<- v1.Update) (bool, v1.Hash, error) {
+	diffID, err := rl.DiffID()
+	if err != nil {
+		return false, v1.Hash{}, fmt.Errorf("get diff ID: %w", err)
+	}
+
+	// Check if we already have this blob
+	hasBlob, err := rl.store.hasBlob(diffID)
+	if err != nil {
+		return false, v1.Hash{}, fmt.Errorf("check blob existence: %w", err)
+	}
+	if hasBlob {
+		return false, diffID, nil
+	}
+
+	// Get the compressed digest
+	compressedDigest, err := rl.Digest()
+	if err != nil {
+		return false, v1.Hash{}, fmt.Errorf("get compressed digest: %w", err)
+	}
+
+	// Get path for storing compressed data
+	compressedPath, err := rl.store.blobPath(compressedDigest)
+	if err != nil {
+		return false, v1.Hash{}, fmt.Errorf("get compressed path: %w", err)
+	}
+	compressedIncompletePath := incompletePath(compressedPath)
+
+	// Check for existing incomplete file
+	var offset int64
+	if stat, err := os.Stat(compressedIncompletePath); err == nil {
+		offset = stat.Size()
+	}
+
+	// Get compressed reader (with resume support via Compressed())
+	compressedReader, err := rl.Compressed()
+	if err != nil {
+		return false, v1.Hash{}, fmt.Errorf("get compressed reader: %w", err)
+	}
+	defer compressedReader.Close()
+
+	// Open file for writing (append if offset > 0)
+	var compressedFile *os.File
+	if offset > 0 {
+		compressedFile, err = os.OpenFile(compressedIncompletePath, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0666)
+		if err != nil {
+			return false, v1.Hash{}, fmt.Errorf("open compressed file for append: %w", err)
+		}
+	} else {
+		compressedFile, err = createFile(compressedIncompletePath)
+		if err != nil {
+			return false, v1.Hash{}, fmt.Errorf("create compressed file: %w", err)
+		}
+	}
+
+	// Download compressed data
+	written, err := io.Copy(compressedFile, compressedReader)
+	if err != nil {
+		compressedFile.Close()
+		// Keep incomplete file for resume
+		return false, v1.Hash{}, fmt.Errorf("download compressed (offset=%d, wrote=%d): %w", offset, written, err)
+	}
+	compressedFile.Close()
+
+	// Decompress the complete file
+	compressedFile, err = os.Open(compressedIncompletePath)
+	if err != nil {
+		return false, v1.Hash{}, fmt.Errorf("open for decompression: %w", err)
+	}
+	defer compressedFile.Close()
+
+	gzipReader, err := gzip.NewReader(compressedFile)
+	if err != nil {
+		return false, v1.Hash{}, fmt.Errorf("create gzip reader: %w", err)
+	}
+	defer gzipReader.Close()
+
+	// Wrap with progress if provided
+	var reader io.Reader = gzipReader
+	if updates != nil {
+		reader = progress.NewReader(gzipReader, updates)
+	}
+
+	// Write decompressed data
+	if err := rl.store.WriteBlob(diffID, reader); err != nil {
+		return false, v1.Hash{}, fmt.Errorf("write decompressed: %w", err)
+	}
+
+	// Clean up compressed file
+	os.Remove(compressedIncompletePath)
+
+	return true, diffID, nil
+}
+

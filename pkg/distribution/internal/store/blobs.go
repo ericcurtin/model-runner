@@ -122,21 +122,43 @@ func (s *LocalStore) WriteBlob(diffID v1.Hash, r io.Reader) error {
 	if err != nil {
 		return fmt.Errorf("get blob path: %w", err)
 	}
-	f, err := createFile(incompletePath(path))
-	if err != nil {
-		return fmt.Errorf("create blob file: %w", err)
+	
+	incompletePath := incompletePath(path)
+
+	// Open or create the incomplete file  
+	var f *os.File
+	var existingSize int64
+	if stat, err := os.Stat(incompletePath); err == nil {
+		// Incomplete file exists from previous attempt
+		existingSize = stat.Size()
+		// For now, we truncate and start fresh because we can't resume decompressed streams
+		// TODO: Implement proper resumption with HTTP Range requests for compressed data
+		f, err = os.OpenFile(incompletePath, os.O_WRONLY|os.O_TRUNC, 0666)
+		if err != nil {
+			return fmt.Errorf("open incomplete blob file: %w", err)
+		}
+	} else {
+		// Create new file
+		f, err = createFile(incompletePath)
+		if err != nil {
+			return fmt.Errorf("create blob file: %w", err)
+		}
 	}
-	defer os.Remove(incompletePath(path))
 	defer f.Close()
 
-	if _, err := io.Copy(f, r); err != nil {
-		return fmt.Errorf("copy blob %q to store: %w", diffID.String(), err)
+	// Write data
+	written, err := io.Copy(f, r)
+	if err != nil {
+		// Keep incomplete file for potential future resume support
+		return fmt.Errorf("copy blob %q to store (wrote %d bytes, had %d): %w", diffID.String(), written, existingSize, err)
 	}
 
 	f.Close() // Rename will fail on Windows if the file is still open.
-	if err := os.Rename(incompletePath(path), path); err != nil {
+	if err := os.Rename(incompletePath, path); err != nil {
 		return fmt.Errorf("rename blob file: %w", err)
 	}
+	// Clean up incomplete file after successful rename
+	os.Remove(incompletePath)
 	return nil
 }
 

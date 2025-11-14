@@ -93,14 +93,17 @@ func TestBlobs(t *testing.T) {
 			t.Fatalf("expected blob file not to exist")
 		}
 
-		// ensure incomplete file is not left behind
+		// With resumable downloads, incomplete file should be kept for potential resume
 		blobPath3, err := store.blobPath(hash)
 		if err != nil {
 			t.Fatalf("error getting blob path: %v", err)
 		}
-		if _, err := os.ReadFile(incompletePath(blobPath3)); !errors.Is(err, os.ErrNotExist) {
-			t.Fatalf("expected incomplete blob file not to exist")
+		if _, err := os.Stat(incompletePath(blobPath3)); err != nil {
+			t.Fatalf("expected incomplete blob file to exist for resume, got: %v", err)
 		}
+		
+		// Clean up for other tests
+		os.Remove(incompletePath(blobPath3))
 	})
 
 	t.Run("WriteBlob reuses existing blob", func(t *testing.T) {
