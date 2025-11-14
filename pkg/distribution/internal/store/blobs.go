@@ -109,6 +109,7 @@ func (s *LocalStore) writeLayer(layer blob, updates chan<- v1.Update) (bool, v1.
 
 // WriteBlob writes the blob to the store, reporting progress to the given channel.
 // If the blob is already in the store, it is a no-op and the blob is not consumed from the reader.
+// If an incomplete file exists from a previous interrupted download, it will resume from that offset.
 func (s *LocalStore) WriteBlob(diffID v1.Hash, r io.Reader) error {
 	hasBlob, err := s.hasBlob(diffID)
 	if err != nil {
@@ -122,19 +123,43 @@ func (s *LocalStore) WriteBlob(diffID v1.Hash, r io.Reader) error {
 	if err != nil {
 		return fmt.Errorf("get blob path: %w", err)
 	}
-	f, err := createFile(incompletePath(path))
-	if err != nil {
-		return fmt.Errorf("create blob file: %w", err)
+
+	incompletePath := incompletePath(path)
+	var f *os.File
+
+	// Check if there's a partial download to resume
+	if _, err := os.Stat(incompletePath); err == nil {
+		// Open the file in append mode to continue from where we left off
+		f, err = os.OpenFile(incompletePath, os.O_WRONLY|os.O_APPEND, 0666)
+		if err != nil {
+			// If we can't open for append, remove it and start fresh
+			_ = os.Remove(incompletePath)
+			f, err = createFile(incompletePath)
+			if err != nil {
+				return fmt.Errorf("create blob file: %w", err)
+			}
+		}
+	} else {
+		// No partial download, create new file
+		f, err = createFile(incompletePath)
+		if err != nil {
+			return fmt.Errorf("create blob file: %w", err)
+		}
 	}
-	defer os.Remove(incompletePath(path))
+
+	defer os.Remove(incompletePath)
 	defer f.Close()
+
+	// Note: The resume logic for fetching from the right offset happens
+	// at a higher level where we have access to the layer and can make
+	// HTTP Range requests (see resumableLayer in distribution/resumable.go).
 
 	if _, err := io.Copy(f, r); err != nil {
 		return fmt.Errorf("copy blob %q to store: %w", diffID.String(), err)
 	}
 
 	f.Close() // Rename will fail on Windows if the file is still open.
-	if err := os.Rename(incompletePath(path), path); err != nil {
+	if err := os.Rename(incompletePath, path); err != nil {
 		return fmt.Errorf("rename blob file: %w", err)
 	}
 	return nil
