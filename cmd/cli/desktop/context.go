@@ -30,12 +30,9 @@ func isDesktopContext(ctx context.Context, cli *command.DockerCli) bool {
 	// Linux, so we won't treat that as a Docker Desktop case (though it will
 	// still work as a standard Moby or Cloud case, depending on configuration).
 	if runtime.GOOS == "linux" {
-		if strings.Contains(serverInfo.KernelVersion, "-microsoft-standard-WSL2") {
-			// We can use Docker Desktop from within a WSL2 integrated distro.
-			// https://github.com/search?q=repo%3Amicrosoft%2FWSL2-Linux-Kernel+path%3A%2F%5Earch%5C%2F.*%5C%2Fconfigs%5C%2Fconfig-wsl%2F+CONFIG_LOCALVERSION&type=code
-			return serverInfo.OperatingSystem == "Docker Desktop"
-		}
-		return false
+		// We can use Docker Desktop from within a WSL2 integrated distro.
+		// https://github.com/search?q=repo%3Amicrosoft%2FWSL2-Linux-Kernel+path%3A%2F%5Earch%5C%2F.*%5C%2Fconfigs%5C%2Fconfig-wsl%2F+CONFIG_LOCALVERSION&type=code
+		return IsDesktopWSLContext(ctx, cli)
 	}
 
 	// Enforce that we're on macOS or Windows, just in case someone is running
@@ -46,6 +43,15 @@ func isDesktopContext(ctx context.Context, cli *command.DockerCli) bool {
 
 	// docker run -it --rm --privileged --pid=host justincormack/nsenter1 /bin/sh -c 'cat /etc/os-release'
 	return serverInfo.OperatingSystem == "Docker Desktop"
+}
+
+func IsDesktopWSLContext(ctx context.Context, cli *command.DockerCli) bool {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	serverInfo, _ := cli.Client().Info(ctx)
+
+	return strings.Contains(serverInfo.KernelVersion, "-microsoft-standard-WSL2") &&
+		serverInfo.OperatingSystem == "Docker Desktop"
 }
 
 // isCloudContext returns true if the CLI instance points to a Docker Cloud
@@ -157,6 +163,19 @@ func DetectContext(ctx context.Context, cli *command.DockerCli) (*ModelRunnerCon
 		rawURLPrefix = modelRunnerHost
 	} else { // ModelRunnerEngineKindDesktop
 		rawURLPrefix = "http://localhost" + inference.ExperimentalEndpointsPrefix
+		if IsDesktopWSLContext(ctx, cli) {
+			dockerClient, err := DockerClientForContext(cli, cli.CurrentContext())
+			if err != nil {
+				return nil, fmt.Errorf("failed to create Docker client: %w", err)
+			}
+
+			// Check if a model runner container exists.
+			containerID, _, _, err := standalone.FindControllerContainer(ctx, dockerClient)
+			if err == nil && containerID != "" {
+				rawURLPrefix = "http://localhost:" + strconv.Itoa(standalone.DefaultControllerPortMoby)
+				kind = types.ModelRunnerEngineKindMoby
+			}
+		}
 	}
 	urlPrefix, err := url.Parse(rawURLPrefix)
 	if err != nil {
