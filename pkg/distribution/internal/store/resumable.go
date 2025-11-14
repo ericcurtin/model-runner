@@ -144,6 +144,12 @@ func (rl *ResumableLayer) DownloadAndDecompress(updates chan<- v1.Update) (bool,
 	}
 	defer compressedReader.Close()
 
+	// Wrap compressed reader with progress reporting for download
+	var progressReader io.Reader = compressedReader
+	if updates != nil {
+		progressReader = progress.NewReader(compressedReader, updates)
+	}
+
 	// Open file for writing (append if offset > 0)
 	var compressedFile *os.File
 	if offset > 0 {
@@ -158,8 +164,8 @@ func (rl *ResumableLayer) DownloadAndDecompress(updates chan<- v1.Update) (bool,
 		}
 	}
 
-	// Download compressed data
-	written, err := io.Copy(compressedFile, compressedReader)
+	// Download compressed data with progress reporting
+	written, err := io.Copy(compressedFile, progressReader)
 	if err != nil {
 		compressedFile.Close()
 		// Keep incomplete file for resume
@@ -193,12 +199,7 @@ func (rl *ResumableLayer) DownloadAndDecompress(updates chan<- v1.Update) (bool,
 		reader = gzipReader
 	}
 
-	// Wrap with progress if provided
-	if updates != nil {
-		reader = progress.NewReader(reader, updates)
-	}
-
-	// Write data
+	// Write data (no progress wrapping here since download progress was already reported)
 	if err := rl.store.WriteBlob(diffID, reader); err != nil {
 		return false, v1.Hash{}, fmt.Errorf("write blob: %w", err)
 	}
