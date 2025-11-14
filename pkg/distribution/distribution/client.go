@@ -22,9 +22,10 @@ import (
 
 // Client provides model distribution functionality
 type Client struct {
-	store    *store.LocalStore
-	log      *logrus.Entry
-	registry *registry.Client
+	store     *store.LocalStore
+	log       *logrus.Entry
+	registry  *registry.Client
+	transport http.RoundTripper
 }
 
 // GetStorePath returns the root path where models are stored
@@ -130,9 +131,10 @@ func NewClient(opts ...Option) (*Client, error) {
 
 	options.logger.Infoln("Successfully initialized store")
 	return &Client{
-		store:    s,
-		log:      options.logger,
-		registry: registry.NewClient(registryOpts...),
+		store:     s,
+		log:       options.logger,
+		registry:  registry.NewClient(registryOpts...),
+		transport: options.transport,
 	}, nil
 }
 
@@ -185,7 +187,10 @@ func (c *Client) PullModel(ctx context.Context, reference string, progressWriter
 
 	// Model doesn't exist in local store or digests don't match, pull from remote
 
-	if err = c.store.Write(remoteModel, []string{reference}, progressWriter); err != nil {
+	// Wrap the remote model with resumable download support
+	resumableModel := c.wrapWithResumableImage(ctx, remoteModel, reference, c.transport)
+
+	if err = c.store.Write(resumableModel, []string{reference}, progressWriter); err != nil {
 		if writeErr := progress.WriteError(progressWriter, fmt.Sprintf("Error: %s", err.Error())); writeErr != nil {
 			c.log.Warnf("Failed to write error message: %v", writeErr)
 			// If we fail to write error message, don't try again
