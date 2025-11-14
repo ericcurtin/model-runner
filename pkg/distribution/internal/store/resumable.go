@@ -173,21 +173,31 @@ func (rl *ResumableLayer) DownloadAndDecompress(updates chan<- v1.Update) (bool,
 	}
 	defer compressedFile.Close()
 
+	// Try to decompress - if it fails, the data might already be uncompressed
 	gzipReader, err := gzip.NewReader(compressedFile)
+	var reader io.Reader
 	if err != nil {
-		return false, v1.Hash{}, fmt.Errorf("create gzip reader: %w", err)
+		// Data is not gzipped, use it directly
+		// Need to reopen the file since gzip.NewReader consumed some bytes
+		compressedFile.Close()
+		compressedFile, err = os.Open(compressedIncompletePath)
+		if err != nil {
+			return false, v1.Hash{}, fmt.Errorf("reopen for direct read: %w", err)
+		}
+		reader = compressedFile
+	} else {
+		defer gzipReader.Close()
+		reader = gzipReader
 	}
-	defer gzipReader.Close()
 
 	// Wrap with progress if provided
-	var reader io.Reader = gzipReader
 	if updates != nil {
-		reader = progress.NewReader(gzipReader, updates)
+		reader = progress.NewReader(reader, updates)
 	}
 
-	// Write decompressed data
+	// Write data
 	if err := rl.store.WriteBlob(diffID, reader); err != nil {
-		return false, v1.Hash{}, fmt.Errorf("write decompressed: %w", err)
+		return false, v1.Hash{}, fmt.Errorf("write blob: %w", err)
 	}
 
 	// Clean up compressed file

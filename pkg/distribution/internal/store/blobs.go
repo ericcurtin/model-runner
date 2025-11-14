@@ -81,6 +81,12 @@ type blob interface {
 // writeLayer writes the layer blob to the store.
 // It returns true when a new blob was created and the blob's DiffID.
 func (s *LocalStore) writeLayer(layer blob, updates chan<- v1.Update) (bool, v1.Hash, error) {
+	// Check if this is a ResumableLayer and use its special download method
+	if resumableLayer, ok := layer.(*ResumableLayer); ok {
+		return resumableLayer.DownloadAndDecompress(updates)
+	}
+
+	// Standard layer download (non-resumable)
 	hash, err := layer.DiffID()
 	if err != nil {
 		return false, v1.Hash{}, fmt.Errorf("get file hash: %w", err)
