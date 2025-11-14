@@ -128,7 +128,8 @@ func (rl *ResumableLayer) DownloadAndDecompress(updates chan<- v1.Update) (bool,
 	if err != nil {
 		return false, v1.Hash{}, fmt.Errorf("get compressed path: %w", err)
 	}
-	compressedIncompletePath := incompletePath(compressedPath)
+	// Use a different suffix for compressed incomplete files to avoid conflicts
+	compressedIncompletePath := compressedPath + ".compressed.incomplete"
 
 	// Check for existing incomplete file
 	var offset int64
@@ -171,7 +172,6 @@ func (rl *ResumableLayer) DownloadAndDecompress(updates chan<- v1.Update) (bool,
 	if err != nil {
 		return false, v1.Hash{}, fmt.Errorf("open for decompression: %w", err)
 	}
-	defer compressedFile.Close()
 
 	// Try to decompress - if it fails, the data might already be uncompressed
 	gzipReader, err := gzip.NewReader(compressedFile)
@@ -184,9 +184,12 @@ func (rl *ResumableLayer) DownloadAndDecompress(updates chan<- v1.Update) (bool,
 		if err != nil {
 			return false, v1.Hash{}, fmt.Errorf("reopen for direct read: %w", err)
 		}
+		defer compressedFile.Close()
 		reader = compressedFile
 	} else {
+		// gzipReader wraps compressedFile, so close them in proper order
 		defer gzipReader.Close()
+		defer compressedFile.Close()
 		reader = gzipReader
 	}
 
