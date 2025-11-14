@@ -37,68 +37,9 @@ func NewResumableLayer(
 	}
 }
 
-// Compressed returns an io.ReadCloser for the compressed layer contents with resume support
+// Compressed returns an io.ReadCloser for the compressed layer contents
+// Note: Resume logic is handled in DownloadAndDecompress, this just returns the full layer
 func (rl *ResumableLayer) Compressed() (io.ReadCloser, error) {
-	// If we don't have HTTP client or URL, fall back to original
-	if rl.httpClient == nil || rl.blobURL == "" {
-		return rl.Layer.Compressed()
-	}
-
-	// Get the compressed digest to identify where to store the compressed data
-	compressedDigest, err := rl.Digest()
-	if err != nil {
-		return rl.Layer.Compressed()
-	}
-
-	// Get path for incomplete compressed file
-	compressedPath, err := rl.store.blobPath(compressedDigest)
-	if err != nil {
-		return rl.Layer.Compressed()
-	}
-	// Use the same suffix as DownloadAndDecompress
-	incompletePath := compressedPath + ".compressed.incomplete"
-
-	// Check for existing incomplete file
-	var offset int64
-	if stat, err := os.Stat(incompletePath); err == nil {
-		offset = stat.Size()
-	}
-
-	// If no offset, use original layer
-	if offset == 0 {
-		return rl.Layer.Compressed()
-	}
-
-	// Make HTTP request with Range header
-	req, err := http.NewRequest("GET", rl.blobURL, nil)
-	if err != nil {
-		// Fall back to original on error
-		return rl.Layer.Compressed()
-	}
-
-	req.Header.Set("Range", fmt.Sprintf("bytes=%d-", offset))
-	if rl.authToken != "" {
-		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", rl.authToken))
-	}
-
-	resp, err := rl.httpClient.Do(req)
-	if err != nil {
-		// Fall back to original on error
-		return rl.Layer.Compressed()
-	}
-
-	// Check if server supports range
-	if resp.StatusCode == http.StatusPartialContent {
-		// Successfully resumed!
-		return resp.Body, nil
-	}
-
-	// Server doesn't support range or other error, close and fall back
-	resp.Body.Close()
-	
-	// Remove incomplete file if range not supported
-	os.Remove(incompletePath)
-	
 	return rl.Layer.Compressed()
 }
 
@@ -138,10 +79,40 @@ func (rl *ResumableLayer) DownloadAndDecompress(updates chan<- v1.Update) (bool,
 		offset = stat.Size()
 	}
 
-	// Get compressed reader (with resume support via Compressed())
-	compressedReader, err := rl.Compressed()
-	if err != nil {
-		return false, v1.Hash{}, fmt.Errorf("get compressed reader: %w", err)
+	// Get compressed reader with resume support if we have an offset
+	var compressedReader io.ReadCloser
+	if offset > 0 && rl.httpClient != nil && rl.blobURL != "" {
+		// Try to resume with HTTP Range
+		req, err := http.NewRequest("GET", rl.blobURL, nil)
+		if err == nil {
+			req.Header.Set("Range", fmt.Sprintf("bytes=%d-", offset))
+			if rl.authToken != "" {
+				req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", rl.authToken))
+			}
+
+			resp, err := rl.httpClient.Do(req)
+			if err == nil {
+				if resp.StatusCode == http.StatusPartialContent {
+					// Successfully resumed!
+					compressedReader = resp.Body
+				} else {
+					// Server doesn't support range, start fresh
+					resp.Body.Close()
+					offset = 0
+					os.Remove(compressedIncompletePath)
+					// Fall through to get full layer
+				}
+			}
+		}
+	}
+
+	// If we couldn't resume, get the full layer
+	if compressedReader == nil {
+		var err error
+		compressedReader, err = rl.Layer.Compressed()
+		if err != nil {
+			return false, v1.Hash{}, fmt.Errorf("get compressed reader: %w", err)
+		}
 	}
 	defer compressedReader.Close()
 
