@@ -55,7 +55,8 @@ func (rl *ResumableLayer) Compressed() (io.ReadCloser, error) {
 	if err != nil {
 		return rl.Layer.Compressed()
 	}
-	incompletePath := incompletePath(compressedPath)
+	// Use the same suffix as DownloadAndDecompress
+	incompletePath := compressedPath + ".compressed.incomplete"
 
 	// Check for existing incomplete file
 	var offset int64
