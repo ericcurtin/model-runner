@@ -19,7 +19,13 @@ const (
 
 // LocalStore implements the Store interface for local storage
 type LocalStore struct {
-	rootPath string
+	rootPath           string
+	resumableTransport *ResumableTransport
+}
+
+// SetResumableTransport sets the resumable transport for this store
+func (s *LocalStore) SetResumableTransport(rt *ResumableTransport) {
+	s.resumableTransport = rt
 }
 
 // RootPath returns the root path of the store

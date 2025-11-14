@@ -257,15 +257,22 @@ func (f *fetcher) fetchBlob(ctx context.Context, size int64, h v1.Hash) (io.Read
 		return nil, redact.Error(err)
 	}
 
-	if err := transport.CheckError(resp, http.StatusOK); err != nil {
+	// The ResumableTransport handles Range headers and fallback
+	// Accept both 200 OK and 206 Partial Content
+	if err := transport.CheckError(resp, http.StatusOK, http.StatusPartialContent); err != nil {
 		resp.Body.Close()
 		return nil, err
 	}
 
-	// Do whatever we can.
-	// If we have an expected size and Content-Length doesn't match, return an error.
-	// If we don't have an expected size and we do have a Content-Length, use Content-Length.
-	if hsize := resp.ContentLength; hsize != -1 {
+	// Adjust expected size for partial content
+	if resp.StatusCode == http.StatusPartialContent && size != verify.SizeUnknown {
+		// For partial content, Content-Length is the remaining size
+		// We need to adjust our verification
+		if hsize := resp.ContentLength; hsize != -1 {
+			size = hsize
+		}
+	} else if hsize := resp.ContentLength; hsize != -1 {
+		// For full content
 		if size == verify.SizeUnknown {
 			size = hsize
 		} else if hsize != size {
