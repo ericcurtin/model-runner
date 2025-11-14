@@ -22,9 +22,10 @@ import (
 
 // Client provides model distribution functionality
 type Client struct {
-	store    *store.LocalStore
-	log      *logrus.Entry
-	registry *registry.Client
+	store              *store.LocalStore
+	log                *logrus.Entry
+	registry           *registry.Client
+	resumableTransport *store.ResumableTransport
 }
 
 // GetStorePath returns the root path where models are stored
@@ -117,9 +118,15 @@ func NewClient(opts ...Option) (*Client, error) {
 		return nil, fmt.Errorf("initializing store: %w", err)
 	}
 
+	// Wrap the transport with resumable transport to support resuming downloads
+	resumableTransport := store.NewResumableTransport(options.transport, s)
+	
+	// Set the resumable transport in the store so it can use it
+	s.SetResumableTransport(resumableTransport)
+
 	// Create registry client options
 	registryOpts := []registry.ClientOption{
-		registry.WithTransport(options.transport),
+		registry.WithTransport(resumableTransport),
 		registry.WithUserAgent(options.userAgent),
 	}
 
@@ -130,9 +137,10 @@ func NewClient(opts ...Option) (*Client, error) {
 
 	options.logger.Infoln("Successfully initialized store")
 	return &Client{
-		store:    s,
-		log:      options.logger,
-		registry: registry.NewClient(registryOpts...),
+		store:              s,
+		log:                options.logger,
+		registry:           registry.NewClient(registryOpts...),
+		resumableTransport: resumableTransport,
 	}, nil
 }
 

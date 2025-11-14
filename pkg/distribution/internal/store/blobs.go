@@ -94,6 +94,21 @@ func (s *LocalStore) writeLayer(layer blob, updates chan<- v1.Update) (bool, v1.
 		return false, hash, nil
 	}
 
+	// Check if there's a partial download and set resume offset in transport
+	resumeOffset := int64(0)
+	if s.resumableTransport != nil {
+		path, err := s.blobPath(hash)
+		if err == nil {
+			incompletePath := incompletePath(path)
+			if stat, statErr := os.Stat(incompletePath); statErr == nil && stat.Size() > 0 {
+				resumeOffset = stat.Size()
+				s.resumableTransport.SetResumeOffset(hash, resumeOffset)
+				// Clear it after use
+				defer s.resumableTransport.ClearResumeOffset(hash)
+			}
+		}
+	}
+
 	lr, err := layer.Uncompressed()
 	if err != nil {
 		return false, v1.Hash{}, fmt.Errorf("get blob contents: %w", err)
@@ -101,10 +116,67 @@ func (s *LocalStore) writeLayer(layer blob, updates chan<- v1.Update) (bool, v1.
 	defer lr.Close()
 	r := progress.NewReader(lr, updates)
 
-	if err := s.WriteBlob(hash, r); err != nil {
+	// Check if resume actually worked
+	actualResumeOffset := resumeOffset
+	if s.resumableTransport != nil && resumeOffset > 0 {
+		if !s.resumableTransport.DidResume(hash) {
+			// Resume didn't work, server doesn't support it
+			// The reader will have full content, so write from scratch
+			actualResumeOffset = 0
+		}
+	}
+
+	if err := s.writeBlobResumable(hash, r, actualResumeOffset); err != nil {
 		return false, hash, err
 	}
 	return true, hash, nil
+}
+
+// writeBlobResumable writes the blob to the store with resume support
+func (s *LocalStore) writeBlobResumable(diffID v1.Hash, r io.Reader, resumeOffset int64) error {
+	hasBlob, err := s.hasBlob(diffID)
+	if err != nil {
+		return fmt.Errorf("check blob existence: %w", err)
+	}
+	if hasBlob {
+		return nil
+	}
+
+	path, err := s.blobPath(diffID)
+	if err != nil {
+		return fmt.Errorf("get blob path: %w", err)
+	}
+
+	incompletePath := incompletePath(path)
+	
+	// Open file for writing (append if resuming, create otherwise)
+	var f *os.File
+	if resumeOffset > 0 {
+		// Resuming, open for append
+		f, err = os.OpenFile(incompletePath, os.O_WRONLY|os.O_APPEND, 0666)
+		if err != nil {
+			return fmt.Errorf("open incomplete blob file for resume: %w", err)
+		}
+	} else {
+		// Not resuming or resume failed, start from scratch
+		f, err = createFile(incompletePath)
+		if err != nil {
+			return fmt.Errorf("create blob file: %w", err)
+		}
+	}
+	
+	defer os.Remove(incompletePath)
+	defer f.Close()
+
+	if _, err := io.Copy(f, r); err != nil {
+		return fmt.Errorf("copy blob %q to store: %w", diffID.String(), err)
+	}
+
+	f.Close() // Rename will fail on Windows if the file is still open.
+	if err := os.Rename(incompletePath, path); err != nil {
+		return fmt.Errorf("rename blob file: %w", err)
+	}
+	return nil
 }
 
 // WriteBlob writes the blob to the store, reporting progress to the given channel.
