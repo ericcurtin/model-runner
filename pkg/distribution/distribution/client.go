@@ -343,7 +343,7 @@ func (c *Client) GetModel(reference string) (types.Model, error) {
 	model, err := c.store.Read(reference)
 	if err != nil {
 		c.log.Errorln("Failed to get model:", err, "reference:", utils.SanitizeForLog(reference))
-		return nil, fmt.Errorf("get model '%q': %w", reference, err)
+		return nil, fmt.Errorf("get model '%q': %w", utils.SanitizeForLog(reference), err)
 	}
 
 	return model, nil

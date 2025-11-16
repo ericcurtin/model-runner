@@ -321,6 +321,11 @@ func (s *Scheduler) GetRunningBackends(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// GetRunningBackendsInfo returns information about all running backends as a slice
+func (s *Scheduler) GetRunningBackendsInfo(ctx context.Context) []BackendStatus {
+	return s.getLoaderStatus(ctx)
+}
+
 // getLoaderStatus returns information about all running backends managed by the loader
 func (s *Scheduler) getLoaderStatus(ctx context.Context) []BackendStatus {
 	if !s.loader.lock(ctx) {

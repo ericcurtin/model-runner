@@ -264,25 +264,10 @@ func (m *Manager) handleLoadModel(w http.ResponseWriter, r *http.Request) {
 
 // handleGetModels handles GET <inference-prefix>/models requests.
 func (m *Manager) handleGetModels(w http.ResponseWriter, r *http.Request) {
-	if m.distributionClient == nil {
-		http.Error(w, "model distribution service unavailable", http.StatusServiceUnavailable)
-		return
-	}
-
-	// Query models.
-	models, err := m.distributionClient.ListModels()
+	apiModels, err := m.GetModels()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
-	}
-
-	apiModels := make([]*Model, len(models))
-	for i, model := range models {
-		apiModels[i], err = ToModel(model)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
 	}
 
 	// Write the response.
@@ -882,6 +867,31 @@ func (m *Manager) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // IsModelInStore checks if a given model is in the local store.
 func (m *Manager) IsModelInStore(ref string) (bool, error) {
 	return m.distributionClient.IsModelInStore(ref)
+}
+
+// GetModels returns all models.
+func (m *Manager) GetModels() ([]*Model, error) {
+	if m.distributionClient == nil {
+		return nil, fmt.Errorf("model distribution service unavailable")
+	}
+
+	// Query models.
+	models, err := m.distributionClient.ListModels()
+	if err != nil {
+		return nil, fmt.Errorf("error while listing models: %w", err)
+	}
+
+ 	apiModels := make([]*Model, 0, len(models))
+ 	for _, model := range models {
+ 		apiModel, err := ToModel(model)
+ 		if err != nil {
+ 			m.log.Warnf("error while converting model, skipping: %v", err)
+ 			continue
+ 		}
+ 		apiModels = append(apiModels, apiModel)
+ 	}
+
+	return apiModels, nil
 }
 
 // GetModel returns a single model.
