@@ -15,6 +15,7 @@ const (
 	// BackendModeEmbedding indicates that the backend should run in embedding
 	// mode.
 	BackendModeEmbedding
+	BackendModeReranking
 )
 
 type ErrGGUFParse struct {
@@ -32,6 +33,8 @@ func (m BackendMode) String() string {
 		return "completion"
 	case BackendModeEmbedding:
 		return "embedding"
+	case BackendModeReranking:
+		return "reranking"
 	default:
 		return "unknown"
 	}
@@ -44,8 +47,8 @@ type SpeculativeDecodingConfig struct {
 }
 
 type BackendConfiguration struct {
-	ContextSize  int64                       `json:"context-size,omitempty"`
-	RuntimeFlags []string                    `json:"runtime-flags,omitempty"`
+	ContextSize  int64                      `json:"context-size,omitempty"`
+	RuntimeFlags []string                   `json:"runtime-flags,omitempty"`
 	Speculative  *SpeculativeDecodingConfig `json:"speculative,omitempty"`
 }
 

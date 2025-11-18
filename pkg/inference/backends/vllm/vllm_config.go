@@ -44,8 +44,9 @@ func (c *Config) GetArgs(bundle types.ModelBundle, socket string, mode inference
 	case inference.BackendModeCompletion:
 		// Default mode for vLLM
 	case inference.BackendModeEmbedding:
-		// vLLM doesn't have a specific embedding flag like llama.cpp
-		// Embedding models are detected automatically
+	// vLLM doesn't have a specific embedding flag like llama.cpp
+	// Embedding models are detected automatically
+	case inference.BackendModeReranking:
 	default:
 		return nil, fmt.Errorf("unsupported backend mode %q", mode)
 	}

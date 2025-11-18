@@ -61,6 +61,8 @@ func (c *Config) GetArgs(bundle types.ModelBundle, socket string, mode inference
 		}
 	case inference.BackendModeEmbedding:
 		args = append(args, "--embeddings")
+	case inference.BackendModeReranking:
+		args = append(args, "--embeddings", "--reranking")
 	default:
 		return nil, fmt.Errorf("unsupported backend mode %q", mode)
 	}
