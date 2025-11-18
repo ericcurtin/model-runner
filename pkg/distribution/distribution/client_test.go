@@ -462,17 +462,23 @@ func TestClientPullModel(t *testing.T) {
 			t.Fatalf("Failed to create test client: %v", err)
 		}
 
-		// Try to pull the safetensors model
-		err = testClient.PullModel(context.Background(), tag, nil)
-		if platform.SupportsVLLM() {
-			// On Linux, safetensors should be supported
-			if err != nil {
-				t.Fatalf("Expected no error on Linux, got: %v", err)
+		// Try to pull the safetensors model with a progress writer to capture warnings
+		var progressBuf bytes.Buffer
+		err = testClient.PullModel(context.Background(), tag, &progressBuf)
+
+		// Pull should succeed on all platforms now (with a warning on non-Linux)
+		if err != nil {
+			t.Fatalf("Expected no error, got: %v", err)
+		}
+
+		if !platform.SupportsVLLM() {
+			// On non-Linux, verify that a warning was written
+			progressOutput := progressBuf.String()
+			if !strings.Contains(progressOutput, `"type":"warning"`) {
+				t.Fatalf("Expected warning message on non-Linux platforms, got output: %s", progressOutput)
 			}
-		} else {
-			// On non-Linux, should fail with ErrUnsupportedFormat
-			if !errors.Is(err, ErrUnsupportedFormat) {
-				t.Fatalf("Expected ErrUnsupportedFormat on non-Linux platforms, got: %v", err)
+			if !strings.Contains(progressOutput, "safetensors") {
+				t.Fatalf("Expected warning about safetensors format, got output: %s", progressOutput)
 			}
 		}
 	})

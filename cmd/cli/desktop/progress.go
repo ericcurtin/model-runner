@@ -69,6 +69,10 @@ func DisplayProgress(body io.Reader, printer standalone.StatusPrinter) (string, 
 			// Don't write the success message here - let the caller print it
 			// to avoid duplicate output
 
+		case "warning":
+			// Print warning to stderr
+			printer.PrintErrf("Warning: %s\n", progressMsg.Message)
+
 		case "error":
 			pw.Close()
 			return "", false, fmt.Errorf("%s", progressMsg.Message)
@@ -127,6 +131,10 @@ func displayProgressSimple(body io.Reader, printer standalone.StatusPrinter) (st
 
 		case "success":
 			finalMessage = progressMsg.Message
+
+		case "warning":
+			// Print warning to stderr
+			printer.PrintErrf("Warning: %s\n", progressMsg.Message)
 
 		case "error":
 			return "", false, fmt.Errorf("%s", progressMsg.Message)

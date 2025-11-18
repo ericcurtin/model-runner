@@ -221,7 +221,7 @@ func (c *Client) PullModel(ctx context.Context, reference string, progressWriter
 	}
 
 	// Check for supported type
-	if err := checkCompat(remoteModel, c.log, reference); err != nil {
+	if err := checkCompat(remoteModel, c.log, reference, progressWriter); err != nil {
 		return err
 	}
 
@@ -489,7 +489,7 @@ func GetSupportedFormats() []types.Format {
 	return []types.Format{types.FormatGGUF}
 }
 
-func checkCompat(image types.ModelArtifact, log *logrus.Entry, reference string) error {
+func checkCompat(image types.ModelArtifact, log *logrus.Entry, reference string, progressWriter io.Writer) error {
 	manifest, err := image.Manifest()
 	if err != nil {
 		return err
@@ -508,7 +508,12 @@ func checkCompat(image types.ModelArtifact, log *logrus.Entry, reference string)
 		log.Warnf("Model format field is empty for %s, unable to verify format compatibility",
 			utils.SanitizeForLog(reference))
 	} else if !slices.Contains(GetSupportedFormats(), config.Format) {
-		return ErrUnsupportedFormat
+		// Write warning but continue with pull
+		log.Warnf("vLLM backend currently only implemented for x86_64 Nvidia platforms")
+		if err := progress.WriteWarning(progressWriter, ErrUnsupportedFormat.Error()); err != nil {
+			log.Warnf("Failed to write warning message: %v", err)
+		}
+		// Don't return an error - allow the pull to continue
 	}
 
 	return nil

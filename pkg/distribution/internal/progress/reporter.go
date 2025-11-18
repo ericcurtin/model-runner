@@ -24,7 +24,7 @@ type Layer struct {
 
 // Message represents a structured message for progress reporting
 type Message struct {
-	Type    string `json:"type"`    // "progress", "success", or "error"
+	Type    string `json:"type"`    // "progress", "success", "warning", or "error"
 	Message string `json:"message"` // Deprecated: the message should be defined by clients based on Message.Total and Message.Layer
 	Total   uint64 `json:"total"`
 	Pulled  uint64 `json:"pulled"` // Deprecated: use Layer.Current
@@ -151,6 +151,14 @@ func WriteSuccess(w io.Writer, message string) error {
 func WriteError(w io.Writer, message string) error {
 	return write(w, Message{
 		Type:    "error",
+		Message: message,
+	})
+}
+
+// WriteWarning writes a warning message
+func WriteWarning(w io.Writer, message string) error {
+	return write(w, Message{
+		Type:    "warning",
 		Message: message,
 	})
 }
