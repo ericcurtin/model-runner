@@ -268,7 +268,7 @@ func tryGetBindAscendMounts(printer StatusPrinter, debug bool) []mount.Mount {
 }
 
 // CreateControllerContainer creates and starts a controller container.
-func CreateControllerContainer(ctx context.Context, dockerClient *client.Client, port uint16, host string, environment string, doNotTrack bool, gpu gpupkg.GPUSupport, backend string, modelStorageVolume string, printer StatusPrinter, engineKind types.ModelRunnerEngineKind, debug bool) error {
+func CreateControllerContainer(ctx context.Context, dockerClient *client.Client, port uint16, host string, environment string, doNotTrack bool, gpu gpupkg.GPUSupport, backend string, modelStorageVolume string, printer StatusPrinter, engineKind types.ModelRunnerEngineKind, debug bool, vllmOnWSL bool) error {
 	imageName := controllerImageName(gpu, backend)
 
 	// Set up the container configuration.
@@ -320,7 +320,7 @@ func CreateControllerContainer(ctx context.Context, dockerClient *client.Client,
 	if os.Getenv("_MODEL_RUNNER_TREAT_DESKTOP_AS_MOBY") != "1" {
 		// Don't bind the bridge gateway IP if we're treating Docker Desktop as Moby.
 		// Only add bridge gateway IP binding if host is 127.0.0.1 and not in rootless mode
-		if host == "127.0.0.1" && !isRootless(ctx, dockerClient) {
+		if host == "127.0.0.1" && !isRootless(ctx, dockerClient) && !vllmOnWSL {
 			if bridgeGatewayIP, err := determineBridgeGatewayIP(ctx, dockerClient); err == nil && bridgeGatewayIP != "" {
 				portBindings = append(portBindings, nat.PortBinding{HostIP: bridgeGatewayIP, HostPort: portStr})
 			}
@@ -395,6 +395,18 @@ func CreateControllerContainer(ctx context.Context, dockerClient *client.Client,
 		}
 	}
 
+	if vllmOnWSL && gpu == gpupkg.GPUSupportCUDA {
+		hostConfig.Mounts = append(hostConfig.Mounts, mount.Mount{
+			Type:     mount.TypeBind,
+			Source:   "/usr/lib/wsl/lib",
+			Target:   "/usr/lib/wsl/lib",
+			ReadOnly: true,
+		})
+
+		env = append(env, "LD_LIBRARY_PATH=/usr/lib/wsl/lib:/usr/local/cuda/lib64:${LD_LIBRARY_PATH}")
+		config.Env = env
+	}
+
 	// Create the container. If we detect that a concurrent installation is in
 	// progress (as indicated by a conflicting container name (which should have
 	// been detected just before installation)), then we'll allow the error to
@@ -417,7 +429,7 @@ func CreateControllerContainer(ctx context.Context, dockerClient *client.Client,
 	}
 
 	// Copy Docker config file if it exists and we're the container creator.
-	if created {
+	if created && !vllmOnWSL {
 		if err := copyDockerConfigToContainer(ctx, dockerClient, resp.ID, engineKind); err != nil {
 			// Log warning but continue - don't fail container creation
 			printer.Printf("Warning: failed to copy Docker config: %v\n", err)

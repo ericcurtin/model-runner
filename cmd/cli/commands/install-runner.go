@@ -138,7 +138,7 @@ func ensureStandaloneRunnerAvailable(ctx context.Context, printer standalone.Sta
 		port = standalone.DefaultControllerPortCloud
 		environment = "cloud"
 	}
-if err := standalone.CreateControllerContainer(ctx, dockerClient, port, host, environment, false, gpu, "", modelStorageVolume, printer, engineKind, debug); err != nil {
+	if err := standalone.CreateControllerContainer(ctx, dockerClient, port, host, environment, false, gpu, "", modelStorageVolume, printer, engineKind, debug, false); err != nil {
 		return nil, fmt.Errorf("unable to initialize standalone model runner container: %w", err)
 	}
 
@@ -176,15 +176,21 @@ type runnerOptions struct {
 
 // runInstallOrStart is shared logic for install-runner and start-runner commands
 func runInstallOrStart(cmd *cobra.Command, opts runnerOptions, debug bool) error {
+	var vllmOnWSL bool
 	// Ensure that we're running in a supported model runner context.
 	engineKind := modelRunner.EngineKind()
 	if engineKind == types.ModelRunnerEngineKindDesktop {
-		// TODO: We may eventually want to auto-forward this to
-		// docker desktop enable model-runner, but we should first make
-		// sure the CLI flags match.
-		cmd.Println("Standalone installation not supported with Docker Desktop")
-		cmd.Println("Use `docker desktop enable model-runner` instead")
-		return nil
+		if opts.backend == vllm.Name && desktop.IsDesktopWSLContext(cmd.Context(), dockerCLI) {
+			engineKind = types.ModelRunnerEngineKindMoby
+			vllmOnWSL = true
+		} else {
+			// TODO: We may eventually want to auto-forward this to
+			// docker desktop enable model-runner, but we should first make
+			// sure the CLI flags match.
+			cmd.Println("Standalone installation not supported with Docker Desktop")
+			cmd.Println("Use `docker desktop enable model-runner` instead")
+			return nil
+		}
 	} else if engineKind == types.ModelRunnerEngineKindMobyManual {
 		cmd.Println("Standalone installation not supported with MODEL_RUNNER_HOST set")
 		return nil
@@ -282,7 +288,7 @@ func runInstallOrStart(cmd *cobra.Command, opts runnerOptions, debug bool) error
 		return fmt.Errorf("unable to initialize standalone model storage: %w", err)
 	}
 	// Create the model runner container.
-	if err := standalone.CreateControllerContainer(cmd.Context(), dockerClient, port, opts.host, environment, opts.doNotTrack, gpu, opts.backend, modelStorageVolume, asPrinter(cmd), engineKind, debug); err != nil {
+	if err := standalone.CreateControllerContainer(cmd.Context(), dockerClient, port, opts.host, environment, opts.doNotTrack, gpu, opts.backend, modelStorageVolume, asPrinter(cmd), engineKind, debug, vllmOnWSL); err != nil {
 		return fmt.Errorf("unable to initialize standalone model runner container: %w", err)
 	}
 
