@@ -191,9 +191,6 @@ func runInstallOrStart(cmd *cobra.Command, opts runnerOptions, debug bool) error
 			cmd.Println("Use `docker desktop enable model-runner` instead")
 			return nil
 		}
-	} else if engineKind == types.ModelRunnerEngineKindMobyManual {
-		cmd.Println("Standalone installation not supported with MODEL_RUNNER_HOST set")
-		return nil
 	}
 
 	port := opts.port
