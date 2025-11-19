@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	v1 "github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1"
@@ -207,6 +208,19 @@ func (s *LocalStore) Version() string {
 	return layout.Version
 }
 
+// syncWriter is a thread-safe wrapper around io.Writer for concurrent writes
+type syncWriter struct {
+	w  io.Writer
+	mu sync.Mutex
+}
+
+// Write implements io.Writer interface with mutex protection
+func (sw *syncWriter) Write(p []byte) (n int, err error) {
+	sw.mu.Lock()
+	defer sw.mu.Unlock()
+	return sw.w.Write(p)
+}
+
 // Write writes a model to the store
 func (s *LocalStore) Write(mdl v1.Image, tags []string, w io.Writer) (err error) {
 	initialIndex, err := s.readIndex()
@@ -269,31 +283,72 @@ func (s *LocalStore) Write(mdl v1.Image, tags []string, w io.Writer) (err error)
 		imageSize += size
 	}
 
-	var newLayerDigests []v1.Hash
-	for _, layer := range layers {
-		var pr *progress.Reporter
-		var progressChan chan<- v1.Update
-		if w != nil {
-			pr = progress.NewProgressReporter(w, progress.PullMsg, imageSize, layer)
-			progressChan = pr.Updates()
-		}
+	// Create a thread-safe writer wrapper for concurrent progress reporting
+	var safeWriter io.Writer
+	if w != nil {
+		safeWriter = &syncWriter{w: w}
+	}
 
-		created, diffID, err := s.writeLayer(layer, progressChan)
+	// Pull all layers in parallel
+	type layerResult struct {
+		created bool
+		diffID  v1.Hash
+		err     error
+	}
 
-		if progressChan != nil {
-			close(progressChan)
-			if pr != nil {
-				if err := pr.Wait(); err != nil {
-					fmt.Printf("reporter finished with non-fatal error: %v\n", err)
+	results := make([]layerResult, len(layers))
+	var wg sync.WaitGroup
+
+	for i, layer := range layers {
+		wg.Add(1)
+		go func(idx int, l v1.Layer) {
+			defer wg.Done()
+
+			var pr *progress.Reporter
+			var progressChan chan<- v1.Update
+			if safeWriter != nil {
+				pr = progress.NewProgressReporter(safeWriter, progress.PullMsg, imageSize, l)
+				progressChan = pr.Updates()
+			}
+
+			created, diffID, err := s.writeLayer(l, progressChan)
+
+			if progressChan != nil {
+				close(progressChan)
+				if pr != nil {
+					if waitErr := pr.Wait(); waitErr != nil {
+						fmt.Printf("reporter finished with non-fatal error: %v\n", waitErr)
+					}
 				}
 			}
-		}
 
-		if err != nil {
-			return fmt.Errorf("writing blob: %w", err)
+			results[idx] = layerResult{
+				created: created,
+				diffID:  diffID,
+				err:     err,
+			}
+		}(i, layer)
+	}
+
+	// Wait for all layers to complete
+	wg.Wait()
+
+	// Check for errors and collect them all
+	var allErrors []error
+	for _, result := range results {
+		if result.err != nil {
+			allErrors = append(allErrors, fmt.Errorf("writing blob: %w", result.err))
 		}
-		if created {
-			newLayerDigests = append(newLayerDigests, diffID)
+	}
+	if err := errors.Join(allErrors...); err != nil {
+		return err
+	}
+
+	// Collect new layer digests
+	var newLayerDigests []v1.Hash
+	for _, result := range results {
+		if result.created {
+			newLayerDigests = append(newLayerDigests, result.diffID)
 		}
 	}
 
