@@ -509,8 +509,8 @@ func checkCompat(image types.ModelArtifact, log *logrus.Entry, reference string,
 			utils.SanitizeForLog(reference))
 	} else if !slices.Contains(GetSupportedFormats(), config.Format) {
 		// Write warning but continue with pull
-		log.Warnf("vLLM backend currently only implemented for x86_64 Nvidia platforms")
-		if err := progress.WriteWarning(progressWriter, ErrUnsupportedFormat.Error()); err != nil {
+		log.Warnln(warnUnsupportedFormat)
+		if err := progress.WriteWarning(progressWriter, warnUnsupportedFormat); err != nil {
 			log.Warnf("Failed to write warning message: %v", err)
 		}
 		// Don't return an error - allow the pull to continue
