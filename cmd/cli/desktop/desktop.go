@@ -106,61 +106,160 @@ func (c *Client) Status() Status {
 
 func (c *Client) Pull(model string, ignoreRuntimeMemoryCheck bool, printer standalone.StatusPrinter) (string, bool, error) {
 	model = normalizeHuggingFaceModelName(model)
-	jsonData, err := json.Marshal(dmrm.ModelCreateRequest{From: model, IgnoreRuntimeMemoryCheck: ignoreRuntimeMemoryCheck})
-	if err != nil {
-		return "", false, fmt.Errorf("error marshaling request: %w", err)
+
+	return c.withRetries("download", 3, printer, func(attempt int) (string, bool, error, bool) {
+		jsonData, err := json.Marshal(dmrm.ModelCreateRequest{From: model, IgnoreRuntimeMemoryCheck: ignoreRuntimeMemoryCheck})
+		if err != nil {
+			// Marshaling errors are not retryable
+			return "", false, fmt.Errorf("error marshaling request: %w", err), false
+		}
+
+		createPath := inference.ModelsPrefix + "/create"
+		resp, err := c.doRequest(
+			http.MethodPost,
+			createPath,
+			bytes.NewReader(jsonData),
+		)
+		if err != nil {
+			// Only retry on network errors, not on client errors
+			if isRetryableError(err) {
+				return "", false, c.handleQueryError(err, createPath), true
+			}
+			return "", false, c.handleQueryError(err, createPath), false
+		}
+		// Close response body explicitly at the end of this attempt, not deferred
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			body, _ := io.ReadAll(resp.Body)
+			err := fmt.Errorf("pulling %s failed with status %s: %s", model, resp.Status, string(body))
+			// Only retry on server errors (5xx), not client errors (4xx)
+			shouldRetry := resp.StatusCode >= 500 && resp.StatusCode < 600
+			return "", false, err, shouldRetry
+		}
+
+		// Use Docker-style progress display
+		message, shown, err := DisplayProgress(resp.Body, printer)
+		if err != nil {
+			// Retry on progress display errors (likely network interruption)
+			shouldRetry := isRetryableError(err)
+			return "", shown, err, shouldRetry
+		}
+
+		return message, shown, nil, false
+	})
+}
+
+// isRetryableError determines if an error is retryable (network-related)
+func isRetryableError(err error) bool {
+	if err == nil {
+		return false
 	}
 
-	createPath := inference.ModelsPrefix + "/create"
-	resp, err := c.doRequest(
-		http.MethodPost,
-		createPath,
-		bytes.NewReader(jsonData),
-	)
-	if err != nil {
-		return "", false, c.handleQueryError(err, createPath)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return "", false, fmt.Errorf("pulling %s failed with status %s: %s", model, resp.Status, string(body))
+	// First check for specific error types using errors.Is
+	if errors.Is(err, context.DeadlineExceeded) ||
+		errors.Is(err, io.ErrUnexpectedEOF) ||
+		errors.Is(err, io.EOF) ||
+		errors.Is(err, ErrServiceUnavailable) {
+		return true
 	}
 
-	// Use Docker-style progress display
-	message, progressShown, err := DisplayProgress(resp.Body, printer)
-	if err != nil {
-		return "", progressShown, err
+	// Fall back to string matching for network errors that don't have specific types
+	// This is necessary because many network errors are only available as strings
+	errStr := err.Error()
+	retryablePatterns := []string{
+		"connection refused",
+		"connection reset",
+		"broken pipe",
+		"timeout",
+		"temporary failure",
+		"no such host",
+		"no route to host",
+		"network is unreachable",
+		"i/o timeout",
 	}
 
-	return message, progressShown, nil
+	for _, pattern := range retryablePatterns {
+		if strings.Contains(strings.ToLower(errStr), pattern) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// withRetries executes an operation with automatic retry logic for transient failures
+func (c *Client) withRetries(
+	operationName string,
+	maxRetries int,
+	printer standalone.StatusPrinter,
+	operation func(attempt int) (message string, progressShown bool, err error, shouldRetry bool),
+) (string, bool, error) {
+	var lastErr error
+	var progressShown bool
+
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		if attempt > 0 {
+			// Calculate exponential backoff: 2^(attempt-1) seconds (1s, 2s, 4s)
+			backoffDuration := time.Duration(1<<uint(attempt-1)) * time.Second
+			printer.PrintErrf("Retrying %s (attempt %d/%d) in %v...\n", operationName, attempt, maxRetries, backoffDuration)
+			time.Sleep(backoffDuration)
+		}
+
+		message, shown, err, shouldRetry := operation(attempt)
+		progressShown = progressShown || shown
+
+		if err == nil {
+			return message, progressShown, nil
+		}
+
+		lastErr = err
+		if !shouldRetry {
+			return "", progressShown, err
+		}
+	}
+
+	return "", progressShown, fmt.Errorf("failed to %s after %d retries: %w", operationName, maxRetries, lastErr)
 }
 
 func (c *Client) Push(model string, printer standalone.StatusPrinter) (string, bool, error) {
 	model = normalizeHuggingFaceModelName(model)
-	pushPath := inference.ModelsPrefix + "/" + model + "/push"
-	resp, err := c.doRequest(
-		http.MethodPost,
-		pushPath,
-		nil, // Assuming no body is needed for the push request
-	)
-	if err != nil {
-		return "", false, c.handleQueryError(err, pushPath)
-	}
-	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return "", false, fmt.Errorf("pushing %s failed with status %s: %s", model, resp.Status, string(body))
-	}
+	return c.withRetries("push", 3, printer, func(attempt int) (string, bool, error, bool) {
+		pushPath := inference.ModelsPrefix + "/" + model + "/push"
+		resp, err := c.doRequest(
+			http.MethodPost,
+			pushPath,
+			nil, // Assuming no body is needed for the push request
+		)
+		if err != nil {
+			// Only retry on network errors, not on client errors
+			if isRetryableError(err) {
+				return "", false, c.handleQueryError(err, pushPath), true
+			}
+			return "", false, c.handleQueryError(err, pushPath), false
+		}
+		// Close response body explicitly at the end of this attempt, not deferred
+		defer resp.Body.Close()
 
-	// Use Docker-style progress display
-	message, progressShown, err := DisplayProgress(resp.Body, printer)
-	if err != nil {
-		return "", progressShown, err
-	}
+		if resp.StatusCode != http.StatusOK {
+			body, _ := io.ReadAll(resp.Body)
+			err := fmt.Errorf("pushing %s failed with status %s: %s", model, resp.Status, string(body))
+			// Only retry on server errors (5xx), not client errors (4xx)
+			shouldRetry := resp.StatusCode >= 500 && resp.StatusCode < 600
+			return "", false, err, shouldRetry
+		}
 
-	return message, progressShown, nil
+		// Use Docker-style progress display
+		message, shown, err := DisplayProgress(resp.Body, printer)
+		if err != nil {
+			// Retry on progress display errors (likely network interruption)
+			shouldRetry := isRetryableError(err)
+			return "", shown, err, shouldRetry
+		}
+
+		return message, shown, nil, false
+	})
 }
 
 func (c *Client) List() ([]dmrm.Model, error) {
