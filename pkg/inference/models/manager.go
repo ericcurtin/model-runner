@@ -241,11 +241,8 @@ func (m *Manager) handleCreateModel(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Model not found", http.StatusNotFound)
 			return
 		}
-		if errors.Is(err, distribution.ErrUnsupportedFormat) {
-			m.log.Warnf("Unsupported model format for %q: %v", request.From, err)
-			http.Error(w, distribution.ErrUnsupportedFormat.Error(), http.StatusUnsupportedMediaType)
-			return
-		}
+		// Note: ErrUnsupportedFormat is no longer treated as an error - it's a warning
+		// that's sent to the client via the progress stream
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

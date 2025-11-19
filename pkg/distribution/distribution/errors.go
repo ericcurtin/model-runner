@@ -16,6 +16,6 @@ var (
 		"client supports only models of type %q and older - try upgrading",
 		types.MediaTypeModelConfigV01,
 	))
-	ErrUnsupportedFormat = errors.New("safetensors models are not currently supported - this runner only supports GGUF format models")
+	ErrUnsupportedFormat = errors.New("vLLM backend currently only implemented for x86_64 Nvidia platforms")
 	ErrConflict          = errors.New("resource conflict")
 )
