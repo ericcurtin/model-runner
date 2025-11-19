@@ -477,7 +477,7 @@ func TestClientPullModel(t *testing.T) {
 			if !strings.Contains(progressOutput, `"type":"warning"`) {
 				t.Fatalf("Expected warning message on non-Linux platforms, got output: %s", progressOutput)
 			}
-			if !strings.Contains(progressOutput, "safetensors") {
+			if !strings.Contains(progressOutput, warnUnsupportedFormat) {
 				t.Fatalf("Expected warning about safetensors format, got output: %s", progressOutput)
 			}
 		}
