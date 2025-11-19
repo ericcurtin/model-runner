@@ -111,6 +111,10 @@ func (s *Scheduler) routeHandlers() map[string]http.HandlerFunc {
 		"POST " + inference.InferencePrefix + "/v1/chat/completions",
 		"POST " + inference.InferencePrefix + "/v1/completions",
 		"POST " + inference.InferencePrefix + "/v1/embeddings",
+		"POST " + inference.InferencePrefix + "/{backend}/rerank",
+		"POST " + inference.InferencePrefix + "/rerank",
+		"POST " + inference.InferencePrefix + "/{backend}/score",
+		"POST " + inference.InferencePrefix + "/score",
 	}
 	m := make(map[string]http.HandlerFunc)
 	for _, route := range openAIRoutes {
@@ -181,6 +185,9 @@ func (s *Scheduler) selectBackendForModel(model types.Model, backend inference.B
 // - POST <inference-prefix>/{backend}/v1/chat/completions
 // - POST <inference-prefix>/{backend}/v1/completions
 // - POST <inference-prefix>/{backend}/v1/embeddings
+// and 2 extras:
+// - POST <inference-prefix>/{backend}/rerank
+// - POST <inference-prefix>/{backend}/score
 func (s *Scheduler) handleOpenAIInference(w http.ResponseWriter, r *http.Request) {
 	// Determine the requested backend and ensure that it's valid.
 	var backend inference.Backend

@@ -18,11 +18,14 @@ const (
 // trimRequestPathToOpenAIRoot trims a request path to start at the first
 // instance of /v1/ to appear in the path.
 func trimRequestPathToOpenAIRoot(path string) string {
-	index := strings.Index(path, "/v1/")
-	if index == -1 {
-		return path
+	if index := strings.Index(path, "/v1/"); index != -1 {
+		return path[index:]
+	} else if index = strings.Index(path, "/rerank"); index != -1 {
+		return path[index:]
+	} else if index = strings.Index(path, "/score"); index != -1 {
+		return path[index:]
 	}
-	return path[index:]
+	return path
 }
 
 // backendModeForRequest determines the backend operation mode to handle an
@@ -33,6 +36,8 @@ func backendModeForRequest(path string) (inference.BackendMode, bool) {
 		return inference.BackendModeCompletion, true
 	} else if strings.HasSuffix(path, "/v1/embeddings") {
 		return inference.BackendModeEmbedding, true
+	} else if strings.HasSuffix(path, "/rerank") || strings.HasSuffix(path, "/score") {
+		return inference.BackendModeReranking, true
 	}
 	return inference.BackendMode(0), false
 }
@@ -88,9 +93,9 @@ type UnloadResponse struct {
 
 // ConfigureRequest specifies per-model runtime configuration options.
 type ConfigureRequest struct {
-	Model           string                              `json:"model"`
-	ContextSize     int64                               `json:"context-size,omitempty"`
-	RuntimeFlags    []string                            `json:"runtime-flags,omitempty"`
-	RawRuntimeFlags string                              `json:"raw-runtime-flags,omitempty"`
+	Model           string                               `json:"model"`
+	ContextSize     int64                                `json:"context-size,omitempty"`
+	RuntimeFlags    []string                             `json:"runtime-flags,omitempty"`
+	RawRuntimeFlags string                               `json:"raw-runtime-flags,omitempty"`
 	Speculative     *inference.SpeculativeDecodingConfig `json:"speculative,omitempty"`
 }

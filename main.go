@@ -154,8 +154,11 @@ func main() {
 	router.Handle(inference.ModelsPrefix, modelManager)
 	router.Handle(inference.ModelsPrefix+"/", modelManager)
 	router.Handle(inference.InferencePrefix+"/", scheduler)
-	// Add /v1 as an alias for /engines/v1
-	router.Handle("/v1/", &middleware.V1AliasHandler{Handler: scheduler})
+	// Add path aliases: /v1 -> /engines/v1, /rerank -> /engines/rerank, /score -> /engines/score.
+	aliasHandler := &middleware.AliasHandler{Handler: scheduler}
+	router.Handle("/v1/", aliasHandler)
+	router.Handle("/rerank", aliasHandler)
+	router.Handle("/score", aliasHandler)
 
 	// Add metrics endpoint if enabled
 	if os.Getenv("DISABLE_METRICS") != "1" {
