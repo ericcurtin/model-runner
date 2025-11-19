@@ -60,7 +60,7 @@ func RunBackend(ctx context.Context, config RunnerConfig) error {
 	// Sanitize args for safe logging
 	sanitizedArgs := make([]string, len(config.Args))
 	for i, arg := range config.Args {
-		sanitizedArgs[i] = utils.SanitizeForLog(arg)
+		sanitizedArgs[i] = utils.SanitizeForLog(arg, 0)
 	}
 	config.Logger.Infof("%s args: %v", config.BackendName, sanitizedArgs)
 
