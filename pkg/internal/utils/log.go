@@ -7,9 +7,11 @@ import (
 
 // SanitizeForLog sanitizes a string for safe logging by removing or escaping
 // control characters that could cause log injection attacks.
+// The optional maxLength parameter controls truncation (default: 100).
+// Pass 0 or negative to disable truncation.
 // TODO: Consider migrating to structured logging which
 // handles sanitization automatically through field encoding.
-func SanitizeForLog(s string) string {
+func SanitizeForLog(s string, maxLength ...int) string {
 	if s == "" {
 		return ""
 	}
@@ -42,9 +44,15 @@ func SanitizeForLog(s string) string {
 		}
 	}
 
-	const maxLength = 100
-	if result.Len() > maxLength {
-		return result.String()[:maxLength] + "...[truncated]"
+	// Default maxLength is 100, or use provided value.
+	// Pass 0 or negative to disable truncation.
+	maxLen := 100
+	if len(maxLength) > 0 {
+		maxLen = maxLength[0]
+	}
+
+	if maxLen > 0 && result.Len() > maxLen {
+		return result.String()[:maxLen] + "...[truncated]"
 	}
 
 	return result.String()
