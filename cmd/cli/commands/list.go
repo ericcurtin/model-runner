@@ -47,7 +47,7 @@ func newListCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			cmd.Print(models)
+			fmt.Fprint(cmd.OutOrStdout(), models)
 			return nil
 		},
 		ValidArgsFunction: completion.ModelNamesAndTags(getDesktopClient, 1),
