@@ -30,9 +30,6 @@ func runUninstallOrStop(cmd *cobra.Command, opts cleanupOptions) error {
 			cmd.Println("Use `docker desktop disable model-runner` instead")
 			return nil
 		}
-	} else if kind == types.ModelRunnerEngineKindMobyManual {
-		cmd.Println("Standalone uninstallation not supported with MODEL_RUNNER_HOST set")
-		return nil
 	}
 
 	// Create a Docker client for the active context.
