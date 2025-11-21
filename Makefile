@@ -31,7 +31,7 @@ LICENSE ?=
 BUILD_DMR ?= 1
 
 # Main targets
-.PHONY: build run clean test integration-tests docker-build docker-build-multiplatform docker-run docker-build-vllm docker-run-vllm docker-run-impl help validate model-distribution-tool
+.PHONY: build run clean test integration-tests test-docker-ce-installation docker-build docker-build-multiplatform docker-run docker-build-vllm docker-run-vllm docker-run-impl help validate model-distribution-tool
 # Default target
 .DEFAULT_GOAL := build
 
@@ -75,6 +75,11 @@ integration-tests:
 	fi
 	@BUILD_DMR=$(BUILD_DMR) go test -v -race -count=1 -tags=integration -run "^TestIntegration" -timeout=5m ./cmd/cli/commands
 	@echo "Integration tests completed!"
+
+test-docker-ce-installation:
+	@echo "Testing Docker CE installation..."
+	@echo "Note: This requires Docker to be running"
+	BASE_IMAGE=$(BASE_IMAGE) scripts/test-docker-ce-installation.sh
 
 validate:
 	find . -type f -name "*.sh" | grep -v pkg/go-containerregistry | xargs shellcheck
@@ -156,6 +161,8 @@ help:
 	@echo "  run				- Run the application locally"
 	@echo "  clean				- Clean build artifacts"
 	@echo "  test				- Run tests"
+	@echo "  integration-tests		- Run integration tests"
+	@echo "  test-docker-ce-installation	- Test Docker CE installation with CLI plugin"
 	@echo "  docker-build			- Build Docker image for current platform"
 	@echo "  docker-build-multiplatform	- Build Docker image for multiple platforms"
 	@echo "  docker-run			- Run in Docker container with TCP port access and mounted model storage"
