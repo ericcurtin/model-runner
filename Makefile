@@ -82,7 +82,8 @@ test-docker-ce-installation:
 	BASE_IMAGE=$(BASE_IMAGE) scripts/test-docker-ce-installation.sh
 
 validate:
-	find . -type f -name "*.sh" | grep -v pkg/go-containerregistry | xargs shellcheck
+	find . -type f -name "*.sh" | grep -v "pkg/go-containerregistry\|llamacpp/native/vendor" | xargs shellcheck
+	@echo "✓ Shellcheck validation passed!"
 
 # Build Docker image
 docker-build:
