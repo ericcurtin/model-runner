@@ -388,6 +388,14 @@ func TestIsRetryableError(t *testing.T) {
 		{"generic non-retryable error", errors.New("a generic non-retryable error"), false},
 		{"service unavailable error", ErrServiceUnavailable, true},
 		{"deadline exceeded", context.DeadlineExceeded, true},
+		// Non-retryable errors
+		{"sharded gguf error", errors.New("contains sharded GGUF message"), false},
+		{"manifest unknown error", errors.New("manifest unknown"), false},
+		{"name unknown error", errors.New("name unknown"), false},
+		{"unauthorized error", errors.New("unauthorized access"), false},
+		{"forbidden error", errors.New("forbidden resource"), false},
+		{"not found error", errors.New("not found"), false},
+		{"invalid reference error", errors.New("invalid reference format"), false},
 	}
 
 	for _, tt := range tests {
@@ -398,3 +406,54 @@ func TestIsRetryableError(t *testing.T) {
 	}
 }
 
+func TestEnhanceErrorMessage(t *testing.T) {
+	tests := []struct {
+		name           string
+		err            error
+		model          string
+		expectedSubstr string
+	}{
+		{
+			name:           "sharded gguf error gets enhanced",
+			err:            errors.New("repository contains sharded GGUF"),
+			model:          "hf.co/unsloth/model:UD-Q4_K_XL",
+			expectedSubstr: "Sharded GGUF models from HuggingFace are not currently supported",
+		},
+		{
+			name:           "manifest unknown error gets enhanced",
+			err:            errors.New("manifest unknown"),
+			model:          "hf.co/bartowski/model:Q4_K_S",
+			expectedSubstr: "Model or quantization tag not found",
+		},
+		{
+			name:           "name unknown error gets enhanced",
+			err:            errors.New("name unknown"),
+			model:          "hf.co/nonexistent/model",
+			expectedSubstr: "Model or quantization tag not found",
+		},
+		{
+			name:           "generic error not enhanced",
+			err:            errors.New("connection refused"),
+			model:          "test/model",
+			expectedSubstr: "connection refused",
+		},
+		{
+			name:           "nil error returns nil",
+			err:            nil,
+			model:          "test/model",
+			expectedSubstr: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := enhanceErrorMessage(tt.err, tt.model)
+			if tt.err == nil {
+				assert.Nil(t, result)
+			} else {
+				assert.NotNil(t, result)
+				assert.Contains(t, result.Error(), tt.expectedSubstr)
+			}
+		})
+	}
+}

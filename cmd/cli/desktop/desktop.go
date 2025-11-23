@@ -107,7 +107,7 @@ func (c *Client) Status() Status {
 func (c *Client) Pull(model string, ignoreRuntimeMemoryCheck bool, printer standalone.StatusPrinter) (string, bool, error) {
 	model = normalizeHuggingFaceModelName(model)
 
-	return c.withRetries("download", 3, printer, func(attempt int) (string, bool, error, bool) {
+	message, shown, err := c.withRetries("download", 3, printer, func(attempt int) (string, bool, error, bool) {
 		jsonData, err := json.Marshal(dmrm.ModelCreateRequest{From: model, IgnoreRuntimeMemoryCheck: ignoreRuntimeMemoryCheck})
 		if err != nil {
 			// Marshaling errors are not retryable
@@ -148,6 +148,13 @@ func (c *Client) Pull(model string, ignoreRuntimeMemoryCheck bool, printer stand
 
 		return message, shown, nil, false
 	})
+
+	// Enhance error message with helpful context if there was an error
+	if err != nil {
+		err = enhanceErrorMessage(err, model)
+	}
+
+	return message, shown, err
 }
 
 // isRetryableError determines if an error is retryable (network-related)
@@ -164,9 +171,27 @@ func isRetryableError(err error) bool {
 		return true
 	}
 
-	// Fall back to string matching for network errors that don't have specific types
-	// This is necessary because many network errors are only available as strings
-	errStr := err.Error()
+	// Check error message patterns
+	errStrLower := strings.ToLower(err.Error())
+
+	// Errors that should never be retried
+	nonRetryablePatterns := []string{
+		"sharded gguf",      // HuggingFace doesn't support sharded GGUF in OCI format
+		"manifest unknown",  // Model doesn't exist
+		"name unknown",      // Repository doesn't exist
+		"unauthorized",      // Authentication error
+		"forbidden",         // Permission denied
+		"not found",         // Resource doesn't exist
+		"invalid reference", // Malformed reference
+	}
+
+	for _, pattern := range nonRetryablePatterns {
+		if strings.Contains(errStrLower, pattern) {
+			return false
+		}
+	}
+
+	// Check for network errors that are retryable
 	retryablePatterns := []string{
 		"connection refused",
 		"connection reset",
@@ -180,12 +205,38 @@ func isRetryableError(err error) bool {
 	}
 
 	for _, pattern := range retryablePatterns {
-		if strings.Contains(strings.ToLower(errStr), pattern) {
+		if strings.Contains(errStrLower, pattern) {
 			return true
 		}
 	}
 
 	return false
+}
+
+// enhanceErrorMessage provides more helpful error messages for known error patterns
+func enhanceErrorMessage(err error, model string) error {
+	if err == nil {
+		return nil
+	}
+
+	errStr := err.Error()
+	errStrLower := strings.ToLower(errStr)
+
+	// Provide helpful context for sharded GGUF errors
+	if strings.Contains(errStrLower, "sharded gguf") {
+		return fmt.Errorf("%w\n\nNote: Sharded GGUF models from HuggingFace are not currently supported due to OCI registry limitations.\n"+
+			"Workaround: Upload the model to Docker Hub or use a non-sharded quantization.\n"+
+			"For more information, see: https://github.com/ollama/ollama/issues/5245", err)
+	}
+
+	// Provide helpful context for manifest/repository not found errors
+	if strings.Contains(errStrLower, "manifest unknown") || strings.Contains(errStrLower, "name unknown") {
+		return fmt.Errorf("%w\n\nNote: Model or quantization tag not found. "+
+			"For HuggingFace models, ensure the quantization tag (e.g., :Q4_K_M) exists.\n"+
+			"Available quantizations are typically listed in the model's Files tab on HuggingFace.", err)
+	}
+
+	return err
 }
 
 // withRetries executes an operation with automatic retry logic for transient failures

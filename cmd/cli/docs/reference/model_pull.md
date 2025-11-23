@@ -36,3 +36,14 @@ To specify the quantization, provide it as a tag, for example:
 ```console
 docker model pull hf.co/bartowski/Llama-3.2-1B-Instruct-GGUF
 ```
+
+#### Known Limitations
+
+**Sharded GGUF models:** Some models on HuggingFace use sharded GGUF format (where the model is split across multiple files). 
+These models cannot currently be pulled directly from HuggingFace due to OCI registry limitations. 
+If you encounter an error about "sharded GGUF", you have two options:
+
+1. Use a non-sharded quantization of the same model if available
+2. Upload the model to Docker Hub or another OCI-compliant registry and pull from there
+
+For more information, see: https://github.com/ollama/ollama/issues/5245
