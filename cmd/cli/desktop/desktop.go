@@ -171,9 +171,8 @@ func isRetryableError(err error) bool {
 		return true
 	}
 
-	// Check for non-retryable errors first
-	errStr := err.Error()
-	errStrLower := strings.ToLower(errStr)
+	// Check error message patterns
+	errStrLower := strings.ToLower(err.Error())
 
 	// Errors that should never be retried
 	nonRetryablePatterns := []string{
@@ -192,8 +191,7 @@ func isRetryableError(err error) bool {
 		}
 	}
 
-	// Fall back to string matching for network errors that don't have specific types
-	// This is necessary because many network errors are only available as strings
+	// Check for network errors that are retryable
 	retryablePatterns := []string{
 		"connection refused",
 		"connection reset",
