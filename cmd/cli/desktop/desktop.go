@@ -174,16 +174,16 @@ func isRetryableError(err error) bool {
 	// Check for non-retryable errors first
 	errStr := err.Error()
 	errStrLower := strings.ToLower(errStr)
-	
+
 	// Errors that should never be retried
 	nonRetryablePatterns := []string{
-		"sharded gguf",           // HuggingFace doesn't support sharded GGUF in OCI format
-		"manifest unknown",        // Model doesn't exist
-		"name unknown",            // Repository doesn't exist
-		"unauthorized",            // Authentication error
-		"forbidden",               // Permission denied
-		"not found",               // Resource doesn't exist
-		"invalid reference",       // Malformed reference
+		"sharded gguf",      // HuggingFace doesn't support sharded GGUF in OCI format
+		"manifest unknown",  // Model doesn't exist
+		"name unknown",      // Repository doesn't exist
+		"unauthorized",      // Authentication error
+		"forbidden",         // Permission denied
+		"not found",         // Resource doesn't exist
+		"invalid reference", // Malformed reference
 	}
 
 	for _, pattern := range nonRetryablePatterns {
@@ -231,7 +231,7 @@ func enhanceErrorMessage(err error, model string) error {
 			"For more information, see: https://github.com/ollama/ollama/issues/5245", err)
 	}
 
-	// Provide helpful context for manifest/repository not found errors  
+	// Provide helpful context for manifest/repository not found errors
 	if strings.Contains(errStrLower, "manifest unknown") || strings.Contains(errStrLower, "name unknown") {
 		return fmt.Errorf("%w\n\nNote: Model or quantization tag not found. "+
 			"For HuggingFace models, ensure the quantization tag (e.g., :Q4_K_M) exists.\n"+
