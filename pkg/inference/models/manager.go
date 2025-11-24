@@ -141,7 +141,8 @@ func NormalizeModelName(model string) string {
 
 	// Normalize HuggingFace model names (lowercase)
 	if strings.HasPrefix(model, "hf.co/") {
-		model = strings.ToLower(model)
+		// Replace hf.co with huggingface.co to avoid losing the Authorization header on redirect.
+		model = "huggingface.co" + strings.ToLower(strings.TrimPrefix(model, "hf.co"))
 	}
 
 	// Check if model contains a registry (domain with dot before first slash)
