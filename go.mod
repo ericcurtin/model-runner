@@ -6,7 +6,7 @@ require (
 	github.com/containerd/containerd/v2 v2.1.5
 	github.com/containerd/platforms v1.0.0-rc.1
 	github.com/docker/go-units v0.5.0
-	github.com/docker/model-runner/pkg/go-containerregistry v0.0.0-20251121145743-8846041bd600
+	github.com/docker/model-runner/pkg/go-containerregistry v0.0.0-20251121150728-6951a2a36575
 	github.com/elastic/go-sysinfo v1.15.4
 	github.com/gpustack/gguf-parser-go v0.22.1
 	github.com/jaypipes/ghw v0.19.1
