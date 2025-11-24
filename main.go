@@ -47,6 +47,9 @@ func main() {
 		modelPath = filepath.Join(userHomeDir, ".docker", "models")
 	}
 
+	// Determine allowed origins for CORS protection
+	allowedOrigins := getAllowedOrigins()
+
 	_, disableServerUpdate := os.LookupEnv("DISABLE_SERVER_UPDATE")
 	if disableServerUpdate {
 		llamacpp.ShouldUpdateServerLock.Lock()
@@ -90,9 +93,18 @@ func main() {
 			Logger:        log.WithFields(logrus.Fields{"component": "model-manager"}),
 			Transport:     baseTransport,
 		},
-		nil,
+		allowedOrigins,
 		memEstimator,
 	)
+
+	// Log CORS configuration for security awareness
+	if allowedOrigins == nil {
+		log.Info("CORS protection disabled (Unix socket mode)")
+	} else if len(allowedOrigins) == 1 && allowedOrigins[0] == "*" {
+		log.Warn("CORS protection allows ALL origins (*) - this is insecure for public-facing services")
+	} else {
+		log.Infof("CORS protection enabled with allowed origins: %v", allowedOrigins)
+	}
 
 	log.Infof("LLAMA_SERVER_PATH: %s", llamaServerPath)
 
@@ -152,7 +164,7 @@ func main() {
 		llamaCppBackend,
 		modelManager,
 		http.DefaultClient,
-		nil,
+		allowedOrigins,
 		metrics.NewTracker(
 			http.DefaultClient,
 			log.WithField("component", "metrics"),
@@ -310,4 +322,44 @@ func splitArgs(s string) []string {
 	}
 
 	return args
+}
+
+// getAllowedOrigins determines the allowed origins for CORS protection.
+// It reads from the DMR_ORIGINS environment variable if set.
+// If DMR_ORIGINS is not set and TCP mode is enabled (MODEL_RUNNER_PORT is set),
+// it defaults to localhost origins only for security.
+// If DMR_ORIGINS is not set and TCP mode is disabled (Unix socket mode),
+// it returns nil to disable CORS (not needed for Unix sockets).
+func getAllowedOrigins() []string {
+	// Check if DMR_ORIGINS is explicitly set
+	dmrOrigins := os.Getenv("DMR_ORIGINS")
+	if dmrOrigins != "" {
+		// User has explicitly configured origins
+		var origins []string
+		for _, o := range strings.Split(dmrOrigins, ",") {
+			if trimmed := strings.TrimSpace(o); trimmed != "" {
+				origins = append(origins, trimmed)
+			}
+		}
+		if len(origins) == 0 {
+			return nil // Empty list means no origins allowed
+		}
+		return origins
+	}
+
+	// Check if TCP mode is enabled
+	tcpPort := os.Getenv("MODEL_RUNNER_PORT")
+	if tcpPort != "" {
+		// TCP mode is enabled - apply secure defaults (localhost only)
+		// This protects against CSRF attacks from arbitrary web pages
+		return []string{
+			"http://localhost",
+			"http://127.0.0.1",
+			"https://localhost",
+			"https://127.0.0.1",
+		}
+	}
+
+	// Unix socket mode - CORS not needed, return nil to disable
+	return nil
 }
