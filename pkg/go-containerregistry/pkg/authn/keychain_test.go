@@ -500,15 +500,10 @@ func TestHuggingFaceToken(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
 			// Setup: create a temporary config directory to ensure no auth is loaded from files
-			cd := setupConfigDir(t)
-			defer os.RemoveAll(filepath.Dir(cd))
+			setupConfigDir(t)
 
-			// Set or unset HF_TOKEN
-			if test.token != "" {
-				t.Setenv("HF_TOKEN", test.token)
-			} else {
-				os.Unsetenv("HF_TOKEN")
-			}
+			// Set HF_TOKEN using t.Setenv (empty string to unset)
+			t.Setenv("HF_TOKEN", test.token)
 
 			// Parse the registry
 			reg, err := name.NewRegistry(test.registry, name.WeakValidation)
