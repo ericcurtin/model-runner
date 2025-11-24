@@ -17,6 +17,7 @@ import (
 	"github.com/docker/model-runner/pkg/distribution/registry"
 	"github.com/docker/model-runner/pkg/distribution/tarball"
 	"github.com/docker/model-runner/pkg/distribution/types"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/authn"
 	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1/remote"
 	"github.com/docker/model-runner/pkg/inference/platform"
 )
@@ -138,11 +139,19 @@ func NewClient(opts ...Option) (*Client, error) {
 }
 
 // PullModel pulls a model from a registry and returns the local file path
-func (c *Client) PullModel(ctx context.Context, reference string, progressWriter io.Writer) error {
+func (c *Client) PullModel(ctx context.Context, reference string, progressWriter io.Writer, bearerToken ...string) error {
 	c.log.Infoln("Starting model pull:", utils.SanitizeForLog(reference))
 
+	// Use the client's registry, or create a temporary one if bearer token is provided
+	registryClient := c.registry
+	if len(bearerToken) > 0 && bearerToken[0] != "" {
+		// Create a temporary registry client with bearer token authentication
+		auth := &authn.Bearer{Token: bearerToken[0]}
+		registryClient = registry.FromClient(c.registry, registry.WithAuth(auth))
+	}
+
 	// First, fetch the remote model to get the manifest
-	remoteModel, err := c.registry.Model(ctx, reference)
+	remoteModel, err := registryClient.Model(ctx, reference)
 	if err != nil {
 		return fmt.Errorf("reading model from registry: %w", err)
 	}
@@ -214,7 +223,7 @@ func (c *Client) PullModel(ctx context.Context, reference string, progressWriter
 		}
 		digestReference := repository + "@" + remoteDigest.String()
 		c.log.Infof("Re-fetching model with digest reference: %s", utils.SanitizeForLog(digestReference))
-		remoteModel, err = c.registry.Model(ctx, digestReference)
+		remoteModel, err = registryClient.Model(ctx, digestReference)
 		if err != nil {
 			return fmt.Errorf("reading model from registry with resume context: %w", err)
 		}

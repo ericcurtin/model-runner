@@ -85,11 +85,35 @@ func WithAuthConfig(username, password string) ClientOption {
 	}
 }
 
+// WithAuth sets a custom authenticator.
+func WithAuth(auth authn.Authenticator) ClientOption {
+	return func(c *Client) {
+		if auth != nil {
+			c.auth = auth
+		}
+	}
+}
+
 func NewClient(opts ...ClientOption) *Client {
 	client := &Client{
 		transport: remote.DefaultTransport,
 		userAgent: DefaultUserAgent,
 		keychain:  authn.DefaultKeychain,
+	}
+	for _, opt := range opts {
+		opt(client)
+	}
+	return client
+}
+
+// FromClient creates a new Client by copying an existing client's configuration
+// and applying optional modifications via ClientOption functions.
+func FromClient(base *Client, opts ...ClientOption) *Client {
+	client := &Client{
+		transport: base.transport,
+		userAgent: base.userAgent,
+		keychain:  base.keychain,
+		auth:      base.auth,
 	}
 	for _, opt := range opts {
 		opt(client)

@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -107,8 +108,18 @@ func (c *Client) Status() Status {
 func (c *Client) Pull(model string, ignoreRuntimeMemoryCheck bool, printer standalone.StatusPrinter) (string, bool, error) {
 	model = normalizeHuggingFaceModelName(model)
 
+	// Check if this is a Hugging Face model and if HF_TOKEN is set
+	var hfToken string
+	if strings.HasPrefix(strings.ToLower(model), "hf.co/") {
+		hfToken = os.Getenv("HF_TOKEN")
+	}
+
 	return c.withRetries("download", 3, printer, func(attempt int) (string, bool, error, bool) {
-		jsonData, err := json.Marshal(dmrm.ModelCreateRequest{From: model, IgnoreRuntimeMemoryCheck: ignoreRuntimeMemoryCheck})
+		jsonData, err := json.Marshal(dmrm.ModelCreateRequest{
+			From:                     model,
+			IgnoreRuntimeMemoryCheck: ignoreRuntimeMemoryCheck,
+			BearerToken:              hfToken,
+		})
 		if err != nil {
 			// Marshaling errors are not retryable
 			return "", false, fmt.Errorf("error marshaling request: %w", err), false

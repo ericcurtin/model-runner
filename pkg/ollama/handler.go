@@ -579,7 +579,7 @@ func (h *Handler) handlePull(w http.ResponseWriter, r *http.Request) {
 	r.Header.Set("Accept", "application/json")
 
 	// Call the model manager's PullModel method
-	if err := h.modelManager.PullModel(modelName, r, w); err != nil {
+	if err := h.modelManager.PullModel(modelName, "", r, w); err != nil {
 		h.log.Errorf("Failed to pull model: %v", err)
 		// Only write error if headers haven't been sent yet
 		if !isHeadersSent(w) {
