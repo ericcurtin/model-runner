@@ -135,7 +135,7 @@ func TestPullModel(t *testing.T) {
 			}
 
 			w := httptest.NewRecorder()
-			err = m.PullModel(tag, r, w)
+			err = m.PullModel(tag, "", r, w)
 			if err != nil {
 				t.Fatalf("Failed to pull model: %v", err)
 			}
@@ -246,7 +246,7 @@ func TestHandleGetModel(t *testing.T) {
 			if !tt.remote && !strings.Contains(tt.modelName, "nonexistent") {
 				r := httptest.NewRequest("POST", "/models/create", strings.NewReader(`{"from": "`+tt.modelName+`"}`))
 				w := httptest.NewRecorder()
-				err = m.PullModel(tt.modelName, r, w)
+				err = m.PullModel(tt.modelName, "", r, w)
 				if err != nil {
 					t.Fatalf("Failed to pull model: %v", err)
 				}

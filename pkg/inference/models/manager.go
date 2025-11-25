@@ -17,11 +17,11 @@ import (
 	"github.com/docker/model-runner/pkg/distribution/distribution"
 	"github.com/docker/model-runner/pkg/distribution/registry"
 	"github.com/docker/model-runner/pkg/distribution/types"
+	v1 "github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1"
 	"github.com/docker/model-runner/pkg/inference"
 	"github.com/docker/model-runner/pkg/inference/memory"
 	"github.com/docker/model-runner/pkg/logging"
 	"github.com/docker/model-runner/pkg/middleware"
-	v1 "github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1"
 	"github.com/sirupsen/logrus"
 )
 
@@ -141,7 +141,8 @@ func NormalizeModelName(model string) string {
 
 	// Normalize HuggingFace model names (lowercase)
 	if strings.HasPrefix(model, "hf.co/") {
-		model = strings.ToLower(model)
+		// Replace hf.co with huggingface.co to avoid losing the Authorization header on redirect.
+		model = "huggingface.co" + strings.ToLower(strings.TrimPrefix(model, "hf.co"))
 	}
 
 	// Check if model contains a registry (domain with dot before first slash)
@@ -221,7 +222,7 @@ func (m *Manager) handleCreateModel(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	if err := m.PullModel(request.From, r, w); err != nil {
+	if err := m.PullModel(request.From, request.BearerToken, r, w); err != nil {
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 			m.log.Infof("Request canceled/timed out while pulling model %q", request.From)
 			return
@@ -881,15 +882,15 @@ func (m *Manager) GetModels() ([]*Model, error) {
 		return nil, fmt.Errorf("error while listing models: %w", err)
 	}
 
- 	apiModels := make([]*Model, 0, len(models))
- 	for _, model := range models {
- 		apiModel, err := ToModel(model)
- 		if err != nil {
- 			m.log.Warnf("error while converting model, skipping: %v", err)
- 			continue
- 		}
- 		apiModels = append(apiModels, apiModel)
- 	}
+	apiModels := make([]*Model, 0, len(models))
+	for _, model := range models {
+		apiModel, err := ToModel(model)
+		if err != nil {
+			m.log.Warnf("error while converting model, skipping: %v", err)
+			continue
+		}
+		apiModels = append(apiModels, apiModel)
+	}
 
 	return apiModels, nil
 }
@@ -941,7 +942,7 @@ func (m *Manager) GetBundle(ref string) (types.ModelBundle, error) {
 
 // PullModel pulls a model to local storage. Any error it returns is suitable
 // for writing back to the client.
-func (m *Manager) PullModel(model string, r *http.Request, w http.ResponseWriter) error {
+func (m *Manager) PullModel(model string, bearerToken string, r *http.Request, w http.ResponseWriter) error {
 	// Restrict model pull concurrency.
 	select {
 	case <-m.pullTokens:
@@ -983,7 +984,16 @@ func (m *Manager) PullModel(model string, r *http.Request, w http.ResponseWriter
 
 	// Pull the model using the Docker model distribution client
 	m.log.Infoln("Pulling model:", model)
-	err := m.distributionClient.PullModel(r.Context(), model, progressWriter)
+
+	// Use bearer token if provided
+	var err error
+	if bearerToken != "" {
+		m.log.Infoln("Using provided bearer token for authentication")
+		err = m.distributionClient.PullModel(r.Context(), model, progressWriter, bearerToken)
+	} else {
+		err = m.distributionClient.PullModel(r.Context(), model, progressWriter)
+	}
+
 	if err != nil {
 		return fmt.Errorf("error while pulling model: %w", err)
 	}

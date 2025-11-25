@@ -17,6 +17,8 @@ type ModelCreateRequest struct {
 	// IgnoreRuntimeMemoryCheck indicates whether the server should check if it has sufficient
 	// memory to run the given model (assuming default configuration).
 	IgnoreRuntimeMemoryCheck bool `json:"ignore-runtime-memory-check,omitempty"`
+	// BearerToken is an optional bearer token for authentication.
+	BearerToken string `json:"bearer-token,omitempty"`
 }
 
 // ModelPackageRequest represents a model package request, which creates a new model
