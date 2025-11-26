@@ -192,7 +192,7 @@ func ensureContainerStarted(ctx context.Context, dockerClient client.ContainerAP
 		// https://github.com/moby/moby/blob/de24c536b0ea208a09e0fff3fd896c453da6ef2e/daemon/container.go#L138-L156
 		//
 		// Given that multiple install operations tend to end up tightly
-		// synchronized by the preceeding pull operation and that this
+		// synchronized by the preceding pull operation and that this
 		// method is specifically designed to work around these race
 		// conditions, we'll allow 404 errors to pass silently (at least up
 		// until the polling time out - unfortunately we can't make the 404
@@ -203,7 +203,7 @@ func ensureContainerStarted(ctx context.Context, dockerClient client.ContainerAP
 		// request (I'm not sure where this arises in the Moby server), so we'll
 		// let that pass silently too.
 		// TODO: Investigate whether nvidia runtime actually returns IsNotFound.
-		if !(errdefs.IsNotFound(err) || errors.Is(err, io.EOF) || strings.Contains(err.Error(), "No such container")) {
+		if !errdefs.IsNotFound(err) && !errors.Is(err, io.EOF) && !strings.Contains(err.Error(), "No such container") {
 			return err
 		}
 		if i > 1 {
@@ -329,21 +329,23 @@ func CreateControllerContainer(ctx context.Context, dockerClient *client.Client,
 	hostConfig.PortBindings = nat.PortMap{
 		nat.Port(portStr + "/tcp"): portBindings,
 	}
-	if gpu == gpupkg.GPUSupportCUDA {
+	switch gpu {
+	case gpupkg.GPUSupportNone:
+	case gpupkg.GPUSupportCUDA:
 		if ok, err := gpupkg.HasNVIDIARuntime(ctx, dockerClient); err == nil && ok {
 			hostConfig.Runtime = "nvidia"
 		}
 		hostConfig.DeviceRequests = []container.DeviceRequest{{Count: -1, Capabilities: [][]string{{"gpu"}}}}
-	} else if gpu == gpupkg.GPUSupportROCm {
+	case gpupkg.GPUSupportROCm:
 		if ok, err := gpupkg.HasROCmRuntime(ctx, dockerClient); err == nil && ok {
 			hostConfig.Runtime = "rocm"
 		}
 		// ROCm devices are handled via device paths (/dev/kfd, /dev/dri) which are already added below
-	} else if gpu == gpupkg.GPUSupportMUSA {
+	case gpupkg.GPUSupportMUSA:
 		if ok, err := gpupkg.HasMTHREADSRuntime(ctx, dockerClient); err == nil && ok {
 			hostConfig.Runtime = "mthreads"
 		}
-	} else if gpu == gpupkg.GPUSupportCANN {
+	case gpupkg.GPUSupportCANN:
 		if ok, err := gpupkg.HasCANNRuntime(ctx, dockerClient); err == nil && ok {
 			hostConfig.Runtime = "cann"
 		}
@@ -414,7 +416,7 @@ func CreateControllerContainer(ctx context.Context, dockerClient *client.Client,
 	// installers to start the container.
 	// TODO: Remove strings.Contains check once we ensure it's not necessary.
 	resp, err := dockerClient.ContainerCreate(ctx, config, hostConfig, nil, nil, controllerContainerName)
-	if err != nil && !(errdefs.IsConflict(err) || strings.Contains(err.Error(), "is already in use by container")) {
+	if err != nil && !errdefs.IsConflict(err) && !strings.Contains(err.Error(), "is already in use by container") {
 		return fmt.Errorf("failed to create container %s: %w", controllerContainerName, err)
 	}
 	created := err == nil

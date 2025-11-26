@@ -45,7 +45,7 @@ func (e *StreamingError) Error() string {
 	return fmt.Sprintf("streaming error (code %d): %s", e.StatusCode, e.Message)
 }
 
-// StatusCode returns the HTTP status code associated with this streaming error.
+// GetStatusCode returns the HTTP status code associated with this streaming error.
 func (e *StreamingError) GetStatusCode() int {
 	return e.StatusCode
 }
@@ -694,32 +694,30 @@ func (r *OpenAIRecorder) sendExistingRecords(w http.ResponseWriter, model string
 		records = r.getRecordsByModel(model)
 	}
 
-	if records != nil {
-		// Send each individual request-response pair as a separate event.
-		for _, modelRecord := range records {
-			for _, requestRecord := range modelRecord.Records {
-				// Create a ModelRecordsResponse with a single record to match
-				// what the non-streaming endpoint returns - []ModelRecordsResponse.
-				// See getAllRecords and getRecordsByModel.
-				singleRecord := []ModelRecordsResponse{{
-					Count: 1,
-					Model: modelRecord.Model,
-					ModelData: ModelData{
-						Config:  modelRecord.Config,
-						Records: []*RequestResponsePair{requestRecord},
-					},
-				}}
-				jsonData, err := json.Marshal(singleRecord)
-				if err != nil {
-					r.log.Errorf("Failed to marshal existing record for streaming: %v", err)
-					errorMsg := fmt.Sprintf(`{"error": "Failed to marshal existing record: %v"}`, err)
-					if _, writeErr := fmt.Fprintf(w, "event: error\ndata: %s\n\n", errorMsg); writeErr != nil {
-						r.log.Errorf("Failed to write error event to response: %v", writeErr)
-					}
-				} else {
-					if _, writeErr := fmt.Fprintf(w, "event: existing_request\ndata: %s\n\n", jsonData); writeErr != nil {
-						r.log.Errorf("Failed to write existing_request event to response: %v", writeErr)
-					}
+	// Send each individual request-response pair as a separate event.
+	for _, modelRecord := range records {
+		for _, requestRecord := range modelRecord.Records {
+			// Create a ModelRecordsResponse with a single record to match
+			// what the non-streaming endpoint returns - []ModelRecordsResponse.
+			// See getAllRecords and getRecordsByModel.
+			singleRecord := []ModelRecordsResponse{{
+				Count: 1,
+				Model: modelRecord.Model,
+				ModelData: ModelData{
+					Config:  modelRecord.Config,
+					Records: []*RequestResponsePair{requestRecord},
+				},
+			}}
+			jsonData, err := json.Marshal(singleRecord)
+			if err != nil {
+				r.log.Errorf("Failed to marshal existing record for streaming: %v", err)
+				errorMsg := fmt.Sprintf(`{"error": "Failed to marshal existing record: %v"}`, err)
+				if _, writeErr := fmt.Fprintf(w, "event: error\ndata: %s\n\n", errorMsg); writeErr != nil {
+					r.log.Errorf("Failed to write error event to response: %v", writeErr)
+				}
+			} else {
+				if _, writeErr := fmt.Fprintf(w, "event: existing_request\ndata: %s\n\n", jsonData); writeErr != nil {
+					r.log.Errorf("Failed to write existing_request event to response: %v", writeErr)
 				}
 			}
 		}

@@ -37,23 +37,23 @@ func (w *tailBuffer) Write(buffer []byte) (int, error) {
 	for _, b := range buffer[si:] {
 		if shouldPushRead {
 			if w.read+1 < w.capacity {
-				w.read += 1
+				w.read++
 			} else {
 				w.read = 0
 			}
 		}
 		w.buf[w.write] = b
 		if w.write+1 < w.capacity {
-			w.write += 1
+			w.write++
 		} else {
 			w.write = 0
 		}
-		w.size += 1
+		w.size++
 		if w.size > w.capacity {
 			w.size = w.capacity
 		}
 		shouldPushRead = w.write == w.read
-		written += 1
+		written++
 	}
 	return si + written, nil
 }
@@ -67,11 +67,11 @@ func (w *tailBuffer) Read(buffer []byte) (int, error) {
 	for read < w.size && int(read) < len(buffer) {
 		buffer[read] = w.buf[w.read]
 		if w.read+1 < w.capacity {
-			w.read += 1
+			w.read++
 		} else {
 			w.read = 0
 		}
-		read += 1
+		read++
 	}
 	w.size -= read
 	if read == 0 {

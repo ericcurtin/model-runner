@@ -246,8 +246,6 @@ func (c *Client) PullModel(ctx context.Context, reference string, progressWriter
 		err = progress.WriteSuccess(progressWriter, fmt.Sprintf("Using cached model: %s", cfg.Size))
 		if err != nil {
 			c.log.Warnf("Writing progress: %v", err)
-			// If we fail to write progress, don't try again
-			progressWriter = nil
 		}
 
 		// Ensure model has the correct tag
@@ -264,16 +262,12 @@ func (c *Client) PullModel(ctx context.Context, reference string, progressWriter
 	if err = c.store.Write(remoteModel, []string{reference}, progressWriter); err != nil {
 		if writeErr := progress.WriteError(progressWriter, fmt.Sprintf("Error: %s", err.Error())); writeErr != nil {
 			c.log.Warnf("Failed to write error message: %v", writeErr)
-			// If we fail to write error message, don't try again
-			progressWriter = nil
 		}
 		return fmt.Errorf("writing image to store: %w", err)
 	}
 
 	if err := progress.WriteSuccess(progressWriter, "Model pulled successfully"); err != nil {
 		c.log.Warnf("Failed to write success message: %v", err)
-		// If we fail to write success message, don't try again
-		progressWriter = nil
 	}
 
 	return nil
@@ -286,7 +280,7 @@ func (c *Client) LoadModel(r io.Reader, progressWriter io.Writer) (string, error
 	tr := tarball.NewReader(r)
 	for {
 		diffID, err := tr.Next()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		if err != nil {
@@ -315,8 +309,6 @@ func (c *Client) LoadModel(r io.Reader, progressWriter io.Writer) (string, error
 
 	if err := progress.WriteSuccess(progressWriter, "Model loaded successfully"); err != nil {
 		c.log.Warnf("Failed to write success message: %v", err)
-		// If we fail to write success message, don't try again
-		progressWriter = nil
 	}
 
 	return digest.String(), nil

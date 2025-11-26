@@ -96,7 +96,7 @@ func (l *llamaCpp) Install(ctx context.Context, httpClient *http.Client) error {
 	// We don't currently support this backend on Windows. We'll likely
 	// never support it on Intel Macs.
 	if (runtime.GOOS == "darwin" && runtime.GOARCH == "amd64") ||
-		(runtime.GOOS == "windows" && !(runtime.GOARCH == "amd64" || runtime.GOARCH == "arm64")) {
+		(runtime.GOOS == "windows" && runtime.GOARCH != "amd64" && runtime.GOARCH != "arm64") {
 		return errors.New("platform not supported")
 	}
 
@@ -114,7 +114,7 @@ func (l *llamaCpp) Install(ctx context.Context, httpClient *http.Client) error {
 	llamaCppPath := filepath.Join(l.updatedServerStoragePath, llamaServerBin)
 	if err := l.ensureLatestLlamaCpp(ctx, l.log, httpClient, llamaCppPath, l.vendoredServerStoragePath); err != nil {
 		l.log.Infof("failed to ensure latest llama.cpp: %v\n", err)
-		if !(errors.Is(err, errLlamaCppUpToDate) || errors.Is(err, errLlamaCppUpdateDisabled)) {
+		if !errors.Is(err, errLlamaCppUpToDate) && !errors.Is(err, errLlamaCppUpdateDisabled) {
 			l.status = fmt.Sprintf("failed to install llama.cpp: %v", err)
 		}
 		if errors.Is(err, context.Canceled) {
@@ -187,7 +187,7 @@ func (l *llamaCpp) Status() string {
 func (l *llamaCpp) GetDiskUsage() (int64, error) {
 	size, err := diskusage.Size(l.updatedServerStoragePath)
 	if err != nil {
-		return 0, fmt.Errorf("error while getting store size: %v", err)
+		return 0, fmt.Errorf("error while getting store size: %w", err)
 	}
 	return size, nil
 }
@@ -200,12 +200,12 @@ func (l *llamaCpp) GetRequiredMemoryForModel(ctx context.Context, model string, 
 
 	contextSize := GetContextSize(mdlConfig, config)
 
-	ngl := uint64(0)
+	var ngl uint64
 	if l.gpuSupported {
+		ngl = 999
 		if runtime.GOOS == "windows" && runtime.GOARCH == "arm64" && mdlConfig.Quantization != "Q4_0" {
 			ngl = 0 // only Q4_0 models can be accelerated on Adreno
 		}
-		ngl = 999
 	}
 
 	memory := l.estimateMemoryFromGGUF(mdlGguf, contextSize, ngl)
@@ -358,7 +358,7 @@ func (l *llamaCpp) checkGPUSupport(ctx context.Context) bool {
 	for sc.Scan() {
 		if expectDev {
 			if devRe.MatchString(sc.Text()) {
-				ndevs += 1
+				ndevs++
 			}
 		} else {
 			expectDev = strings.HasPrefix(sc.Text(), "Available devices:")

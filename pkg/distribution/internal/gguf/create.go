@@ -77,7 +77,7 @@ var (
 // Examples: "16.78 M" -> "16.78M", "256.35 MiB" -> "256.35MiB", "409M" -> "409M"
 func normalizeUnitString(s string) string {
 	s = strings.TrimSpace(s)
-	if len(s) == 0 {
+	if s == "" {
 		return s
 	}
 	// Remove space(s) between numbers/decimals and unit letters using regex

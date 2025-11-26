@@ -102,7 +102,7 @@ func RunBackend(ctx context.Context, config RunnerConfig) error {
 			config.Logger.Warnf("failed to read server output tail: %v", err)
 		}
 
-		if len(errOutput.String()) != 0 {
+		if errOutput.String() != "" {
 			backendErr = fmt.Errorf("%s exit status: %w\nwith output: %s", config.BackendName, backendErr, errOutput.String())
 		} else {
 			backendErr = fmt.Errorf("%s exit status: %w", config.BackendName, backendErr)

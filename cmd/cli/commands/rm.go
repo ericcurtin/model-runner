@@ -14,7 +14,7 @@ func newRemoveCmd() *cobra.Command {
 	c := &cobra.Command{
 		Use:   "rm [MODEL...]",
 		Short: "Remove local models downloaded from Docker Hub",
-		Args: requireMinArgs(1, "rm", "[MODEL...]"),
+		Args:  requireMinArgs(1, "rm", "[MODEL...]"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if _, err := ensureStandaloneRunnerAvailable(cmd.Context(), asPrinter(cmd), false); err != nil {
 				return fmt.Errorf("unable to initialize standalone model runner: %w", err)

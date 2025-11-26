@@ -70,7 +70,7 @@ func (h *History) Init() error {
 		}
 
 		line = strings.TrimSpace(line)
-		if len(line) == 0 {
+		if line == "" {
 			continue
 		}
 
@@ -104,7 +104,7 @@ func (h *History) Clear() {
 
 func (h *History) Prev() (line string) {
 	if h.Pos > 0 {
-		h.Pos -= 1
+		h.Pos--
 	}
 	line, _ = h.Buf.Get(h.Pos)
 	return line
@@ -112,7 +112,7 @@ func (h *History) Prev() (line string) {
 
 func (h *History) Next() (line string) {
 	if h.Pos < h.Buf.Size() {
-		h.Pos += 1
+		h.Pos++
 		line, _ = h.Buf.Get(h.Pos)
 	}
 	return line

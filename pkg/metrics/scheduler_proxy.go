@@ -56,7 +56,7 @@ func (h *SchedulerMetricsHandler) ServeHTTP(w http.ResponseWriter, r *http.Reque
 	}
 
 	// Create request to the backend metrics endpoint
-	req, err := http.NewRequestWithContext(r.Context(), "GET", "http://unix/metrics", nil)
+	req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, "http://unix/metrics", http.NoBody)
 	if err != nil {
 		h.log.Errorf("Failed to create metrics request: %v", err)
 		http.Error(w, "Failed to create metrics request", http.StatusInternalServerError)

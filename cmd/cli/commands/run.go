@@ -29,7 +29,7 @@ func readMultilineInput(cmd *cobra.Command, scanner *bufio.Scanner) (string, err
 
 	if !scanner.Scan() {
 		if err := scanner.Err(); err != nil {
-			return "", fmt.Errorf("error reading input: %v", err)
+			return "", fmt.Errorf("error reading input: %w", err)
 		}
 		return "", fmt.Errorf("EOF")
 	}
@@ -67,7 +67,7 @@ func readMultilineInput(cmd *cobra.Command, scanner *bufio.Scanner) (string, err
 
 		if !scanner.Scan() {
 			if err := scanner.Err(); err != nil {
-				return "", fmt.Errorf("error reading input: %v", err)
+				return "", fmt.Errorf("error reading input: %w", err)
 			}
 			return "", fmt.Errorf("unclosed multiline input (EOF)")
 		}
@@ -191,9 +191,9 @@ func generateInteractiveWithReadline(cmd *cobra.Command, desktopClient *desktop.
 			multiline = false
 			scanner.Prompt.UseAlt = false
 		case strings.HasPrefix(line, `"""`):
-			line := strings.TrimPrefix(line, `"""`)
-			line, ok := strings.CutSuffix(line, `"""`)
-			sb.WriteString(line)
+			trimmed := strings.TrimPrefix(line, `"""`)
+			content, ok := strings.CutSuffix(trimmed, `"""`)
+			sb.WriteString(content)
 			if !ok {
 				// no multiline terminating string; need more input
 				fmt.Fprintln(&sb)
@@ -279,7 +279,7 @@ func generateInteractiveBasic(cmd *cobra.Command, desktopClient *desktop.Client,
 			if err.Error() == "EOF" {
 				break
 			}
-			return fmt.Errorf("Error reading input: %v", err)
+			return fmt.Errorf("Error reading input: %w", err)
 		}
 
 		if strings.ToLower(strings.TrimSpace(userInput)) == "/bye" {
@@ -623,8 +623,8 @@ func newRunCmd() *cobra.Command {
 			if isNIMImage(model) {
 				// NIM images are handled differently - they run as Docker containers
 				// Create a Docker client
-				dockerCLI := getDockerCLI()
-				dockerClient, err := desktop.DockerClientForContext(dockerCLI, dockerCLI.CurrentContext())
+				cli := getDockerCLI()
+				dockerClient, err := desktop.DockerClientForContext(cli, cli.CurrentContext())
 				if err != nil {
 					return fmt.Errorf("failed to create Docker client: %w", err)
 				}
@@ -646,7 +646,7 @@ func newRunCmd() *cobra.Command {
 								cmd.Println("\nChat session ended.")
 								break
 							}
-							return fmt.Errorf("Error reading input: %v", err)
+							return fmt.Errorf("Error reading input: %w", err)
 						}
 
 						if strings.ToLower(strings.TrimSpace(userInput)) == "/bye" {

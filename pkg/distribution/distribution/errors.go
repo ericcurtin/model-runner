@@ -12,10 +12,10 @@ import (
 var (
 	ErrInvalidReference     = registry.ErrInvalidReference
 	ErrModelNotFound        = store.ErrModelNotFound // model not found in store
-	ErrUnsupportedMediaType = errors.New(fmt.Sprintf(
+	ErrUnsupportedMediaType = fmt.Errorf(
 		"client supports only models of type %q and older - try upgrading",
 		types.MediaTypeModelConfigV01,
-	))
+	)
 	ErrConflict = errors.New("resource conflict")
 )
 

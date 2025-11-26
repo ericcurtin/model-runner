@@ -205,10 +205,11 @@ func (s *Scheduler) handleOpenAIInference(w http.ResponseWriter, r *http.Request
 	// to avoid DoS attacks. We do this early to avoid client write timeouts.
 	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maximumOpenAIInferenceRequestSize))
 	if err != nil {
-		if _, ok := err.(*http.MaxBytesError); ok {
+		var maxBytesError *http.MaxBytesError
+		if errors.As(err, &maxBytesError) {
 			http.Error(w, "request too large", http.StatusBadRequest)
 		} else {
-			http.Error(w, "unknown error", http.StatusInternalServerError)
+			http.Error(w, "failed to read request body", http.StatusInternalServerError)
 		}
 		return
 	}
@@ -263,7 +264,7 @@ func (s *Scheduler) handleOpenAIInference(w http.ResponseWriter, r *http.Request
 			// shutting down (since that will also cancel the request context).
 			// Either way, provide a response, even if it's ignored.
 			http.Error(w, "service unavailable", http.StatusServiceUnavailable)
-		} else if errors.Is(err, vllm.StatusNotFound) {
+		} else if errors.Is(err, vllm.ErrorNotFound) {
 			http.Error(w, err.Error(), http.StatusPreconditionFailed)
 		} else {
 			http.Error(w, fmt.Errorf("backend installation failed: %w", err).Error(), http.StatusServiceUnavailable)
@@ -302,8 +303,15 @@ func (s *Scheduler) GetBackendStatus(w http.ResponseWriter, r *http.Request) {
 	for backendName, backend := range s.backends {
 		status[backendName] = backend.Status()
 	}
+
+	data, err := json.Marshal(status)
+	if err != nil {
+		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(status)
+	w.Write(data)
 }
 
 func (s *Scheduler) ResetInstaller(httpClient *http.Client) {
@@ -357,7 +365,7 @@ func (s *Scheduler) getLoaderStatus(ctx context.Context) []BackendStatus {
 }
 
 func (s *Scheduler) GetDiskUsage(w http.ResponseWriter, _ *http.Request) {
-	modelsDiskUsage, err, httpCode := s.modelManager.GetDiskUsage()
+	modelsDiskUsage, httpCode, err := s.modelManager.GetDiskUsage()
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to get models disk usage: %v", err), httpCode)
 		return
@@ -383,10 +391,11 @@ func (s *Scheduler) GetDiskUsage(w http.ResponseWriter, _ *http.Request) {
 func (s *Scheduler) Unload(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maximumOpenAIInferenceRequestSize))
 	if err != nil {
-		if _, ok := err.(*http.MaxBytesError); ok {
+		var maxBytesError *http.MaxBytesError
+		if errors.As(err, &maxBytesError) {
 			http.Error(w, "request too large", http.StatusBadRequest)
 		} else {
-			http.Error(w, "unknown error", http.StatusInternalServerError)
+			http.Error(w, "failed to read request body", http.StatusInternalServerError)
 		}
 		return
 	}
@@ -420,10 +429,11 @@ func (s *Scheduler) Configure(w http.ResponseWriter, r *http.Request) {
 
 	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maximumOpenAIInferenceRequestSize))
 	if err != nil {
-		if _, ok := err.(*http.MaxBytesError); ok {
+		var maxBytesError *http.MaxBytesError
+		if errors.As(err, &maxBytesError) {
 			http.Error(w, "request too large", http.StatusBadRequest)
 		} else {
-			http.Error(w, "unknown error", http.StatusInternalServerError)
+			http.Error(w, "failed to read request body", http.StatusInternalServerError)
 		}
 		return
 	}

@@ -13,7 +13,7 @@ import (
 type systemMemoryInfo struct{}
 
 func (i systemMemoryInfo) HaveSufficientMemory(req inference.RequiredMemory) (bool, error) {
-    return true, nil
+	return true, nil
 }
 
 func (i systemMemoryInfo) GetTotalMemory() inference.RequiredMemory {
@@ -45,7 +45,7 @@ func TestCors(t *testing.T) {
 			discard.SetOutput(io.Discard)
 			log := logrus.NewEntry(discard)
 			s := NewScheduler(log, nil, nil, nil, nil, []string{"*"}, nil, systemMemoryInfo{})
-			req := httptest.NewRequest(http.MethodOptions, "http://model-runner.docker.internal"+tt.path, nil)
+			req := httptest.NewRequest(http.MethodOptions, "http://model-runner.docker.internal"+tt.path, http.NoBody)
 			req.Header.Set("Origin", "docker.com")
 			w := httptest.NewRecorder()
 			s.ServeHTTP(w, req)

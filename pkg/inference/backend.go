@@ -77,7 +77,7 @@ type Backend interface {
 	// The provided HTTP client should be used for any HTTP operations.
 	Install(ctx context.Context, httpClient *http.Client) error
 	// Run runs an OpenAI API web server on the specified Unix domain socket
-	// socket for the specified model using the backend. It should start any
+	// for the specified model using the backend. It should start any
 	// process(es) necessary for the backend to function for the model. It
 	// should not return until either the process(es) fail or the provided
 	// context is cancelled. By the time Run returns, any process(es) it has

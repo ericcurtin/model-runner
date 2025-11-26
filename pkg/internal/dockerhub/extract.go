@@ -59,7 +59,7 @@ func unTar(from io.Reader, destinationFolder string) error {
 	tarReader := tar.NewReader(from)
 	for {
 		header, err := tarReader.Next()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		if err != nil {
@@ -95,7 +95,8 @@ func unTar(from io.Reader, destinationFolder string) error {
 		if err != nil {
 			return err
 		}
-		if _, err := io.Copy(file, tarReader); err != nil {
+		// Use LimitReader to prevent decompression bombs
+		if _, err := io.Copy(file, io.LimitReader(tarReader, header.Size)); err != nil {
 			_ = file.Close()
 			return err
 		}

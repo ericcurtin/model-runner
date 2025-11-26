@@ -23,7 +23,7 @@ func (s *LocalStore) readLayout() (Layout, error) {
 	// Read the layout file
 	layoutData, err := os.ReadFile(s.layoutPath())
 	if err != nil {
-		return Layout{}, fmt.Errorf("read layout path path %q: %w", s.layoutPath(), err)
+		return Layout{}, fmt.Errorf("read layout path %q: %w", s.layoutPath(), err)
 	}
 
 	// Unmarshal the layout

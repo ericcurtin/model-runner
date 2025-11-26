@@ -812,7 +812,7 @@ func (c *Client) Requests(modelFilter string, streaming bool, includeExisting bo
 		path += "?" + strings.Join(queryParams, "&")
 	}
 
-	req, err := http.NewRequest(http.MethodGet, path, nil)
+	req, err := http.NewRequest(http.MethodGet, path, http.NoBody)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create request: %w", err)
 	}

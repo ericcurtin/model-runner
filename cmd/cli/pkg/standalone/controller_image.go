@@ -42,6 +42,8 @@ func controllerImageVariant(detectedGPU gpupkg.GPUSupport, backend string) strin
 		return "musa"
 	case gpupkg.GPUSupportCANN:
 		return "cann"
+	case gpupkg.GPUSupportNone:
+		return ""
 	default:
 		return ""
 	}
@@ -49,7 +51,7 @@ func controllerImageVariant(detectedGPU gpupkg.GPUSupport, backend string) strin
 
 func fmtControllerImageName(repo, version, variant string) string {
 	tag := repo + ":" + version
-	if len(variant) > 0 {
+	if variant != "" {
 		tag += "-" + variant
 	}
 	return tag

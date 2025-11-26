@@ -3,6 +3,7 @@ package desktop
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html"
 	"io"
@@ -87,7 +88,7 @@ func DisplayProgress(body io.Reader, printer standalone.StatusPrinter) (string, 
 	pw.Close()
 
 	// Wait for display to finish
-	if err := <-errCh; err != nil && err != io.EOF {
+	if err := <-errCh; err != nil && !errors.Is(err, io.EOF) {
 		return finalMessage, progressShown, err
 	}
 
@@ -97,7 +98,7 @@ func DisplayProgress(body io.Reader, printer standalone.StatusPrinter) (string, 
 // displayProgressSimple displays progress messages in simple line-by-line format
 func displayProgressSimple(body io.Reader, printer standalone.StatusPrinter) (string, bool, error) {
 	scanner := bufio.NewScanner(body)
-	current := uint64(0)
+	var current uint64
 	layerProgress := make(map[string]uint64)
 	var finalMessage string
 	progressShown := false // Track if we actually showed any progress
@@ -168,11 +169,11 @@ func writeDockerProgress(w io.Writer, msg *ProgressMessage, layerStatus map[stri
 			Total:   int64(msg.Layer.Size),
 		}
 	} else if msg.Layer.Current >= msg.Layer.Size && msg.Layer.Size > 0 {
-                status = "Pull complete"
-                progressDetail = &jsonmessage.JSONProgress{
-                        Current: int64(msg.Layer.Current),
-                        Total:   int64(msg.Layer.Size),
-                }
+		status = "Pull complete"
+		progressDetail = &jsonmessage.JSONProgress{
+			Current: int64(msg.Layer.Current),
+			Total:   int64(msg.Layer.Size),
+		}
 	}
 
 	if status == "" {
@@ -192,26 +193,6 @@ func writeDockerProgress(w io.Writer, msg *ProgressMessage, layerStatus map[stri
 	}
 
 	data, err := json.Marshal(dockerMsg)
-	if err != nil {
-		return err
-	}
-
-	_, err = fmt.Fprintf(w, "%s\n", data)
-	return err
-}
-
-// writeDockerStatus writes a status message in Docker's JSONMessage format
-func writeDockerStatus(w io.Writer, id, status, message string) error {
-	msg := jsonmessage.JSONMessage{
-		ID:     id,
-		Status: status,
-	}
-
-	if message != "" {
-		msg.Status = message
-	}
-
-	data, err := json.Marshal(msg)
 	if err != nil {
 		return err
 	}

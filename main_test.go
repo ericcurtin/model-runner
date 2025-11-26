@@ -93,10 +93,10 @@ func TestCreateLlamaCppConfigFromEnv(t *testing.T) {
 				} else {
 					llamaConfig, ok := config.(*llamacpp.Config)
 					if !ok {
-						t.Errorf("Expected *llamacpp.Config, got %T", config)
+						t.Fatalf("Expected *llamacpp.Config, got %T", config)
 					}
 					if llamaConfig == nil {
-						t.Error("Expected non-nil config")
+						t.Fatal("Expected non-nil config")
 					}
 					if len(llamaConfig.Args) == 0 {
 						t.Error("Expected non-empty args")

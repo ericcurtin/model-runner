@@ -81,16 +81,20 @@ func TestStatus(t *testing.T) {
 			modelRunner = desktop.NewContextForMock(client)
 			desktopClient = desktop.New(modelRunner)
 
-			req, err := http.NewRequest(http.MethodGet, modelRunner.URL(inference.ModelsPrefix), nil)
-			require.NoError(t, err)
-			req.Header.Set("User-Agent", "docker-model-cli/"+desktop.Version)
-			client.EXPECT().Do(req).Return(test.doResponse, test.doErr)
+			// Match request by URL path and User-Agent header
+			expectedURL := modelRunner.URL(inference.ModelsPrefix)
+			expectedUserAgent := "docker-model-cli/" + desktop.Version
+			client.EXPECT().Do(gomock.Cond(func(req any) bool {
+				r, ok := req.(*http.Request)
+				return ok && r.URL.String() == expectedURL && r.Header.Get("User-Agent") == expectedUserAgent
+			})).Return(test.doResponse, test.doErr)
 
 			if test.doResponse != nil && test.doResponse.StatusCode == http.StatusOK {
-				req, err = http.NewRequest(http.MethodGet, modelRunner.URL(inference.InferencePrefix+"/status"), nil)
-				require.NoError(t, err)
-				req.Header.Set("User-Agent", "docker-model-cli/"+desktop.Version)
-				client.EXPECT().Do(req).Return(&http.Response{Body: mockBody}, test.doErr)
+				expectedStatusURL := modelRunner.URL(inference.InferencePrefix + "/status")
+				client.EXPECT().Do(gomock.Cond(func(req any) bool {
+					r, ok := req.(*http.Request)
+					return ok && r.URL.String() == expectedStatusURL && r.Header.Get("User-Agent") == expectedUserAgent
+				})).Return(&http.Response{Body: mockBody}, test.doErr)
 			}
 
 			originalOsExit := osExit
@@ -106,7 +110,7 @@ func TestStatus(t *testing.T) {
 			cmd.SetOut(buf)
 			cmd.SetErr(buf)
 
-			err = cmd.Execute()
+			err := cmd.Execute()
 			if test.expectExit {
 				require.True(t, exitCalled, "Expected os.Exit to be called")
 			} else {

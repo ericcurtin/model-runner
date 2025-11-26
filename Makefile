@@ -31,7 +31,7 @@ LICENSE ?=
 BUILD_DMR ?= 1
 
 # Main targets
-.PHONY: build run clean test integration-tests test-docker-ce-installation docker-build docker-build-multiplatform docker-run docker-build-vllm docker-run-vllm docker-run-impl help validate model-distribution-tool
+.PHONY: build run clean test integration-tests test-docker-ce-installation docker-build docker-build-multiplatform docker-run docker-build-vllm docker-run-vllm docker-run-impl help validate lint model-distribution-tool
 # Default target
 .DEFAULT_GOAL := build
 
@@ -84,6 +84,13 @@ test-docker-ce-installation:
 validate:
 	find . -type f -name "*.sh" | grep -v "pkg/go-containerregistry\|llamacpp/native/vendor" | xargs shellcheck
 	@echo "✓ Shellcheck validation passed!"
+
+lint:
+	@echo "Running golangci-lint on root module..."
+	golangci-lint run ./...
+	@echo "Running golangci-lint on cmd/cli module..."
+	cd cmd/cli && golangci-lint run ./...
+	@echo "✓ Go linting passed!"
 
 # Build Docker image
 docker-build:
@@ -164,6 +171,8 @@ help:
 	@echo "  test				- Run tests"
 	@echo "  integration-tests		- Run integration tests"
 	@echo "  test-docker-ce-installation	- Test Docker CE installation with CLI plugin"
+	@echo "  validate			- Run shellcheck validation"
+	@echo "  lint				- Run Go linting with golangci-lint"
 	@echo "  docker-build			- Build Docker image for current platform"
 	@echo "  docker-build-multiplatform	- Build Docker image for multiple platforms"
 	@echo "  docker-run			- Run in Docker container with TCP port access and mounted model storage"

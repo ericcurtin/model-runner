@@ -99,7 +99,7 @@ func (h *AggregatedMetricsHandler) fetchRunnerMetrics(ctx context.Context, runne
 	}
 
 	// Create request to the runner's metrics endpoint
-	req, err := http.NewRequestWithContext(ctx, "GET", "http://unix/metrics", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://unix/metrics", http.NoBody)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create metrics request: %w", err)
 	}

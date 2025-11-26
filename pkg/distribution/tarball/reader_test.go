@@ -1,14 +1,14 @@
 package tarball_test
 
 import (
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
 	"testing"
 
-	v1 "github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1"
-
 	"github.com/docker/model-runner/pkg/distribution/tarball"
+	v1 "github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1"
 )
 
 func TestStream(t *testing.T) {
@@ -29,12 +29,12 @@ func TestStream(t *testing.T) {
 		Algorithm: "sha512",
 		Hex:       "d302a5a946106425f12177a93f87c1b7d4ee8ad851937a6a59dc6e0b758fbed5ab10a116509f73165e2b29b40e870f8c28a6a4f6c1ebfe9fa7d295ba7ff151c9",
 	}, "other-blob-contents")
-	if _, err = r.Next(); err != io.EOF {
+	if _, err = r.Next(); !errors.Is(err, io.EOF) {
 		t.Fatalf("Should have gotten EOF")
 	}
 
 	// Read manifest
-	rawManifest, digest, err := r.Manifest()
+	rawManifest, digest, _ := r.Manifest()
 	if string(rawManifest) != "some-manifest-contents" {
 		t.Errorf("Unexpected manifest contents: got %q expected %q", string(rawManifest), "some-manifest-contents")
 	}
