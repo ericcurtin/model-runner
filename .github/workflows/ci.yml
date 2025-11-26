@@ -9,6 +9,9 @@ on:
 jobs:
   lint:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        goos: [linux, darwin, windows]
     steps:
       - name: Checkout code
         uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3
@@ -24,7 +27,9 @@ jobs:
           curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v2.2.0
           echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
 
-      - name: Run linting
+      - name: Run linting for ${{ matrix.goos }}
+        env:
+          GOOS: ${{ matrix.goos }}
         run: make lint
 
   test:

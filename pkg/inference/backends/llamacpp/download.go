@@ -19,6 +19,7 @@ import (
 	"github.com/docker/model-runner/pkg/logging"
 )
 
+//nolint:unused // Used in platform-specific files (download_darwin.go, download_windows.go)
 const (
 	hubNamespace = "docker"
 	hubRepo      = "docker-model-backend-llamacpp"
@@ -47,6 +48,7 @@ func SetDesiredServerVersion(version string) {
 	DesiredServerVersion = version
 }
 
+//nolint:unused // Used in platform-specific files (download_darwin.go, download_windows.go)
 func (l *llamaCpp) downloadLatestLlamaCpp(ctx context.Context, log logging.Logger, httpClient *http.Client,
 	llamaCppPath, vendoredServerStoragePath, desiredVersion, desiredVariant string,
 ) error {
@@ -172,6 +174,7 @@ func (l *llamaCpp) downloadLatestLlamaCpp(ctx context.Context, log logging.Logge
 	return nil
 }
 
+//nolint:unused // Used in platform-specific files (download_darwin.go, download_windows.go)
 func extractFromImage(ctx context.Context, log logging.Logger, image, requiredOs, requiredArch, destination string) error {
 	log.Infof("Extracting image %q to %q", image, destination)
 	tmpDir, err := os.MkdirTemp("", "docker-tar-extract")

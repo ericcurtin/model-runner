@@ -19,13 +19,14 @@ func (l *llamaCpp) ensureLatestLlamaCpp(ctx context.Context, log logging.Logger,
 	ShouldUseGPUVariantLock.Lock()
 	defer ShouldUseGPUVariantLock.Unlock()
 	if ShouldUseGPUVariant {
-		if runtime.GOARCH == "amd64" {
+		switch runtime.GOARCH {
+		case "amd64":
 			canUseCUDA11, err = hasCUDA11CapableGPU(ctx, nvGPUInfoBin)
 			if err != nil {
 				l.status = fmt.Sprintf("failed to check CUDA 11 capability: %v", err)
 				return fmt.Errorf("failed to check CUDA 11 capability: %w", err)
 			}
-		} else if runtime.GOARCH == "arm64" {
+		case "arm64":
 			canUseOpenCL, err = hasOpenCL()
 			if err != nil {
 				l.status = fmt.Sprintf("failed to check OpenCL capability: %v", err)

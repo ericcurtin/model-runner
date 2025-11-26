@@ -22,7 +22,8 @@ func getVRAMSize(modelRuntimeInstallPath string) (uint64, error) {
 
 	nvGPUInfoBin := filepath.Join(modelRuntimeInstallPath, "bin", "com.docker.nv-gpu-info.exe")
 
-	ctx, _ := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 	cmd := exec.CommandContext(ctx, nvGPUInfoBin)
 	out, err := cmd.CombinedOutput()
 	if err != nil {

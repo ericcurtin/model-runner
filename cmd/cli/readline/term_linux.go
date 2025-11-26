@@ -14,6 +14,7 @@ const (
 
 func getTermios(fd uintptr) (*Termios, error) {
 	termios := new(Termios)
+	//nolint:gosec // G103: unsafe.Pointer required for syscall
 	_, _, err := syscall.Syscall6(syscall.SYS_IOCTL, fd, tcgets, uintptr(unsafe.Pointer(termios)), 0, 0, 0)
 	if err != 0 {
 		return nil, err
@@ -22,6 +23,7 @@ func getTermios(fd uintptr) (*Termios, error) {
 }
 
 func setTermios(fd uintptr, termios *Termios) error {
+	//nolint:gosec // G103: unsafe.Pointer required for syscall
 	_, _, err := syscall.Syscall6(syscall.SYS_IOCTL, fd, tcsets, uintptr(unsafe.Pointer(termios)), 0, 0, 0)
 	if err != 0 {
 		return err
