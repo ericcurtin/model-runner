@@ -8,8 +8,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/docker/model-runner/pkg/inference"
 	"github.com/docker/model-runner/pkg/inference/models"
 	"github.com/docker/model-runner/pkg/inference/scheduling"
+	"github.com/docker/model-runner/pkg/internal/utils"
 	"github.com/docker/model-runner/pkg/logging"
 	"github.com/docker/model-runner/pkg/middleware"
 )
@@ -50,8 +52,8 @@ func NewHandler(log logging.Logger, modelManager *models.Manager, scheduler *sch
 
 // ServeHTTP implements the http.Handler interface
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	safeMethod := strings.ReplaceAll(strings.ReplaceAll(r.Method, "\n", ""), "\r", "")
-	safePath := strings.ReplaceAll(strings.ReplaceAll(r.URL.Path, "\n", ""), "\r", "")
+	safeMethod := utils.SanitizeForLog(r.Method, -1)
+	safePath := utils.SanitizeForLog(r.URL.Path, -1)
 	h.log.Infof("Ollama API request: %s %s", safeMethod, safePath)
 	h.httpHandler.ServeHTTP(w, r)
 }
@@ -323,6 +325,15 @@ type openAICompletionStreamChunk struct {
 	} `json:"choices"`
 }
 
+// openAIErrorResponse represents the OpenAI error response format
+type openAIErrorResponse struct {
+	Error struct {
+		Message string      `json:"message"`
+		Type    string      `json:"type"`
+		Code    interface{} `json:"code"` // Can be int, string, or null
+	} `json:"error"`
+}
+
 // handleVersion handles GET /api/version
 func (h *Handler) handleVersion(w http.ResponseWriter, r *http.Request) {
 	response := map[string]string{
@@ -521,8 +532,8 @@ func (h *Handler) handleChat(w http.ResponseWriter, r *http.Request) {
 	modelName = models.NormalizeModelName(modelName)
 
 	// Check if keep_alive is 0 (unload model)
-	sanitizedModelName := strings.ReplaceAll(strings.ReplaceAll(modelName, "\n", ""), "\r", "")
-	sanitizedKeepAlive := strings.ReplaceAll(strings.ReplaceAll(req.KeepAlive, "\n", ""), "\r", "")
+	sanitizedModelName := utils.SanitizeForLog(modelName, -1)
+	sanitizedKeepAlive := utils.SanitizeForLog(req.KeepAlive, -1)
 	h.log.Infof("handleChat: model=%s, keep_alive=%v", sanitizedModelName, sanitizedKeepAlive)
 	if req.KeepAlive == "0" || req.KeepAlive == "0s" || req.KeepAlive == "0m" {
 		h.log.Infof("handleChat: unloading model %s due to keep_alive=%s", sanitizedModelName, sanitizedKeepAlive)
@@ -530,11 +541,25 @@ func (h *Handler) handleChat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Handle num_ctx option for context size configuration
+	if req.Options != nil {
+		if numCtxRaw, ok := req.Options["num_ctx"]; ok {
+			if numCtx := convertToInt64(numCtxRaw); numCtx > 0 {
+				sanitizedNumCtx := utils.SanitizeForLog(fmt.Sprintf("%d", numCtx), -1)
+				h.log.Infof("handleChat: configuring context size %s for model %s", sanitizedNumCtx, sanitizedModelName)
+				if err := h.configureContextSize(ctx, modelName, numCtx); err != nil {
+					// Log the error but continue with the request
+					h.log.Warnf("handleChat: failed to configure context size for model %s: %v", sanitizedModelName, err)
+				}
+			}
+		}
+	}
+
 	// Convert to OpenAI format chat completion request
 	openAIReq := map[string]interface{}{
 		"model":    modelName,
 		"messages": convertMessages(req.Messages),
-		"stream":   req.Stream != nil && *req.Stream,
+		"stream":   req.Stream == nil || *req.Stream,
 	}
 
 	// Add options if present
@@ -548,7 +573,7 @@ func (h *Handler) handleChat(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Make request to scheduler
-	h.proxyToChatCompletions(ctx, w, r, openAIReq, modelName, req.Stream != nil && *req.Stream)
+	h.proxyToChatCompletions(ctx, w, r, openAIReq, modelName, req.Stream == nil || *req.Stream)
 }
 
 // handleGenerate handles POST /api/generate
@@ -573,8 +598,8 @@ func (h *Handler) handleGenerate(w http.ResponseWriter, r *http.Request) {
 
 	// Check if keep_alive is 0 (unload model)
 	// Sanitize user input before logging to prevent log injection
-	sanitizedModelName := strings.ReplaceAll(strings.ReplaceAll(modelName, "\n", ""), "\r", "")
-	sanitizedKeepAlive := strings.ReplaceAll(strings.ReplaceAll(req.KeepAlive, "\n", ""), "\r", "")
+	sanitizedModelName := utils.SanitizeForLog(modelName, -1)
+	sanitizedKeepAlive := utils.SanitizeForLog(req.KeepAlive, -1)
 	h.log.Infof("handleGenerate: model=%s, keep_alive=%v", sanitizedModelName, sanitizedKeepAlive)
 	if req.KeepAlive == "0" || req.KeepAlive == "0s" || req.KeepAlive == "0m" {
 		h.log.Infof("handleGenerate: unloading model %s due to keep_alive=%s", sanitizedModelName, sanitizedKeepAlive)
@@ -582,11 +607,27 @@ func (h *Handler) handleGenerate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Handle num_ctx option for context size configuration
+	if req.Options != nil {
+		if numCtxRaw, ok := req.Options["num_ctx"]; ok {
+			if numCtx := convertToInt64(numCtxRaw); numCtx > 0 {
+				sanitizedNumCtx := utils.SanitizeForLog(fmt.Sprintf("%d", numCtx), -1)
+				h.log.Infof("handleGenerate: configuring context size %s for model %s", sanitizedNumCtx, sanitizedModelName)
+				if err := h.configureContextSize(ctx, modelName, numCtx); err != nil {
+					// Log the error but continue with the request
+					h.log.Warnf("handleGenerate: failed to configure context size for model %s: %v", sanitizedModelName, err)
+				}
+			}
+		}
+	}
+
 	// Convert to OpenAI format completion request
 	openAIReq := map[string]interface{}{
-		"model":  modelName,
-		"prompt": req.Prompt,
-		"stream": req.Stream != nil && *req.Stream,
+		"model": modelName,
+		"messages": convertMessages([]Message{
+			{Role: "user", Content: req.Prompt},
+		}),
+		"stream": req.Stream == nil || *req.Stream,
 	}
 
 	// Add options if present
@@ -600,13 +641,57 @@ func (h *Handler) handleGenerate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Make request to scheduler
-	h.proxyToCompletions(ctx, w, r, openAIReq, modelName, req.Stream != nil && *req.Stream)
+	h.proxyToCompletions(ctx, w, r, openAIReq, modelName)
+}
+
+// configureContextSize configures the context size for a model by calling the scheduler's configure endpoint
+func (h *Handler) configureContextSize(ctx context.Context, modelName string, contextSize int64) error {
+	// Sanitize user input before logging to prevent log injection
+	sanitizedModelName := utils.SanitizeForLog(modelName, -1)
+	sanitizedContextSize := utils.SanitizeForLog(fmt.Sprintf("%d", contextSize), -1)
+	h.log.Infof("configureContextSize: configuring model %s with context size %s", sanitizedModelName, sanitizedContextSize)
+
+	// Create a configure request for the scheduler
+	configureReq := map[string]interface{}{
+		"model":        modelName,
+		"context-size": contextSize,
+	}
+
+	// Marshal the configure request
+	reqBody, err := json.Marshal(configureReq)
+	if err != nil {
+		return fmt.Errorf("failed to marshal configure request: %w", err)
+	}
+
+	// Create a new request to the scheduler
+	newReq, err := http.NewRequestWithContext(ctx, http.MethodPost, inference.InferencePrefix+"/_configure", strings.NewReader(string(reqBody)))
+	if err != nil {
+		return fmt.Errorf("failed to create configure request: %w", err)
+	}
+	newReq.Header.Set("Content-Type", "application/json")
+
+	// Use a custom response writer to capture the response
+	respRecorder := &responseRecorder{
+		statusCode: http.StatusOK,
+		headers:    make(http.Header),
+		body:       &strings.Builder{},
+	}
+
+	// Forward to scheduler
+	h.scheduler.ServeHTTP(respRecorder, newReq)
+
+	if respRecorder.statusCode != http.StatusOK {
+		return fmt.Errorf("configure request failed with status %d: %s", respRecorder.statusCode, respRecorder.body.String())
+	}
+
+	h.log.Infof("configureContextSize: successfully configured context size for model %s", sanitizedModelName)
+	return nil
 }
 
 // unloadModel unloads a model from memory
 func (h *Handler) unloadModel(ctx context.Context, w http.ResponseWriter, modelName string) {
 	// Sanitize user input before logging to prevent log injection
-	sanitizedModelName := strings.ReplaceAll(strings.ReplaceAll(modelName, "\n", ""), "\r", "")
+	sanitizedModelName := utils.SanitizeForLog(modelName, -1)
 	h.log.Infof("unloadModel: unloading model %s", sanitizedModelName)
 
 	// Create an unload request for the scheduler
@@ -623,8 +708,7 @@ func (h *Handler) unloadModel(ctx context.Context, w http.ResponseWriter, modelN
 	}
 
 	// Sanitize the user-provided request body before logging to avoid log injection
-	safeReqBody := strings.ReplaceAll(string(reqBody), "\n", "")
-	safeReqBody = strings.ReplaceAll(safeReqBody, "\r", "")
+	safeReqBody := utils.SanitizeForLog(string(reqBody), -1)
 	h.log.Infof("unloadModel: sending POST /engines/unload with body: %s", safeReqBody)
 
 	// Create a new request to the scheduler
@@ -745,6 +829,29 @@ func convertMessages(messages []Message) []map[string]interface{} {
 	return result
 }
 
+// convertToInt64 converts various numeric types to int64
+func convertToInt64(v interface{}) int64 {
+	switch val := v.(type) {
+	case int:
+		return int64(val)
+	case int64:
+		return val
+	case float64:
+		return int64(val)
+	case float32:
+		return int64(val)
+	case string:
+		// Sanitize string to remove newline/carriage return before parsing
+		safeVal := utils.SanitizeForLog(val, -1)
+		if num, err := fmt.Sscanf(safeVal, "%d", new(int64)); err == nil && num == 1 {
+			var result int64
+			fmt.Sscanf(safeVal, "%d", &result)
+			return result
+		}
+	}
+	return 0
+}
+
 // proxyToChatCompletions proxies the request to the OpenAI chat completions endpoint
 func (h *Handler) proxyToChatCompletions(ctx context.Context, w http.ResponseWriter, r *http.Request, openAIReq map[string]interface{}, modelName string, stream bool) {
 	// Marshal the OpenAI request
@@ -789,7 +896,7 @@ func (h *Handler) proxyToChatCompletions(ctx context.Context, w http.ResponseWri
 }
 
 // proxyToCompletions proxies the request to the OpenAI completions endpoint
-func (h *Handler) proxyToCompletions(ctx context.Context, w http.ResponseWriter, r *http.Request, openAIReq map[string]interface{}, modelName string, stream bool) {
+func (h *Handler) proxyToCompletions(ctx context.Context, w http.ResponseWriter, r *http.Request, openAIReq map[string]interface{}, modelName string) {
 	// Marshal the OpenAI request
 	reqBody, err := json.Marshal(openAIReq)
 	if err != nil {
@@ -798,14 +905,14 @@ func (h *Handler) proxyToCompletions(ctx context.Context, w http.ResponseWriter,
 	}
 
 	// Create a new request to the scheduler
-	newReq, err := http.NewRequestWithContext(ctx, "POST", "/engines/v1/completions", strings.NewReader(string(reqBody)))
+	newReq, err := http.NewRequestWithContext(ctx, "POST", "/engines/v1/chat/completions", strings.NewReader(string(reqBody)))
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to create request: %v", err), http.StatusInternalServerError)
 		return
 	}
 	newReq.Header.Set("Content-Type", "application/json")
 
-	if stream {
+	if stream, ok := openAIReq["stream"].(bool); ok && stream {
 		// Use streaming response writer that processes SSE on the fly
 		streamWriter := &streamingGenerateResponseWriter{
 			w:         w,
@@ -1027,23 +1134,23 @@ func (s *streamingGenerateResponseWriter) Write(data []byte) (int, error) {
 		}
 
 		// Parse OpenAI chunk using proper struct
-		var chunk openAICompletionStreamChunk
+		var chunk openAIChatStreamChunk
 		if err := json.Unmarshal([]byte(dataStr), &chunk); err != nil {
-			s.log.Warnf("Failed to parse OpenAI completion stream chunk: %v", err)
+			s.log.Warnf("Failed to parse OpenAI chat stream chunk: %v", err)
 			continue
 		}
 
-		// Extract text from structured response
-		var text string
+		// Extract content from structured response
+		var content string
 		if len(chunk.Choices) > 0 {
-			text = chunk.Choices[0].Text
+			content = chunk.Choices[0].Delta.Content
 		}
 
-		// Build Ollama chunk
+		// Build Ollama generate chunk
 		ollamaChunk := GenerateResponse{
 			Model:     s.modelName,
 			CreatedAt: time.Now(),
-			Response:  text,
+			Response:  content,
 			Done:      false,
 		}
 
@@ -1063,10 +1170,20 @@ func (s *streamingGenerateResponseWriter) Write(data []byte) (int, error) {
 
 // convertChatResponse converts OpenAI chat completion response to Ollama format
 func (h *Handler) convertChatResponse(w http.ResponseWriter, respRecorder *responseRecorder, modelName string) {
-	// Copy error responses as-is
+	// Handle error responses by converting OpenAI format to Ollama format
 	if respRecorder.statusCode != http.StatusOK {
 		w.WriteHeader(respRecorder.statusCode)
-		w.Write([]byte(respRecorder.body.String()))
+
+		// Try to parse OpenAI error format
+		var openAIErr openAIErrorResponse
+		if err := json.Unmarshal([]byte(respRecorder.body.String()), &openAIErr); err == nil && openAIErr.Error.Message != "" {
+			// Convert to Ollama error format (simple string)
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]string{"error": openAIErr.Error.Message})
+		} else {
+			// Fallback: return raw error body
+			w.Write([]byte(respRecorder.body.String()))
+		}
 		return
 	}
 
@@ -1101,34 +1218,44 @@ func (h *Handler) convertChatResponse(w http.ResponseWriter, respRecorder *respo
 	}
 }
 
-// convertGenerateResponse converts OpenAI completion response to Ollama format
+// convertGenerateResponse converts OpenAI chat completion response to Ollama generate format
 func (h *Handler) convertGenerateResponse(w http.ResponseWriter, respRecorder *responseRecorder, modelName string) {
-	// Copy error responses as-is
+	// Handle error responses by converting OpenAI format to Ollama format
 	if respRecorder.statusCode != http.StatusOK {
 		w.WriteHeader(respRecorder.statusCode)
-		w.Write([]byte(respRecorder.body.String()))
+
+		// Try to parse OpenAI error format
+		var openAIErr openAIErrorResponse
+		if err := json.Unmarshal([]byte(respRecorder.body.String()), &openAIErr); err == nil && openAIErr.Error.Message != "" {
+			// Convert to Ollama error format (simple string)
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]string{"error": openAIErr.Error.Message})
+		} else {
+			// Fallback: return raw error body
+			w.Write([]byte(respRecorder.body.String()))
+		}
 		return
 	}
 
-	// Parse OpenAI response using proper struct
-	var openAIResp openAICompletionResponse
+	// Parse OpenAI chat response (since we're now using chat completions endpoint)
+	var openAIResp openAIChatResponse
 	if err := json.Unmarshal([]byte(respRecorder.body.String()), &openAIResp); err != nil {
-		h.log.Errorf("Failed to parse OpenAI response: %v", err)
+		h.log.Errorf("Failed to parse OpenAI chat response: %v", err)
 		http.Error(w, "Failed to parse response", http.StatusInternalServerError)
 		return
 	}
 
-	// Extract the text content from structured response
-	var text string
+	// Extract the message content from structured response
+	var content string
 	if len(openAIResp.Choices) > 0 {
-		text = openAIResp.Choices[0].Text
+		content = openAIResp.Choices[0].Message.Content
 	}
 
-	// Build Ollama response
+	// Build Ollama generate response
 	response := GenerateResponse{
 		Model:     modelName,
 		CreatedAt: time.Now(),
-		Response:  text,
+		Response:  content,
 		Done:      true,
 	}
 
