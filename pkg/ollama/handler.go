@@ -748,8 +748,69 @@ func (h *Handler) handleDelete(w http.ResponseWriter, r *http.Request) {
 	// Normalize model name
 	modelName = models.NormalizeModelName(modelName)
 
-	// Unload the model
-	h.unloadModel(ctx, w, modelName)
+	sanitizedModelName := utils.SanitizeForLog(modelName, -1)
+	h.log.Infof("handleDelete: deleting model %s", sanitizedModelName)
+
+	// First, unload the model from memory
+	unloadReq := map[string]interface{}{
+		"models": []string{modelName},
+	}
+
+	reqBody, err := json.Marshal(unloadReq)
+	if err != nil {
+		h.log.Errorf("handleDelete: failed to marshal unload request: %v", err)
+		http.Error(w, fmt.Sprintf("Failed to marshal request: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	newReq, err := http.NewRequestWithContext(ctx, http.MethodPost, "/engines/unload", strings.NewReader(string(reqBody)))
+	if err != nil {
+		h.log.Errorf("handleDelete: failed to create unload request: %v", err)
+		http.Error(w, fmt.Sprintf("Failed to create request: %v", err), http.StatusInternalServerError)
+		return
+	}
+	newReq.Header.Set("Content-Type", "application/json")
+
+	respRecorder := &responseRecorder{
+		statusCode: http.StatusOK,
+		headers:    make(http.Header),
+		body:       &strings.Builder{},
+	}
+
+	h.scheduler.ServeHTTP(respRecorder, newReq)
+	h.log.Infof("handleDelete: unload response status=%d", respRecorder.statusCode)
+
+	// Check if unload succeeded before deleting from storage
+	if respRecorder.statusCode < 200 || respRecorder.statusCode >= 300 {
+		sanitizedBody := utils.SanitizeForLog(respRecorder.body.String(), -1)
+		h.log.Errorf(
+			"handleDelete: unload failed for model %s with status=%d, body=%q",
+			sanitizedModelName,
+			respRecorder.statusCode,
+			sanitizedBody,
+		)
+		http.Error(
+			w,
+			fmt.Sprintf("Failed to unload model: scheduler returned status %d", respRecorder.statusCode),
+			respRecorder.statusCode,
+		)
+		return
+	}
+
+	// Then delete the model from storage
+	if _, err := h.modelManager.DeleteModel(modelName, false); err != nil {
+		sanitizedErr := utils.SanitizeForLog(err.Error(), -1)
+		h.log.Errorf("handleDelete: failed to delete model %s: %v", sanitizedModelName, sanitizedErr)
+		http.Error(w, fmt.Sprintf("Failed to delete model: %v", sanitizedErr), http.StatusInternalServerError)
+		return
+	}
+
+	h.log.Infof("handleDelete: successfully deleted model %s", sanitizedModelName)
+
+	// Return success response in Ollama format (empty JSON object)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("{}"))
 }
 
 // handlePull handles POST /api/pull
