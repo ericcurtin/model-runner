@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/docker/model-runner/pkg/distribution/types"
 	ggcrtypes "github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1/types"
@@ -93,6 +94,7 @@ func detectModelFormat(model types.Model) types.Format {
 // hasLayerWithMediaType checks if the model contains a layer with the specified media type
 func hasLayerWithMediaType(model types.Model, targetMediaType ggcrtypes.MediaType) bool {
 	// Check specific media types using the model's methods
+	//nolint:exhaustive // only checking for specific layer types
 	switch targetMediaType {
 	case types.MediaTypeMultimodalProjector:
 		path, err := model.MMPROJPath()
@@ -340,8 +342,13 @@ func extractTarArchiveFromReader(r io.Reader, destDir string) error {
 			return err
 		}
 
+		// Clean the path first to resolve any .. or . components
+		cleanName := filepath.Clean(header.Name)
+		if strings.HasPrefix(cleanName, "..") || filepath.IsAbs(cleanName) {
+			return fmt.Errorf("invalid file path in archive: %s", header.Name)
+		}
 		// Construct the validated target path
-		absTarget := filepath.Join(absDestDir, header.Name)
+		absTarget := filepath.Join(absDestDir, cleanName)
 
 		// Process based on header type
 		switch header.Typeflag {

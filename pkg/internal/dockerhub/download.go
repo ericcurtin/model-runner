@@ -64,7 +64,7 @@ func retry(ctx context.Context, attempts int, sleep time.Duration, f func() (*v1
 			return result, nil
 		}
 	}
-	return nil, fmt.Errorf("after %d attempts, last error: %s", attempts, err)
+	return nil, fmt.Errorf("after %d attempts, last error: %w", attempts, err)
 }
 
 func fetch(ctx context.Context, store content.Store, ref, requiredOs, requiredArch string) (*v1.Descriptor, error) {

@@ -21,7 +21,7 @@ func runUninstallOrStop(cmd *cobra.Command, opts cleanupOptions) error {
 	// Ensure that we're running in a supported model runner context.
 	if kind := modelRunner.EngineKind(); kind == types.ModelRunnerEngineKindDesktop {
 		if desktop.IsDesktopWSLContext(cmd.Context(), dockerCLI) {
-			kind = types.ModelRunnerEngineKindMoby
+			// In WSL context, treat as Moby for cleanup
 		} else {
 			// TODO: We may eventually want to auto-forward this to
 			// docker desktop disable model-runner, but we should first

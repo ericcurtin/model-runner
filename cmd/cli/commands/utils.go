@@ -10,8 +10,8 @@ import (
 	"github.com/docker/cli/cli-plugins/hooks"
 	"github.com/docker/model-runner/cmd/cli/desktop"
 	"github.com/docker/model-runner/cmd/cli/pkg/standalone"
-	"github.com/docker/model-runner/pkg/inference/backends/vllm"
 	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/name"
+	"github.com/docker/model-runner/pkg/inference/backends/vllm"
 	"github.com/moby/term"
 	"github.com/spf13/cobra"
 )
@@ -37,15 +37,15 @@ func getDefaultRegistry() string {
 	return name.DefaultRegistry
 }
 
-var notRunningErr = fmt.Errorf("Docker Model Runner is not running. Please start it and try again.\n")
+var errNotRunning = fmt.Errorf("Docker Model Runner is not running. Please start it and try again.\n")
 
 func handleClientError(err error, message string) error {
 	if errors.Is(err, desktop.ErrServiceUnavailable) {
-		err = notRunningErr
+		err = errNotRunning
 		var buf bytes.Buffer
 		hooks.PrintNextSteps(&buf, []string{enableViaCLI, enableViaGUI})
 		return fmt.Errorf("%w\n%s", err, strings.TrimRight(buf.String(), "\n"))
-	} else if strings.Contains(err.Error(), vllm.StatusNotFound.Error()) {
+	} else if strings.Contains(err.Error(), vllm.ErrorNotFound.Error()) {
 		// Handle `run` error.
 		var buf bytes.Buffer
 		hooks.PrintNextSteps(&buf, []string{enableVLLM})
@@ -210,7 +210,7 @@ func addRunnerFlags(cmd *cobra.Command, opts runnerFlagOptions) {
 	if opts.DoNotTrack != nil {
 		cmd.Flags().BoolVar(opts.DoNotTrack, "do-not-track", false, "Do not track models usage in Docker Model Runner")
 	}
-        if opts.Debug != nil {
-                cmd.Flags().BoolVar(opts.Debug, "debug", false, "Enable debug logging")
-        }
+	if opts.Debug != nil {
+		cmd.Flags().BoolVar(opts.Debug, "debug", false, "Enable debug logging")
+	}
 }

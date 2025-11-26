@@ -23,12 +23,6 @@ func getDockerCLI() *command.DockerCli {
 // command's PersistentPreRunE.
 var modelRunner *desktop.ModelRunnerContext
 
-// getModelRunner is an accessor for modelRunner that can be passed to other
-// packages.
-func getModelRunner() *desktop.ModelRunnerContext {
-	return modelRunner
-}
-
 // desktopClient is the model runner client. It is initialized by the root
 // command's PersistentPreRunE.
 var desktopClient *desktop.Client

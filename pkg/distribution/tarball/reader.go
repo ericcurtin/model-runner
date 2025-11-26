@@ -42,7 +42,7 @@ func (r *Reader) Next() (v1.Hash, error) {
 			return v1.Hash{}, err
 		}
 		// fi := hdr.FileInfo()
-		if !(hdr.Typeflag == tar.TypeReg) {
+		if hdr.Typeflag != tar.TypeReg {
 			continue
 		}
 		if hdr.Name == "manifest.json" {

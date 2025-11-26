@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/docker/model-runner/pkg/gpuinfo"
 	"github.com/docker/model-runner/pkg/inference"
@@ -203,7 +204,10 @@ func main() {
 		log.Info("Metrics endpoint disabled")
 	}
 
-	server := &http.Server{Handler: router}
+	server := &http.Server{
+		Handler:           router,
+		ReadHeaderTimeout: 10 * time.Second,
+	}
 	serverErrors := make(chan error, 1)
 
 	// Check if we should use TCP port instead of Unix socket

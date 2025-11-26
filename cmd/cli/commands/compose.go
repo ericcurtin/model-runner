@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/docker/model-runner/cmd/cli/pkg/types"
@@ -105,7 +107,7 @@ func newUpCommand() *cobra.Command {
 			case types.ModelRunnerEngineKindCloud:
 				fallthrough
 			case types.ModelRunnerEngineKindMoby:
-				_ = setenv("URL", fmt.Sprintf("http://%s:%d/engines/v1/", standalone.gatewayIP, standalone.gatewayPort))
+				_ = setenv("URL", "http://"+net.JoinHostPort(standalone.gatewayIP, strconv.Itoa(int(standalone.gatewayPort)))+"/engines/v1/")
 			default:
 				return fmt.Errorf("unhandled engine kind: %v", kind)
 			}
@@ -181,7 +183,7 @@ func downloadModelsOnlyIfNotFound(desktopClient *desktop.Client, models []string
 			_, _, err = desktopClient.Pull(model, false, printer)
 			if err != nil {
 				_ = sendErrorf("Failed to pull model: %v", err)
-				return fmt.Errorf("Failed to pull model: %v\n", err)
+				return fmt.Errorf("Failed to pull model: %w\n", err)
 			}
 		}
 

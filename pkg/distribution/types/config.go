@@ -8,9 +8,6 @@ import (
 )
 
 const (
-	// modelConfigPrefix is the prefix for all versioned model config media types.
-	modelConfigPrefix = "application/vnd.docker.ai.model.config"
-
 	// MediaTypeModelConfigV01 is the media type for the model config json.
 	MediaTypeModelConfigV01 = types.MediaType("application/vnd.docker.ai.model.config.v0.1+json")
 

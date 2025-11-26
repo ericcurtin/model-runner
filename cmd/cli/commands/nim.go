@@ -52,7 +52,7 @@ func getDockerAuth(registry string) (string, error) {
 	}
 
 	configFile := filepath.Join(configDir, "config.json")
-	
+
 	// Read Docker config file
 	data, err := os.ReadFile(configFile)
 	if err != nil {
@@ -122,7 +122,7 @@ func pullNIMImage(ctx context.Context, dockerClient *client.Client, model string
 			configDir = filepath.Join(homeDir, ".docker")
 		}
 		configFile := filepath.Join(configDir, "config.json")
-		
+
 		if data, err := os.ReadFile(configFile); err == nil {
 			var config struct {
 				Auths map[string]interface{} `json:"auths"`
@@ -138,7 +138,7 @@ func pullNIMImage(ctx context.Context, dockerClient *client.Client, model string
 	}
 
 	pullOptions := image.PullOptions{}
-	
+
 	// Set authentication if available
 	if authStr != "" {
 		// Decode the base64 auth string from Docker config
@@ -152,10 +152,13 @@ func pullNIMImage(ctx context.Context, dockerClient *client.Client, model string
 				username = parts[0]
 				password = parts[1]
 			}
-			authJSON, _ := json.Marshal(map[string]string{
+			authJSON, err := json.Marshal(map[string]string{
 				"username": username,
 				"password": password,
 			})
+			if err != nil {
+				return fmt.Errorf("failed to marshal auth credentials: %w", err)
+			}
 			pullOptions.RegistryAuth = base64.StdEncoding.EncodeToString(authJSON)
 			cmd.Println("Using stored Docker credentials for nvcr.io")
 		}
@@ -374,7 +377,7 @@ func runNIMModel(ctx context.Context, dockerClient *client.Client, model string,
 		}
 
 		// Create and start container
-		containerID, err = createNIMContainer(ctx, dockerClient, model, cmd)
+		_, err = createNIMContainer(ctx, dockerClient, model, cmd)
 		if err != nil {
 			return err
 		}

@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/docker/model-runner/cmd/cli/pkg/types"
 	"io"
 	"os"
 	"os/signal"
@@ -19,6 +18,7 @@ import (
 	"github.com/docker/model-runner/cmd/cli/commands/completion"
 	"github.com/docker/model-runner/cmd/cli/desktop"
 	"github.com/docker/model-runner/cmd/cli/pkg/standalone"
+	"github.com/docker/model-runner/cmd/cli/pkg/types"
 	"github.com/nxadm/tail"
 	"github.com/spf13/cobra"
 	"golang.org/x/sync/errgroup"
@@ -66,11 +66,11 @@ func newLogsCmd() *cobra.Command {
 
 			var serviceLogPath string
 			var runtimeLogPath string
-			switch {
-			case runtime.GOOS == "darwin":
+			switch runtime.GOOS {
+			case "darwin":
 				serviceLogPath = filepath.Join(homeDir, "Library/Containers/com.docker.docker/Data/log/host/inference.log")
 				runtimeLogPath = filepath.Join(homeDir, "Library/Containers/com.docker.docker/Data/log/host/inference-llama.cpp-server.log")
-			case runtime.GOOS == "windows":
+			case "windows":
 				serviceLogPath = filepath.Join(homeDir, "AppData/Local/Docker/log/host/inference.log")
 				runtimeLogPath = filepath.Join(homeDir, "AppData/Local/Docker/log/host/inference-llama.cpp-server.log")
 			default:

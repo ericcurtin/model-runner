@@ -129,7 +129,7 @@ func TestPullModel(t *testing.T) {
 				Logger:        log.WithFields(logrus.Fields{"component": "model-manager"}),
 			}, nil, memEstimator)
 
-			r := httptest.NewRequest("POST", "/models/create", strings.NewReader(`{"from": "`+tag+`"}`))
+			r := httptest.NewRequest(http.MethodPost, "/models/create", strings.NewReader(`{"from": "`+tag+`"}`))
 			if tt.acceptHeader != "" {
 				r.Header.Set("Accept", tt.acceptHeader)
 			}
@@ -244,7 +244,7 @@ func TestHandleGetModel(t *testing.T) {
 
 			// First pull the model if we're testing local access
 			if !tt.remote && !strings.Contains(tt.modelName, "nonexistent") {
-				r := httptest.NewRequest("POST", "/models/create", strings.NewReader(`{"from": "`+tt.modelName+`"}`))
+				r := httptest.NewRequest(http.MethodPost, "/models/create", strings.NewReader(`{"from": "`+tt.modelName+`"}`))
 				w := httptest.NewRecorder()
 				err = m.PullModel(tt.modelName, "", r, w)
 				if err != nil {
@@ -257,7 +257,7 @@ func TestHandleGetModel(t *testing.T) {
 			if tt.remote {
 				path += "?remote=true"
 			}
-			r := httptest.NewRequest("GET", path, nil)
+			r := httptest.NewRequest(http.MethodGet, path, http.NoBody)
 			w := httptest.NewRecorder()
 
 			// Set the path value for {name} so r.PathValue("name") works
@@ -320,7 +320,7 @@ func TestCors(t *testing.T) {
 			discard.SetOutput(io.Discard)
 			log := logrus.NewEntry(discard)
 			m := NewManager(log, ClientConfig{}, []string{"*"}, memEstimator)
-			req := httptest.NewRequest(http.MethodOptions, "http://model-runner.docker.internal"+tt.path, nil)
+			req := httptest.NewRequest(http.MethodOptions, "http://model-runner.docker.internal"+tt.path, http.NoBody)
 			req.Header.Set("Origin", "docker.com")
 			w := httptest.NewRecorder()
 			m.ServeHTTP(w, req)

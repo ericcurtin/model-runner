@@ -30,13 +30,13 @@ func TestBlobs(t *testing.T) {
 
 		// create the blob
 		expectedContent := "some data"
-		hash, _, err := v1.SHA256(bytes.NewBuffer([]byte(expectedContent)))
+		hash, _, err := v1.SHA256(bytes.NewBufferString(expectedContent))
 		if err != nil {
 			t.Fatalf("error calculating hash: %v", err)
 		}
 
 		// write the blob
-		if err := store.WriteBlob(hash, bytes.NewBuffer([]byte(expectedContent))); err != nil {
+		if err := store.WriteBlob(hash, bytes.NewBufferString(expectedContent)); err != nil {
 			t.Fatalf("error writing blob: %v", err)
 		}
 

@@ -3,18 +3,12 @@ package registry
 import (
 	"errors"
 	"fmt"
-
-	"github.com/docker/model-runner/pkg/distribution/types"
 )
 
 var (
-	ErrInvalidReference     = errors.New("invalid model reference")
-	ErrModelNotFound        = errors.New("model not found")
-	ErrUnauthorized         = errors.New("unauthorized access to model")
-	ErrUnsupportedMediaType = errors.New(fmt.Sprintf(
-		"client supports only models of type %q and older - try upgrading",
-		types.MediaTypeModelConfigV01,
-	))
+	ErrInvalidReference = errors.New("invalid model reference")
+	ErrModelNotFound    = errors.New("model not found")
+	ErrUnauthorized     = errors.New("unauthorized access to model")
 )
 
 // ReferenceError represents an error related to an invalid model reference

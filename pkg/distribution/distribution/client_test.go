@@ -153,7 +153,7 @@ func TestClientPullModel(t *testing.T) {
 		defer os.RemoveAll(tempDir)
 
 		// Create client
-		client, err := NewClient(WithStoreRootPath(tempDir))
+		testClient, err := NewClient(WithStoreRootPath(tempDir))
 		if err != nil {
 			t.Fatalf("Failed to create client: %v", err)
 		}
@@ -163,7 +163,7 @@ func TestClientPullModel(t *testing.T) {
 
 		// Test with non-existent repository
 		nonExistentRef := registry + "/nonexistent/model:v1.0.0"
-		err = client.PullModel(context.Background(), nonExistentRef, &progressBuffer)
+		err = testClient.PullModel(context.Background(), nonExistentRef, &progressBuffer)
 		if err == nil {
 			t.Fatal("Expected error for non-existent model, got nil")
 		}
@@ -202,7 +202,7 @@ func TestClientPullModel(t *testing.T) {
 		defer os.RemoveAll(tempDir)
 
 		// Create client
-		client, err := NewClient(WithStoreRootPath(tempDir))
+		testClient, err := NewClient(WithStoreRootPath(tempDir))
 		if err != nil {
 			t.Fatalf("Failed to create client: %v", err)
 		}
@@ -214,18 +214,18 @@ func TestClientPullModel(t *testing.T) {
 		}
 
 		// Push model to local store
-		tag := registry + "/incomplete-test/model:v1.0.0"
-		if err := client.store.Write(mdl, []string{tag}, nil); err != nil {
+		testTag := registry + "/incomplete-test/model:v1.0.0"
+		if err := testClient.store.Write(mdl, []string{testTag}, nil); err != nil {
 			t.Fatalf("Failed to push model to store: %v", err)
 		}
 
 		// Push model to registry
-		if err := client.PushModel(context.Background(), tag, nil); err != nil {
+		if err := testClient.PushModel(context.Background(), testTag, nil); err != nil {
 			t.Fatalf("Failed to pull model: %v", err)
 		}
 
 		// Get the model to find the GGUF path
-		model, err := client.GetModel(tag)
+		model, err := testClient.GetModel(testTag)
 		if err != nil {
 			t.Fatalf("Failed to get model: %v", err)
 		}
@@ -258,7 +258,7 @@ func TestClientPullModel(t *testing.T) {
 		}
 
 		// Delete the local model to force a pull
-		if _, err := client.DeleteModel(tag, false); err != nil {
+		if _, err := testClient.DeleteModel(testTag, false); err != nil {
 			t.Fatalf("Failed to delete model: %v", err)
 		}
 
@@ -266,7 +266,7 @@ func TestClientPullModel(t *testing.T) {
 		var progressBuffer bytes.Buffer
 
 		// Pull the model again - this should detect the incomplete file and pull again
-		if err := client.PullModel(context.Background(), tag, &progressBuffer); err != nil {
+		if err := testClient.PullModel(context.Background(), testTag, &progressBuffer); err != nil {
 			t.Fatalf("Failed to pull model: %v", err)
 		}
 
@@ -306,30 +306,30 @@ func TestClientPullModel(t *testing.T) {
 		defer os.RemoveAll(tempDir)
 
 		// Create client
-		client, err := NewClient(WithStoreRootPath(tempDir))
+		testClient, err := NewClient(WithStoreRootPath(tempDir))
 		if err != nil {
 			t.Fatalf("Failed to create client: %v", err)
 		}
 
 		// Read model content for verification later
-		modelContent, err := os.ReadFile(testGGUFFile)
+		testModelContent, err := os.ReadFile(testGGUFFile)
 		if err != nil {
 			t.Fatalf("Failed to read test model file: %v", err)
 		}
 
 		// Push first version of model to registry
-		tag := registry + "/update-test:v1.0.0"
-		if err := writeToRegistry(testGGUFFile, tag); err != nil {
+		testTag := registry + "/update-test:v1.0.0"
+		if err := writeToRegistry(testGGUFFile, testTag); err != nil {
 			t.Fatalf("Failed to push first version of model: %v", err)
 		}
 
 		// Pull first version of model
-		if err := client.PullModel(context.Background(), tag, nil); err != nil {
+		if err := testClient.PullModel(context.Background(), testTag, nil); err != nil {
 			t.Fatalf("Failed to pull first version of model: %v", err)
 		}
 
 		// Verify first version is in local store
-		model, err := client.GetModel(tag)
+		model, err := testClient.GetModel(testTag)
 		if err != nil {
 			t.Fatalf("Failed to get first version of model: %v", err)
 		}
@@ -348,19 +348,19 @@ func TestClientPullModel(t *testing.T) {
 			t.Fatalf("Failed to read pulled model: %v", err)
 		}
 
-		if string(pulledContent) != string(modelContent) {
-			t.Errorf("Pulled model content doesn't match original: got %q, want %q", pulledContent, modelContent)
+		if string(pulledContent) != string(testModelContent) {
+			t.Errorf("Pulled model content doesn't match original: got %q, want %q", pulledContent, testModelContent)
 		}
 
 		// Create a modified version of the model
 		updatedModelFile := filepath.Join(tempDir, "updated-dummy.gguf")
-		updatedContent := append(modelContent, []byte("UPDATED CONTENT")...)
+		updatedContent := append(testModelContent, []byte("UPDATED CONTENT")...)
 		if err := os.WriteFile(updatedModelFile, updatedContent, 0644); err != nil {
 			t.Fatalf("Failed to create updated model file: %v", err)
 		}
 
 		// Push updated model with same tag
-		if err := writeToRegistry(updatedModelFile, tag); err != nil {
+		if err := writeToRegistry(updatedModelFile, testTag); err != nil {
 			t.Fatalf("Failed to push updated model: %v", err)
 		}
 
@@ -368,7 +368,7 @@ func TestClientPullModel(t *testing.T) {
 		var progressBuffer bytes.Buffer
 
 		// Pull model again - should get the updated version
-		if err := client.PullModel(context.Background(), tag, &progressBuffer); err != nil {
+		if err := testClient.PullModel(context.Background(), testTag, &progressBuffer); err != nil {
 			t.Fatalf("Failed to pull updated model: %v", err)
 		}
 
@@ -379,7 +379,7 @@ func TestClientPullModel(t *testing.T) {
 		}
 
 		// Get the model again to verify it's the updated version
-		updatedModel, err := client.GetModel(tag)
+		updatedModel, err := testClient.GetModel(testTag)
 		if err != nil {
 			t.Fatalf("Failed to get updated model: %v", err)
 		}
@@ -406,15 +406,15 @@ func TestClientPullModel(t *testing.T) {
 	t.Run("pull unsupported (newer) version", func(t *testing.T) {
 		newMdl := mutate.ConfigMediaType(model, "application/vnd.docker.ai.model.config.v0.2+json")
 		// Push model to local store
-		tag := registry + "/unsupported-test/model:v1.0.0"
-		ref, err := name.ParseReference(tag)
+		testTag := registry + "/unsupported-test/model:v1.0.0"
+		ref, err := name.ParseReference(testTag)
 		if err != nil {
 			t.Fatalf("Failed to parse reference: %v", err)
 		}
 		if err := remote.Write(ref, newMdl); err != nil {
 			t.Fatalf("Failed to push model: %v", err)
 		}
-		if err := client.PullModel(context.Background(), tag, nil); err == nil || !errors.Is(err, ErrUnsupportedMediaType) {
+		if err := client.PullModel(context.Background(), testTag, nil); err == nil || !errors.Is(err, ErrUnsupportedMediaType) {
 			t.Fatalf("Expected artifact version error, got %v", err)
 		}
 	})
@@ -441,8 +441,8 @@ func TestClientPullModel(t *testing.T) {
 		}
 
 		// Push to registry
-		tag := registry + "/safetensors-test/model:v1.0.0"
-		ref, err := name.ParseReference(tag)
+		testTag := registry + "/safetensors-test/model:v1.0.0"
+		ref, err := name.ParseReference(testTag)
 		if err != nil {
 			t.Fatalf("Failed to parse reference: %v", err)
 		}
@@ -464,7 +464,7 @@ func TestClientPullModel(t *testing.T) {
 
 		// Try to pull the safetensors model with a progress writer to capture warnings
 		var progressBuf bytes.Buffer
-		err = testClient.PullModel(context.Background(), tag, &progressBuf)
+		err = testClient.PullModel(context.Background(), testTag, &progressBuf)
 
 		// Pull should succeed on all platforms now (with a warning on non-Linux)
 		if err != nil {
@@ -492,7 +492,7 @@ func TestClientPullModel(t *testing.T) {
 		defer os.RemoveAll(tempDir)
 
 		// Create client
-		client, err := NewClient(WithStoreRootPath(tempDir))
+		testClient, err := NewClient(WithStoreRootPath(tempDir))
 		if err != nil {
 			t.Fatalf("Failed to create client: %v", err)
 		}
@@ -501,7 +501,7 @@ func TestClientPullModel(t *testing.T) {
 		var progressBuffer bytes.Buffer
 
 		// Pull model from registry with progress writer
-		if err := client.PullModel(context.Background(), tag, &progressBuffer); err != nil {
+		if err := testClient.PullModel(context.Background(), tag, &progressBuffer); err != nil {
 			t.Fatalf("Failed to pull model: %v", err)
 		}
 
@@ -533,7 +533,7 @@ func TestClientPullModel(t *testing.T) {
 		}
 
 		// Verify model was pulled correctly
-		model, err := client.GetModel(tag)
+		model, err := testClient.GetModel(tag)
 		if err != nil {
 			t.Fatalf("Failed to get model: %v", err)
 		}
@@ -566,7 +566,7 @@ func TestClientPullModel(t *testing.T) {
 		defer os.RemoveAll(tempDir)
 
 		// Create client
-		client, err := NewClient(WithStoreRootPath(tempDir))
+		testClient, err := NewClient(WithStoreRootPath(tempDir))
 		if err != nil {
 			t.Fatalf("Failed to create client: %v", err)
 		}
@@ -576,7 +576,7 @@ func TestClientPullModel(t *testing.T) {
 
 		// Test with non-existent model
 		nonExistentRef := registry + "/nonexistent/model:v1.0.0"
-		err = client.PullModel(context.Background(), nonExistentRef, &progressBuffer)
+		err = testClient.PullModel(context.Background(), nonExistentRef, &progressBuffer)
 
 		// Expect an error
 		if err == nil {
@@ -1237,7 +1237,7 @@ func randomFile(size int64) (string, error) {
 
 	// Fill with random data
 	if _, err := io.Copy(f, io.LimitReader(rand.Reader, size)); err != nil {
-		return "", fmt.Errorf("Failed to write random data: %v", err)
+		return "", fmt.Errorf("Failed to write random data: %w", err)
 	}
 
 	return f.Name(), nil

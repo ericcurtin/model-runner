@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1"
+	v1 "github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1"
 )
 
 const (
@@ -113,7 +113,7 @@ func writeFile(path string, data []byte) error {
 		removeErr := os.Remove(path)
 		if removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) {
 			cleanup()
-			return fmt.Errorf("replace %q with temporary file: %w (also failed to remove existing file: %v)", path, err, removeErr)
+			return fmt.Errorf("replace %q with temporary file: %w (also failed to remove existing file: %w)", path, err, removeErr)
 		}
 		if err := os.Rename(tmpName, path); err != nil {
 			cleanup()

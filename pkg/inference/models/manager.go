@@ -260,7 +260,6 @@ func (m *Manager) handleLoadModel(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	return
 }
 
 // handleGetModels handles GET <inference-prefix>/models requests.
@@ -844,18 +843,18 @@ func (m *Manager) handlePurge(w http.ResponseWriter, _ *http.Request) {
 }
 
 // GetDiskUsage returns the disk usage of the model store.
-func (m *Manager) GetDiskUsage() (int64, error, int) {
+func (m *Manager) GetDiskUsage() (int64, int, error) {
 	if m.distributionClient == nil {
-		return 0, errors.New("model distribution service unavailable"), http.StatusServiceUnavailable
+		return 0, http.StatusServiceUnavailable, errors.New("model distribution service unavailable")
 	}
 
 	storePath := m.distributionClient.GetStorePath()
 	size, err := diskusage.Size(storePath)
 	if err != nil {
-		return 0, fmt.Errorf("error while getting store size: %v", err), http.StatusInternalServerError
+		return 0, http.StatusInternalServerError, fmt.Errorf("error while getting store size: %w", err)
 	}
 
-	return size, nil, http.StatusOK
+	return size, http.StatusOK, nil
 }
 
 // ServeHTTP implement net/http.Handler.ServeHTTP.

@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/docker/model-runner/pkg/distribution/internal/progress"
 
@@ -34,7 +35,7 @@ func isSafeHex(hexLength int, s string) bool {
 		return false
 	}
 	for _, c := range s {
-		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
+		if !unicode.Is(unicode.ASCII_Hex_Digit, c) {
 			return false
 		}
 	}
@@ -79,12 +80,6 @@ func (s *LocalStore) blobPath(hash v1.Hash) (string, error) {
 type blob interface {
 	DiffID() (v1.Hash, error)
 	Uncompressed() (io.ReadCloser, error)
-}
-
-// layerWithDigest extends blob to include the Digest method
-type layerWithDigest interface {
-	blob
-	Digest() (v1.Hash, error)
 }
 
 // writeLayer writes the layer blob to the store.
@@ -190,7 +185,7 @@ func (s *LocalStore) WriteBlob(diffID v1.Hash, r io.Reader) error {
 		// If we were resuming and copy failed, only delete the incomplete file if it's
 		// not a context cancellation. Context cancellation is a normal interruption and
 		// the file should be preserved for future resume attempts.
-		if isResume && !(errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)) {
+		if isResume && !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
 			_ = os.Remove(incompletePath)
 		}
 		return fmt.Errorf("copy blob %q to store: %w", diffID.String(), err)
@@ -356,7 +351,7 @@ func (s *LocalStore) CleanupStaleIncompleteFiles(maxAge time.Duration) error {
 	}
 
 	if len(cleanupErrors) > 0 {
-		return fmt.Errorf("encountered %d errors during cleanup (cleaned %d files): %v", len(cleanupErrors), cleanedCount, cleanupErrors[0])
+		return fmt.Errorf("encountered %d errors during cleanup (cleaned %d files): %w", len(cleanupErrors), cleanedCount, cleanupErrors[0])
 	}
 
 	if cleanedCount > 0 {

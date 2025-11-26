@@ -13,7 +13,7 @@ func newPushCmd() *cobra.Command {
 	c := &cobra.Command{
 		Use:   "push MODEL",
 		Short: "Push a model to Docker Hub",
-		Args: requireExactArgs(1, "push", "MODEL"),
+		Args:  requireExactArgs(1, "push", "MODEL"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if _, err := ensureStandaloneRunnerAvailable(cmd.Context(), asPrinter(cmd), false); err != nil {
 				return fmt.Errorf("unable to initialize standalone model runner: %w", err)

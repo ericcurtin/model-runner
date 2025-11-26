@@ -260,7 +260,7 @@ func processFileInclusions(prompt string) (string, error) {
 	return prompt, nil
 }
 
-// For testing purposes - making the functions public so they can be tested
+// ExtractFileInclusions extracts file inclusions from a prompt for testing purposes.
 func ExtractFileInclusions(prompt string) []string {
 	return extractFileInclusions(prompt)
 }

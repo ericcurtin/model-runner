@@ -87,7 +87,7 @@ func main() {
 	args := flag.Args()[1:]
 
 	// Execute the command
-	exitCode := 0
+	var exitCode int
 	switch command {
 	case "pull":
 		exitCode = cmdPull(client, args)

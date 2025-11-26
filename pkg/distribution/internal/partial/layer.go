@@ -6,10 +6,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1"
-	ggcrtypes "github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1/types"
-
 	"github.com/docker/model-runner/pkg/distribution/types"
+	v1 "github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1"
+	ggcrtypes "github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1/types"
 )
 
 var _ v1.Layer = &Layer{}

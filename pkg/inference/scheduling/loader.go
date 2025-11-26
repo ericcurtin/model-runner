@@ -543,7 +543,7 @@ func (l *loader) load(ctx context.Context, backendName, modelID, modelRef string
 					goto WaitForChange
 				}
 			default:
-				l.references[existing.slot] += 1
+				l.references[existing.slot]++
 				l.timestamps[existing.slot] = time.Time{}
 				return l.slots[existing.slot], nil
 			}
@@ -653,7 +653,7 @@ func (l *loader) release(runner *runner) {
 	}
 
 	// Decrement the runner's reference count.
-	l.references[slotInfo.slot] -= 1
+	l.references[slotInfo.slot]--
 
 	// If the runner's reference count is now zero, then check if it is still
 	// active, and record now as its idle start time and signal the idle

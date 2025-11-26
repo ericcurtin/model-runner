@@ -5,7 +5,7 @@ package inference
 // apply to endpoints on model-runner.docker.internal.
 const ExperimentalEndpointsPrefix = "/exp/vDD4.40"
 
-// InferencePrefix is the prefix for inference related related routes.
+// InferencePrefix is the prefix for inference related routes.
 var InferencePrefix = "/engines"
 
 // ModelsPrefix is the prefix for all model manager related routes.

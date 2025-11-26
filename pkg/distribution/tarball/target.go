@@ -7,7 +7,6 @@ import (
 	"io"
 	"path/filepath"
 
-	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/name"
 	v1 "github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1"
 
 	"github.com/docker/model-runner/pkg/distribution/internal/progress"
@@ -16,9 +15,8 @@ import (
 
 // Target stores an artifact as a TAR archive
 type Target struct {
-	reference name.Tag
-	writer    io.Writer
-	dirs      map[string]struct{}
+	writer io.Writer
+	dirs   map[string]struct{}
 }
 
 // NewTarget returns a *Target for the given writer

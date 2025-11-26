@@ -214,13 +214,14 @@ func DetectContext(ctx context.Context, cli *command.DockerCli, printer standalo
 
 	// Compute the URL prefix based on the associated engine kind.
 	var rawURLPrefix string
-	if kind == types.ModelRunnerEngineKindMoby {
+	switch kind {
+	case types.ModelRunnerEngineKindMoby:
 		rawURLPrefix = "http://localhost:" + strconv.Itoa(standalone.DefaultControllerPortMoby)
-	} else if kind == types.ModelRunnerEngineKindCloud {
+	case types.ModelRunnerEngineKindCloud:
 		rawURLPrefix = "http://localhost:" + strconv.Itoa(standalone.DefaultControllerPortCloud)
-	} else if kind == types.ModelRunnerEngineKindMobyManual {
+	case types.ModelRunnerEngineKindMobyManual:
 		rawURLPrefix = modelRunnerHost
-	} else { // ModelRunnerEngineKindDesktop
+	case types.ModelRunnerEngineKindDesktop:
 		rawURLPrefix = "http://localhost" + inference.ExperimentalEndpointsPrefix
 		if IsDesktopWSLContext(ctx, cli) {
 			dockerClient, err := DockerClientForContext(cli, cli.CurrentContext())

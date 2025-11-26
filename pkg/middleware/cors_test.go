@@ -80,13 +80,12 @@ func TestCorsMiddleware(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt // capture range variable
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			handler := CorsMiddleware(tt.allowedOrigins, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusOK)
 			}))
-			req := httptest.NewRequest(tt.method, "/", nil)
+			req := httptest.NewRequest(tt.method, "/", http.NoBody)
 			if tt.origin != "" {
 				req.Header.Set("Origin", tt.origin)
 			}

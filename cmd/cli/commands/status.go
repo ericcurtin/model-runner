@@ -3,7 +3,9 @@ package commands
 import (
 	"encoding/json"
 	"fmt"
+	"net"
 	"os"
+	"strconv"
 
 	"github.com/docker/model-runner/cmd/cli/pkg/types"
 
@@ -91,7 +93,7 @@ func jsonStatus(standalone *standaloneRunner, status desktop.Status, backendStat
 			standalone.gatewayPort = 12434
 		}
 
-		endpoint = fmt.Sprintf("http://%s:%d/engines/v1/", standalone.gatewayIP, standalone.gatewayPort)
+		endpoint = "http://" + net.JoinHostPort(standalone.gatewayIP, strconv.Itoa(int(standalone.gatewayPort))) + "/engines/v1/"
 	default:
 		return fmt.Errorf("unhandled engine kind: %v", kind)
 	}

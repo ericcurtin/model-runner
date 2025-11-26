@@ -86,8 +86,8 @@ func handleArray(arrayValue parser.GGUFMetadataKVArrayValue) string {
 			values = append(values, fmt.Sprintf("%t", v.(bool)))
 		case parser.GGUFMetadataValueTypeString:
 			values = append(values, v.(string))
-		default:
-			// Do nothing
+		case parser.GGUFMetadataValueTypeArray:
+			// Nested arrays not supported
 		}
 	}
 

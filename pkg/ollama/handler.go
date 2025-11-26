@@ -302,26 +302,12 @@ type openAIChatResponse struct {
 	} `json:"choices"`
 }
 
-// openAICompletionResponse represents the OpenAI text completion response
-type openAICompletionResponse struct {
-	Choices []struct {
-		Text string `json:"text"`
-	} `json:"choices"`
-}
-
 // openAIChatStreamChunk represents a chunk from OpenAI chat completion stream
 type openAIChatStreamChunk struct {
 	Choices []struct {
 		Delta struct {
 			Content string `json:"content"`
 		} `json:"delta"`
-	} `json:"choices"`
-}
-
-// openAICompletionStreamChunk represents a chunk from OpenAI text completion stream
-type openAICompletionStreamChunk struct {
-	Choices []struct {
-		Text string `json:"text"`
 	} `json:"choices"`
 }
 
@@ -712,7 +698,7 @@ func (h *Handler) unloadModel(ctx context.Context, w http.ResponseWriter, modelN
 	h.log.Infof("unloadModel: sending POST /engines/unload with body: %s", safeReqBody)
 
 	// Create a new request to the scheduler
-	newReq, err := http.NewRequestWithContext(ctx, "POST", "/engines/unload", strings.NewReader(string(reqBody)))
+	newReq, err := http.NewRequestWithContext(ctx, http.MethodPost, "/engines/unload", strings.NewReader(string(reqBody)))
 	if err != nil {
 		h.log.Errorf("unloadModel: failed to create request: %v", err)
 		http.Error(w, fmt.Sprintf("Failed to create request: %v", err), http.StatusInternalServerError)
@@ -806,7 +792,9 @@ func (h *Handler) handlePull(w http.ResponseWriter, r *http.Request) {
 			// Headers not sent yet - we can still use http.Error
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(errorResponse)
+			if err := json.NewEncoder(w).Encode(errorResponse); err != nil {
+				h.log.Errorf("failed to encode response: %v", err)
+			}
 		} else {
 			// Headers already sent - write error as JSON line
 			if data, marshalErr := json.Marshal(errorResponse); marshalErr == nil {
@@ -862,7 +850,7 @@ func (h *Handler) proxyToChatCompletions(ctx context.Context, w http.ResponseWri
 	}
 
 	// Create a new request to the scheduler
-	newReq, err := http.NewRequestWithContext(ctx, "POST", "/engines/v1/chat/completions", strings.NewReader(string(reqBody)))
+	newReq, err := http.NewRequestWithContext(ctx, http.MethodPost, "/engines/v1/chat/completions", strings.NewReader(string(reqBody)))
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to create request: %v", err), http.StatusInternalServerError)
 		return
@@ -905,7 +893,7 @@ func (h *Handler) proxyToCompletions(ctx context.Context, w http.ResponseWriter,
 	}
 
 	// Create a new request to the scheduler
-	newReq, err := http.NewRequestWithContext(ctx, "POST", "/engines/v1/chat/completions", strings.NewReader(string(reqBody)))
+	newReq, err := http.NewRequestWithContext(ctx, http.MethodPost, "/engines/v1/chat/completions", strings.NewReader(string(reqBody)))
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to create request: %v", err), http.StatusInternalServerError)
 		return
@@ -1179,7 +1167,9 @@ func (h *Handler) convertChatResponse(w http.ResponseWriter, respRecorder *respo
 		if err := json.Unmarshal([]byte(respRecorder.body.String()), &openAIErr); err == nil && openAIErr.Error.Message != "" {
 			// Convert to Ollama error format (simple string)
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]string{"error": openAIErr.Error.Message})
+			if err := json.NewEncoder(w).Encode(map[string]string{"error": openAIErr.Error.Message}); err != nil {
+				h.log.Errorf("failed to encode response: %v", err)
+			}
 		} else {
 			// Fallback: return raw error body
 			w.Write([]byte(respRecorder.body.String()))
@@ -1229,7 +1219,9 @@ func (h *Handler) convertGenerateResponse(w http.ResponseWriter, respRecorder *r
 		if err := json.Unmarshal([]byte(respRecorder.body.String()), &openAIErr); err == nil && openAIErr.Error.Message != "" {
 			// Convert to Ollama error format (simple string)
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]string{"error": openAIErr.Error.Message})
+			if err := json.NewEncoder(w).Encode(map[string]string{"error": openAIErr.Error.Message}); err != nil {
+				h.log.Errorf("failed to encode response: %v", err)
+			}
 		} else {
 			// Fallback: return raw error body
 			w.Write([]byte(respRecorder.body.String()))
