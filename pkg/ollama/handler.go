@@ -1,9 +1,11 @@
 package ollama
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -910,13 +912,13 @@ func (h *Handler) proxyToChatCompletions(ctx context.Context, w http.ResponseWri
 		return
 	}
 
-	// Create a new request to the scheduler
-	newReq, err := http.NewRequestWithContext(ctx, http.MethodPost, "/engines/v1/chat/completions", strings.NewReader(string(reqBody)))
-	if err != nil {
-		http.Error(w, fmt.Sprintf("Failed to create request: %v", err), http.StatusInternalServerError)
-		return
-	}
+	// Clone the original request to preserve headers (User-Agent, auth, etc.)
+	newReq := r.Clone(ctx)
+	newReq.URL.Path = "/engines/v1/chat/completions"
+	newReq.Body = io.NopCloser(bytes.NewReader(reqBody))
+	newReq.ContentLength = int64(len(reqBody))
 	newReq.Header.Set("Content-Type", "application/json")
+	newReq.Header.Set(inference.RequestOriginHeader, inference.OriginOllamaCompletion)
 
 	if stream {
 		// Use streaming response writer that processes SSE on the fly
@@ -953,13 +955,13 @@ func (h *Handler) proxyToCompletions(ctx context.Context, w http.ResponseWriter,
 		return
 	}
 
-	// Create a new request to the scheduler
-	newReq, err := http.NewRequestWithContext(ctx, http.MethodPost, "/engines/v1/chat/completions", strings.NewReader(string(reqBody)))
-	if err != nil {
-		http.Error(w, fmt.Sprintf("Failed to create request: %v", err), http.StatusInternalServerError)
-		return
-	}
+	// Clone the original request to preserve headers (User-Agent, auth, etc.)
+	newReq := r.Clone(ctx)
+	newReq.URL.Path = "/engines/v1/chat/completions"
+	newReq.Body = io.NopCloser(bytes.NewReader(reqBody))
+	newReq.ContentLength = int64(len(reqBody))
 	newReq.Header.Set("Content-Type", "application/json")
+	newReq.Header.Set(inference.RequestOriginHeader, inference.OriginOllamaCompletion)
 
 	if stream, ok := openAIReq["stream"].(bool); ok && stream {
 		// Use streaming response writer that processes SSE on the fly

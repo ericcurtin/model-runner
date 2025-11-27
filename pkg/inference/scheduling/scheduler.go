@@ -243,8 +243,21 @@ func (s *Scheduler) handleOpenAIInference(w http.ResponseWriter, r *http.Request
 			}
 			return
 		}
+		// Determine the action for tracking
+		action := "inference/" + backendMode.String()
+		// Check if there's a request origin header to provide more specific tracking
+		// Only trust whitelisted values to prevent header spoofing
+		if origin := r.Header.Get(inference.RequestOriginHeader); origin != "" {
+			switch origin {
+			case inference.OriginOllamaCompletion:
+				action = origin
+				// If an unknown origin is provided, ignore it and use the default action
+				// This prevents untrusted clients from spoofing tracking data
+			}
+		}
+
 		// Non-blocking call to track the model usage.
-		s.tracker.TrackModel(model, r.UserAgent(), "inference/"+backendMode.String())
+		s.tracker.TrackModel(model, r.UserAgent(), action)
 
 		// Automatically identify models for vLLM.
 		backend = s.selectBackendForModel(model, backend, request.Model)
