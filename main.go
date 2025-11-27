@@ -84,17 +84,18 @@ func main() {
 	}
 	baseTransport.Proxy = http.ProxyFromEnvironment
 
-	modelManager := models.NewManager(
+	clientConfig := models.ClientConfig{
+		StoreRootPath: modelPath,
+		Logger:        log.WithFields(logrus.Fields{"component": "model-manager"}),
+		Transport:     baseTransport,
+	}
+	modelHandler := models.NewHandler(
 		log,
-		models.ClientConfig{
-			StoreRootPath: modelPath,
-			Logger:        log.WithFields(logrus.Fields{"component": "model-manager"}),
-			Transport:     baseTransport,
-		},
+		clientConfig,
 		nil,
 		memEstimator,
 	)
-
+	modelManager := models.NewManager(log.WithFields(logrus.Fields{"component": "model-manager"}), clientConfig)
 	log.Infof("LLAMA_SERVER_PATH: %s", llamaServerPath)
 
 	// Create llama.cpp configuration from environment variables
@@ -151,6 +152,7 @@ func main() {
 			mlx.Name:      mlxBackend,
 		},
 		llamaCppBackend,
+		modelHandler,
 		modelManager,
 		http.DefaultClient,
 		nil,
@@ -168,8 +170,8 @@ func main() {
 	// Register path prefixes to forward all HTTP methods (including OPTIONS) to components
 	// Components handle method routing internally
 	// Register both with and without trailing slash to avoid redirects
-	router.Handle(inference.ModelsPrefix, modelManager)
-	router.Handle(inference.ModelsPrefix+"/", modelManager)
+	router.Handle(inference.ModelsPrefix, modelHandler)
+	router.Handle(inference.ModelsPrefix+"/", modelHandler)
 	router.Handle(inference.InferencePrefix+"/", scheduler)
 	// Add path aliases: /v1 -> /engines/v1, /rerank -> /engines/rerank, /score -> /engines/score.
 	aliasHandler := &middleware.AliasHandler{Handler: scheduler}
@@ -178,7 +180,7 @@ func main() {
 	router.Handle("/score", aliasHandler)
 
 	// Add Ollama API compatibility layer (only register with trailing slash to catch sub-paths)
-	ollamaHandler := ollama.NewHandler(log, modelManager, scheduler, nil)
+	ollamaHandler := ollama.NewHandler(log, scheduler, nil, modelManager)
 	router.Handle(ollama.APIPrefix+"/", ollamaHandler)
 
 	// Register root handler LAST - it will only catch exact "/" requests that don't match other patterns
