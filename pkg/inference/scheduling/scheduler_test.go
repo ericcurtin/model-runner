@@ -44,11 +44,12 @@ func TestCors(t *testing.T) {
 			discard := logrus.New()
 			discard.SetOutput(io.Discard)
 			log := logrus.NewEntry(discard)
-			s := NewScheduler(log, nil, nil, nil, nil, nil, []string{"*"}, nil, systemMemoryInfo{})
+			s := NewScheduler(log, nil, nil, nil, nil, nil, systemMemoryInfo{})
+			httpHandler := NewHTTPHandler(s, nil, []string{"*"})
 			req := httptest.NewRequest(http.MethodOptions, "http://model-runner.docker.internal"+tt.path, http.NoBody)
 			req.Header.Set("Origin", "docker.com")
 			w := httptest.NewRecorder()
-			s.ServeHTTP(w, req)
+			httpHandler.ServeHTTP(w, req)
 
 			if w.Code != http.StatusNoContent {
 				t.Errorf("Expected status code 204 for OPTIONS request, got %d", w.Code)
