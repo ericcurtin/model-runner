@@ -200,30 +200,14 @@ func (c *Client) PullModel(ctx context.Context, reference string, progressWriter
 	}
 
 	// If we have any incomplete downloads, create a new context with resume offsets
-	// and re-fetch using the digest to ensure we're resuming the same manifest
+	// and re-fetch using the original reference to ensure compatibility with all registries
 	if len(resumeOffsets) > 0 {
 		c.log.Infof("Resuming %d interrupted layer download(s)", len(resumeOffsets))
 		ctx = remote.WithResumeOffsets(ctx, resumeOffsets)
-		// Re-fetch the model using the digest reference to prevent race conditions
-		// Extract repository name from the original reference and construct digest reference
-		repository := reference
-		// Find the last occurrence of : or @ (tag or digest separator)
-		// We need to search after the last / to avoid matching port separators
-		if lastSlash := strings.LastIndex(reference, "/"); lastSlash != -1 {
-			// Search for : or @ after the last slash
-			suffix := reference[lastSlash:]
-			if idx := strings.IndexAny(suffix, ":@"); idx != -1 {
-				repository = reference[:lastSlash+idx]
-			}
-		} else {
-			// No slash found, search from beginning (e.g., "library/image:tag" or "image:tag")
-			if idx := strings.IndexAny(reference, ":@"); idx != -1 {
-				repository = reference[:idx]
-			}
-		}
-		digestReference := repository + "@" + remoteDigest.String()
-		c.log.Infof("Re-fetching model with digest reference: %s", utils.SanitizeForLog(digestReference))
-		remoteModel, err = registryClient.Model(ctx, digestReference)
+		// Re-fetch the model using the original tag reference
+		// The digest has already been validated above, and the resume context will handle layer resumption
+		c.log.Infof("Re-fetching model with original reference for resume: %s", utils.SanitizeForLog(reference))
+		remoteModel, err = registryClient.Model(ctx, reference)
 		if err != nil {
 			return fmt.Errorf("reading model from registry with resume context: %w", err)
 		}
