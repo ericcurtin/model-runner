@@ -734,7 +734,21 @@ func convertMessages(messages []Message) []map[string]interface{} {
 
 		// Add tool calls if present (for assistant messages)
 		if len(msg.ToolCalls) > 0 {
-			openAIMsg["tool_calls"] = msg.ToolCalls
+			// Ensure type field is set and arguments are JSON strings for OpenAI compatibility
+			toolCalls := make([]ToolCall, len(msg.ToolCalls))
+			for i, tc := range msg.ToolCalls {
+				toolCalls[i] = tc
+				if toolCalls[i].Type == "" {
+					toolCalls[i].Type = "function"
+				}
+				// Convert arguments to JSON string if it's an object
+				if argsObj, ok := tc.Function.Arguments.(map[string]interface{}); ok {
+					if argsJSON, err := json.Marshal(argsObj); err == nil {
+						toolCalls[i].Function.Arguments = string(argsJSON)
+					}
+				}
+			}
+			openAIMsg["tool_calls"] = toolCalls
 		}
 
 		// Add tool_call_id if present (for tool result messages)
@@ -962,7 +976,8 @@ func (s *streamingChatResponseWriter) Write(data []byte) (int, error) {
 		if len(chunk.Choices) > 0 {
 			content = chunk.Choices[0].Delta.Content
 			if len(chunk.Choices[0].Delta.ToolCalls) > 0 {
-				toolCalls = chunk.Choices[0].Delta.ToolCalls
+				// Convert tool calls to Ollama format
+				toolCalls = convertToolCallsToOllamaFormat(chunk.Choices[0].Delta.ToolCalls)
 			}
 		}
 
@@ -1136,7 +1151,7 @@ func (h *HTTPHandler) convertChatResponse(w http.ResponseWriter, respRecorder *r
 		message.Content = openAIResp.Choices[0].Message.Content
 		// Include tool calls if present
 		if len(openAIResp.Choices[0].Message.ToolCalls) > 0 {
-			message.ToolCalls = openAIResp.Choices[0].Message.ToolCalls
+			message.ToolCalls = convertToolCallsToOllamaFormat(openAIResp.Choices[0].Message.ToolCalls)
 		}
 	}
 
@@ -1152,6 +1167,35 @@ func (h *HTTPHandler) convertChatResponse(w http.ResponseWriter, respRecorder *r
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		h.log.Errorf("Failed to encode response: %v", err)
 	}
+}
+
+// convertToolCallsToOllamaFormat converts tool calls from OpenAI format to Ollama format
+// This parses the arguments from JSON string to object and adds index field
+func convertToolCallsToOllamaFormat(toolCalls []ToolCall) []ToolCall {
+	if len(toolCalls) == 0 {
+		return toolCalls
+	}
+
+	converted := make([]ToolCall, len(toolCalls))
+	for i, tc := range toolCalls {
+		converted[i] = tc
+		// Remove type field for Ollama compatibility (it will be omitted in JSON if empty)
+		converted[i].Type = ""
+
+		// Parse arguments from JSON string to object for Ollama compatibility
+		if argsStr, ok := tc.Function.Arguments.(string); ok && argsStr != "" {
+			var argsObj map[string]interface{}
+			if err := json.Unmarshal([]byte(argsStr), &argsObj); err == nil {
+				converted[i].Function.Arguments = argsObj
+			}
+		}
+
+		// Add index field
+		index := i
+		converted[i].Function.Index = &index
+	}
+
+	return converted
 }
 
 // convertGenerateResponse converts OpenAI chat completion response to Ollama generate format

@@ -71,14 +71,15 @@ type Message struct {
 // ToolCall represents a function call made by the model
 type ToolCall struct {
 	ID       string       `json:"id"`
-	Type     string       `json:"type"` // Always "function" for now
+	Type     string       `json:"type,omitempty"` // Always "function" for now
 	Function FunctionCall `json:"function"`
 }
 
 // FunctionCall represents the details of a function call
 type FunctionCall struct {
-	Name      string `json:"name"`
-	Arguments string `json:"arguments"` // JSON string of arguments
+	Index     *int        `json:"index,omitempty"`
+	Name      string      `json:"name"`
+	Arguments interface{} `json:"arguments"` // Can be JSON string (request) or object (response)
 }
 
 // Tool represents a tool/function definition
@@ -96,10 +97,11 @@ type ToolFunction struct {
 
 // ChatResponse is the response for /api/chat
 type ChatResponse struct {
-	Model     string    `json:"model"`
-	CreatedAt time.Time `json:"created_at"`
-	Message   Message   `json:"message,omitempty"`
-	Done      bool      `json:"done"`
+	Model      string    `json:"model"`
+	CreatedAt  time.Time `json:"created_at"`
+	Message    Message   `json:"message,omitempty"`
+	Done       bool      `json:"done"`
+	DoneReason string    `json:"done_reason,omitempty"`
 }
 
 // GenerateRequest is the request for /api/generate
