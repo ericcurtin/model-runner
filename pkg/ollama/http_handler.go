@@ -380,6 +380,16 @@ func (h *HTTPHandler) handleChat(w http.ResponseWriter, r *http.Request) {
 		"stream":   req.Stream == nil || *req.Stream,
 	}
 
+	// Add tools if present
+	if len(req.Tools) > 0 {
+		openAIReq["tools"] = req.Tools
+	}
+
+	// Add tool_choice if present
+	if req.ToolChoice != nil {
+		openAIReq["tool_choice"] = req.ToolChoice
+	}
+
 	if req.Options != nil {
 		// Handle num_ctx option for context size configuration
 		if numCtxRaw, ok := req.Options["num_ctx"]; ok {
@@ -717,10 +727,27 @@ func (h *HTTPHandler) mapOllamaOptionsToOpenAI(ollamaOpts map[string]interface{}
 func convertMessages(messages []Message) []map[string]interface{} {
 	result := make([]map[string]interface{}, len(messages))
 	for i, msg := range messages {
-		result[i] = map[string]interface{}{
+		openAIMsg := map[string]interface{}{
 			"role":    msg.Role,
 			"content": msg.Content,
 		}
+
+		// Add tool calls if present (for assistant messages)
+		if len(msg.ToolCalls) > 0 {
+			openAIMsg["tool_calls"] = msg.ToolCalls
+		}
+
+		// Add tool_call_id if present (for tool result messages)
+		if msg.ToolCallID != "" {
+			openAIMsg["tool_call_id"] = msg.ToolCallID
+		}
+
+		// Add images if present (for multimodal support)
+		if len(msg.Images) > 0 {
+			openAIMsg["images"] = msg.Images
+		}
+
+		result[i] = openAIMsg
 	}
 	return result
 }
@@ -929,21 +956,30 @@ func (s *streamingChatResponseWriter) Write(data []byte) (int, error) {
 			continue
 		}
 
-		// Extract content from structured response
+		// Extract content and tool calls from structured response
 		var content string
+		var toolCalls []ToolCall
 		if len(chunk.Choices) > 0 {
 			content = chunk.Choices[0].Delta.Content
+			if len(chunk.Choices[0].Delta.ToolCalls) > 0 {
+				toolCalls = chunk.Choices[0].Delta.ToolCalls
+			}
 		}
 
 		// Build Ollama chunk
+		message := Message{
+			Role:    "assistant",
+			Content: content,
+		}
+		if len(toolCalls) > 0 {
+			message.ToolCalls = toolCalls
+		}
+
 		ollamaChunk := ChatResponse{
 			Model:     s.modelName,
 			CreatedAt: time.Now(),
-			Message: Message{
-				Role:    "assistant",
-				Content: content,
-			},
-			Done: false,
+			Message:   message,
+			Done:      false,
 		}
 
 		if jsonData, err := json.Marshal(ollamaChunk); err == nil {
@@ -1093,21 +1129,23 @@ func (h *HTTPHandler) convertChatResponse(w http.ResponseWriter, respRecorder *r
 		return
 	}
 
-	// Extract the message content from structured response
-	var content string
+	// Extract the message from structured response
+	var message Message
 	if len(openAIResp.Choices) > 0 {
-		content = openAIResp.Choices[0].Message.Content
+		message.Role = "assistant"
+		message.Content = openAIResp.Choices[0].Message.Content
+		// Include tool calls if present
+		if len(openAIResp.Choices[0].Message.ToolCalls) > 0 {
+			message.ToolCalls = openAIResp.Choices[0].Message.ToolCalls
+		}
 	}
 
 	// Build Ollama response
 	response := ChatResponse{
 		Model:     modelName,
 		CreatedAt: time.Now(),
-		Message: Message{
-			Role:    "assistant",
-			Content: content,
-		},
-		Done: true,
+		Message:   message,
+		Done:      true,
 	}
 
 	w.Header().Set("Content-Type", "application/json")

@@ -49,18 +49,49 @@ type ShowResponse struct {
 
 // ChatRequest is the request for /api/chat
 type ChatRequest struct {
-	Name      string                 `json:"name"`  // Ollama uses 'name' field
-	Model     string                 `json:"model"` // Also accept 'model' for compatibility
-	Messages  []Message              `json:"messages"`
-	Stream    *bool                  `json:"stream,omitempty"`
-	KeepAlive string                 `json:"keep_alive,omitempty"` // Duration like "5m" or "0s" to unload immediately
-	Options   map[string]interface{} `json:"options,omitempty"`
+	Name       string                 `json:"name"`  // Ollama uses 'name' field
+	Model      string                 `json:"model"` // Also accept 'model' for compatibility
+	Messages   []Message              `json:"messages"`
+	Tools      []Tool                 `json:"tools,omitempty"`       // Function calling tools
+	ToolChoice interface{}            `json:"tool_choice,omitempty"` // Can be "auto", "none", or {"type": "function", "function": {"name": "..."}}
+	Stream     *bool                  `json:"stream,omitempty"`
+	KeepAlive  string                 `json:"keep_alive,omitempty"` // Duration like "5m" or "0s" to unload immediately
+	Options    map[string]interface{} `json:"options,omitempty"`
 }
 
 // Message represents a chat message
 type Message struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
+	Role       string     `json:"role"`
+	Content    string     `json:"content"`
+	Images     []string   `json:"images,omitempty"`       // For multimodal support
+	ToolCalls  []ToolCall `json:"tool_calls,omitempty"`   // For function calling
+	ToolCallID string     `json:"tool_call_id,omitempty"` // For tool results
+}
+
+// ToolCall represents a function call made by the model
+type ToolCall struct {
+	ID       string       `json:"id"`
+	Type     string       `json:"type"` // Always "function" for now
+	Function FunctionCall `json:"function"`
+}
+
+// FunctionCall represents the details of a function call
+type FunctionCall struct {
+	Name      string `json:"name"`
+	Arguments string `json:"arguments"` // JSON string of arguments
+}
+
+// Tool represents a tool/function definition
+type Tool struct {
+	Type     string       `json:"type"` // Always "function" for now
+	Function ToolFunction `json:"function"`
+}
+
+// ToolFunction represents a function definition
+type ToolFunction struct {
+	Name        string                 `json:"name"`
+	Description string                 `json:"description"`
+	Parameters  map[string]interface{} `json:"parameters"` // JSON Schema
 }
 
 // ChatResponse is the response for /api/chat
@@ -142,7 +173,8 @@ type ollamaPullStatus struct {
 type openAIChatResponse struct {
 	Choices []struct {
 		Message struct {
-			Content string `json:"content"`
+			Content   string     `json:"content"`
+			ToolCalls []ToolCall `json:"tool_calls,omitempty"`
 		} `json:"message"`
 	} `json:"choices"`
 }
@@ -151,7 +183,8 @@ type openAIChatResponse struct {
 type openAIChatStreamChunk struct {
 	Choices []struct {
 		Delta struct {
-			Content string `json:"content"`
+			Content   string     `json:"content"`
+			ToolCalls []ToolCall `json:"tool_calls,omitempty"`
 		} `json:"delta"`
 	} `json:"choices"`
 }
