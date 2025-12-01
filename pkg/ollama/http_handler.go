@@ -373,13 +373,6 @@ func (h *HTTPHandler) handleChat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Handle num_ctx option for context size configuration
-	if req.Options != nil {
-		if numCtxRaw, ok := req.Options["num_ctx"]; ok {
-			h.configure(r.Context(), numCtxRaw, sanitizedModelName, modelName, r.UserAgent())
-		}
-	}
-
 	// Convert to OpenAI format chat completion request
 	openAIReq := map[string]interface{}{
 		"model":    modelName,
@@ -387,14 +380,12 @@ func (h *HTTPHandler) handleChat(w http.ResponseWriter, r *http.Request) {
 		"stream":   req.Stream == nil || *req.Stream,
 	}
 
-	// Add options if present
 	if req.Options != nil {
-		if temp, ok := req.Options["temperature"]; ok {
-			openAIReq["temperature"] = temp
+		// Handle num_ctx option for context size configuration
+		if numCtxRaw, ok := req.Options["num_ctx"]; ok {
+			h.configure(r.Context(), numCtxRaw, sanitizedModelName, modelName, r.UserAgent())
 		}
-		if maxTokens, ok := req.Options["num_predict"]; ok {
-			openAIReq["max_tokens"] = maxTokens
-		}
+		h.mapOllamaOptionsToOpenAI(req.Options, openAIReq)
 	}
 
 	// Make request to scheduler
@@ -465,14 +456,9 @@ func (h *HTTPHandler) handleGenerate(w http.ResponseWriter, r *http.Request) {
 		"stream": req.Stream == nil || *req.Stream,
 	}
 
-	// Add options if present
+	// Map Ollama options to OpenAI format
 	if req.Options != nil {
-		if temp, ok := req.Options["temperature"]; ok {
-			openAIReq["temperature"] = temp
-		}
-		if maxTokens, ok := req.Options["num_predict"]; ok {
-			openAIReq["max_tokens"] = maxTokens
-		}
+		h.mapOllamaOptionsToOpenAI(req.Options, openAIReq)
 	}
 
 	// Make request to scheduler
@@ -669,6 +655,62 @@ func (h *HTTPHandler) handlePull(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+}
+
+// mapOllamaOptionsToOpenAI maps Ollama API options to OpenAI-compatible format
+// This function handles all standard Ollama options and maps them to their OpenAI equivalents
+func (h *HTTPHandler) mapOllamaOptionsToOpenAI(ollamaOpts map[string]interface{}, openAIReq map[string]interface{}) {
+	// Direct mappings - these options have exact OpenAI equivalents
+	if val, ok := ollamaOpts["temperature"]; ok {
+		openAIReq["temperature"] = val
+	}
+	if val, ok := ollamaOpts["top_p"]; ok {
+		openAIReq["top_p"] = val
+	}
+	if val, ok := ollamaOpts["top_k"]; ok {
+		openAIReq["top_k"] = val
+	}
+	if val, ok := ollamaOpts["num_predict"]; ok {
+		openAIReq["max_tokens"] = val
+	}
+	if val, ok := ollamaOpts["stop"]; ok {
+		openAIReq["stop"] = val
+	}
+	if val, ok := ollamaOpts["seed"]; ok {
+		openAIReq["seed"] = val
+	}
+	if val, ok := ollamaOpts["presence_penalty"]; ok {
+		openAIReq["presence_penalty"] = val
+	}
+	if val, ok := ollamaOpts["frequency_penalty"]; ok {
+		openAIReq["frequency_penalty"] = val
+	}
+
+	// Backend-specific options that may not be supported by all OpenAI-compatible backends
+	// We'll pass these through and let the backend decide whether to use them
+	backendSpecificOptions := []string{
+		"repeat_last_n",
+		"typical_p",
+		"min_p",
+		"num_keep",
+		"num_batch",
+		"num_gpu",
+		"main_gpu",
+		"use_mmap",
+		"num_thread",
+	}
+
+	for _, optName := range backendSpecificOptions {
+		if val, ok := ollamaOpts[optName]; ok {
+			// Pass through as-is, backend may support it
+			openAIReq[optName] = val
+			// Log that we're passing through a backend-specific option
+			h.log.Debugf("Passing through backend-specific option: %s", optName)
+		}
+	}
+
+	// Note: num_ctx is handled separately in the configure() function
+	// as it requires a special ConfigureRunner call
 }
 
 // convertMessages converts Ollama messages to OpenAI format
