@@ -374,9 +374,7 @@ func (h *HTTPHandler) handleChat(w http.ResponseWriter, r *http.Request) {
 
 	if req.Options != nil {
 		// Handle num_ctx option for context size configuration
-		if numCtxRaw, ok := req.Options["num_ctx"]; ok {
-			h.configure(r.Context(), numCtxRaw, modelName, r.UserAgent())
-		}
+		h.configureContextSize(r.Context(), req.Options, modelName, r.UserAgent()+" (Ollama API)")
 		h.mapOllamaOptionsToOpenAI(req.Options, openAIReq)
 	}
 
@@ -401,6 +399,32 @@ func (h *HTTPHandler) configure(ctx context.Context, numCtxRaw interface{}, mode
 	}
 }
 
+// isZeroKeepAlive checks if the keep-alive duration string represents zero duration.
+// Returns true for "0", "0s", "0m", or empty string.
+func isZeroKeepAlive(keepAlive string) bool {
+	return keepAlive == "0" || keepAlive == "0s" || keepAlive == "0m" || keepAlive == ""
+}
+
+// configureContextSize extracts and applies the num_ctx option if present.
+// Returns 0 if options is nil or num_ctx is not present, otherwise returns the converted value.
+// Configuration is only applied if the value is positive (> 0).
+func (h *HTTPHandler) configureContextSize(ctx context.Context, options map[string]interface{}, modelName, userAgent string) int64 {
+	if options == nil {
+		return 0
+	}
+
+	numCtxRaw, ok := options["num_ctx"]
+	if !ok {
+		return 0
+	}
+
+	ctxSize := convertToInt64(numCtxRaw)
+	if ctxSize > 0 {
+		h.configure(ctx, ctxSize, modelName, userAgent)
+	}
+	return ctxSize
+}
+
 // handleGenerate handles POST /api/generate
 func (h *HTTPHandler) handleGenerate(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -418,15 +442,40 @@ func (h *HTTPHandler) handleGenerate(w http.ResponseWriter, r *http.Request) {
 		modelName = req.Model
 	}
 
+	if req.Prompt == "" && isZeroKeepAlive(req.KeepAlive) {
+		h.unloadModel(ctx, w, modelName)
+		return
+	}
+
+	// Extract and configure context size if present (load model if needed)
+	ctxSize := h.configureContextSize(r.Context(), req.Options, modelName, r.UserAgent()+" (Ollama API)")
+
+	if req.Prompt == "" {
+		// Empty prompt - preload the model
+		// ConfigureRunner is idempotent, so calling it again with the same context size is safe
+		configureRequest := scheduling.ConfigureRequest{
+			Model:       modelName,
+			ContextSize: ctxSize, // Use extracted value (or 0 for default)
+		}
+
+		_, err := h.scheduler.ConfigureRunner(ctx, nil, configureRequest, r.UserAgent()+" (Ollama API)")
+		if err != nil {
+			sanitizedErr := utils.SanitizeForLog(err.Error(), -1)
+			sanitizedModelName := utils.SanitizeForLog(modelName, -1)
+			h.log.Warnf("handleGenerate: failed to preload model %s: %v", sanitizedModelName, sanitizedErr)
+			http.Error(w, fmt.Sprintf("Failed to preload model: %v", err), http.StatusInternalServerError)
+			return
+		}
+
+		// Return success response in Ollama format (empty JSON object)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("{}"))
+		return
+	}
+
 	// Normalize model name
 	modelName = models.NormalizeModelName(modelName)
-
-	// Handle num_ctx option for context size configuration
-	if req.Options != nil {
-		if numCtxRaw, ok := req.Options["num_ctx"]; ok {
-			h.configure(r.Context(), numCtxRaw, modelName, r.UserAgent())
-		}
-	}
 
 	// Convert to OpenAI format completion request
 	openAIReq := map[string]interface{}{
