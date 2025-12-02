@@ -360,19 +360,6 @@ func (h *HTTPHandler) handleChat(w http.ResponseWriter, r *http.Request) {
 		modelName = req.Model
 	}
 
-	// Normalize model name
-	modelName = models.NormalizeModelName(modelName)
-
-	// Check if keep_alive is 0 (unload model)
-	sanitizedModelName := utils.SanitizeForLog(modelName, -1)
-	sanitizedKeepAlive := utils.SanitizeForLog(req.KeepAlive, -1)
-	h.log.Infof("handleChat: model=%s, keep_alive=%v", sanitizedModelName, sanitizedKeepAlive)
-	if req.KeepAlive == "0" || req.KeepAlive == "0s" || req.KeepAlive == "0m" {
-		h.log.Infof("handleChat: unloading model %s due to keep_alive=%s", sanitizedModelName, sanitizedKeepAlive)
-		h.unloadModel(ctx, w, modelName)
-		return
-	}
-
 	// Convert to OpenAI format chat completion request
 	openAIReq := map[string]interface{}{
 		"model":    modelName,
@@ -393,7 +380,7 @@ func (h *HTTPHandler) handleChat(w http.ResponseWriter, r *http.Request) {
 	if req.Options != nil {
 		// Handle num_ctx option for context size configuration
 		if numCtxRaw, ok := req.Options["num_ctx"]; ok {
-			h.configure(r.Context(), numCtxRaw, sanitizedModelName, modelName, r.UserAgent())
+			h.configure(r.Context(), numCtxRaw, modelName, r.UserAgent())
 		}
 		h.mapOllamaOptionsToOpenAI(req.Options, openAIReq)
 	}
@@ -402,7 +389,7 @@ func (h *HTTPHandler) handleChat(w http.ResponseWriter, r *http.Request) {
 	h.proxyToChatCompletions(ctx, w, r, openAIReq, modelName, req.Stream == nil || *req.Stream)
 }
 
-func (h *HTTPHandler) configure(ctx context.Context, numCtxRaw, raw interface{}, modelName, userAgent string) {
+func (h *HTTPHandler) configure(ctx context.Context, numCtxRaw interface{}, modelName, userAgent string) {
 	if numCtx := convertToInt64(numCtxRaw); numCtx > 0 {
 		sanitizedNumCtx := utils.SanitizeForLog(fmt.Sprintf("%d", numCtx), -1)
 		sanitizedModelName := utils.SanitizeForLog(modelName, -1)
@@ -439,21 +426,10 @@ func (h *HTTPHandler) handleGenerate(w http.ResponseWriter, r *http.Request) {
 	// Normalize model name
 	modelName = models.NormalizeModelName(modelName)
 
-	// Check if keep_alive is 0 (unload model)
-	// Sanitize user input before logging to prevent log injection
-	sanitizedModelName := utils.SanitizeForLog(modelName, -1)
-	sanitizedKeepAlive := utils.SanitizeForLog(req.KeepAlive, -1)
-	h.log.Infof("handleGenerate: model=%s, keep_alive=%v", sanitizedModelName, sanitizedKeepAlive)
-	if req.KeepAlive == "0" || req.KeepAlive == "0s" || req.KeepAlive == "0m" {
-		h.log.Infof("handleGenerate: unloading model %s due to keep_alive=%s", sanitizedModelName, sanitizedKeepAlive)
-		h.unloadModel(ctx, w, modelName)
-		return
-	}
-
 	// Handle num_ctx option for context size configuration
 	if req.Options != nil {
 		if numCtxRaw, ok := req.Options["num_ctx"]; ok {
-			h.configure(r.Context(), numCtxRaw, sanitizedModelName, modelName, r.UserAgent())
+			h.configure(r.Context(), numCtxRaw, modelName, r.UserAgent())
 		}
 	}
 
