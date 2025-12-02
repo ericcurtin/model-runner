@@ -372,11 +372,6 @@ func (h *HTTPHandler) handleChat(w http.ResponseWriter, r *http.Request) {
 		openAIReq["tools"] = req.Tools
 	}
 
-	// Add tool_choice if present
-	if req.ToolChoice != nil {
-		openAIReq["tool_choice"] = req.ToolChoice
-	}
-
 	if req.Options != nil {
 		// Handle num_ctx option for context size configuration
 		if numCtxRaw, ok := req.Options["num_ctx"]; ok {
