@@ -49,14 +49,13 @@ type ShowResponse struct {
 
 // ChatRequest is the request for /api/chat
 type ChatRequest struct {
-	Name       string                 `json:"name"`  // Ollama uses 'name' field
-	Model      string                 `json:"model"` // Also accept 'model' for compatibility
-	Messages   []Message              `json:"messages"`
-	Tools      []Tool                 `json:"tools,omitempty"`       // Function calling tools
-	ToolChoice interface{}            `json:"tool_choice,omitempty"` // Can be "auto", "none", or {"type": "function", "function": {"name": "..."}}
-	Stream     *bool                  `json:"stream,omitempty"`
-	KeepAlive  string                 `json:"keep_alive,omitempty"` // Duration like "5m" or "0s" to unload immediately
-	Options    map[string]interface{} `json:"options,omitempty"`
+	Name      string                 `json:"name"`  // Ollama uses 'name' field
+	Model     string                 `json:"model"` // Also accept 'model' for compatibility
+	Messages  []Message              `json:"messages"`
+	Tools     []Tool                 `json:"tools,omitempty"` // Function calling tools
+	Stream    *bool                  `json:"stream,omitempty"`
+	KeepAlive string                 `json:"keep_alive,omitempty"` // Duration like "5m" or "0s" to unload immediately
+	Options   map[string]interface{} `json:"options,omitempty"`
 }
 
 // Message represents a chat message
