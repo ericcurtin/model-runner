@@ -155,6 +155,149 @@ func TestPullModel(t *testing.T) {
 	}
 }
 
+func TestPullSafetensorsModel(t *testing.T) {
+	// This test verifies that vLLM-compatible (safetensors) models can be pulled
+	// from a registry, simulating the flow when pulling from HuggingFace
+
+	// Create temp directory for store
+	tempDir, err := os.MkdirTemp("", "safetensors-test-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp directory: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Create a test registry
+	server := httptest.NewServer(registry.New())
+	defer server.Close()
+
+	// Create a tag for the model
+	uri, err := url.Parse(server.URL)
+	if err != nil {
+		t.Fatalf("Failed to parse registry URL: %v", err)
+	}
+
+	// Create a minimal safetensors file for testing
+	safetensorsDir := filepath.Join(tempDir, "safetensors-source")
+	if err := os.MkdirAll(safetensorsDir, 0755); err != nil {
+		t.Fatalf("Failed to create safetensors directory: %v", err)
+	}
+
+	safetensorsPath := filepath.Join(safetensorsDir, "model.safetensors")
+	// Create a minimal safetensors-like file (just for testing the flow).
+	// This is NOT a valid safetensors binary format - it's a placeholder for testing.
+	testContent := []byte("# Test safetensors file - not a real model\n# Used only for testing the pull flow")
+	if err := os.WriteFile(safetensorsPath, testContent, 0644); err != nil {
+		t.Fatalf("Failed to create safetensors file: %v", err)
+	}
+
+	// Build safetensors model artifact
+	model, err := builder.FromSafetensors([]string{safetensorsPath})
+	if err != nil {
+		t.Fatalf("Failed to create safetensors model builder: %v", err)
+	}
+
+	// Use NormalizeModelName to generate the normalized tag from a HuggingFace-style model name
+	// This ensures consistency with the actual normalization logic used in the codebase
+	hfModelName := "hf.co/meta-llama/Llama-3.1-8B-Instruct"
+	normalizedName := NormalizeModelName(hfModelName)
+	// Replace the huggingface.co registry with our test registry
+	tag := uri.Host + strings.TrimPrefix(normalizedName, "huggingface.co")
+	client := reg.NewClient()
+	target, err := client.NewTarget(tag)
+	if err != nil {
+		t.Fatalf("Failed to create model target: %v", err)
+	}
+	err = model.Build(context.Background(), target, os.Stdout)
+	if err != nil {
+		t.Fatalf("Failed to build safetensors model: %v", err)
+	}
+
+	// Create the handler with a new store path
+	storeDir := filepath.Join(tempDir, "store")
+	if err := os.MkdirAll(storeDir, 0755); err != nil {
+		t.Fatalf("Failed to create store directory: %v", err)
+	}
+
+	log := logrus.NewEntry(logrus.StandardLogger())
+	memEstimator := &mockMemoryEstimator{}
+	handler := NewHandler(log, ClientConfig{
+		StoreRootPath: storeDir,
+		Logger:        log.WithFields(logrus.Fields{"component": "model-manager"}),
+	}, nil, memEstimator)
+
+	// Pull the safetensors model
+	r := httptest.NewRequest(http.MethodPost, "/models/create", strings.NewReader(`{"from": "`+tag+`"}`))
+	w := httptest.NewRecorder()
+	err = handler.manager.Pull(tag, "", r, w)
+	if err != nil {
+		t.Fatalf("Failed to pull safetensors model: %v", err)
+	}
+
+	// Verify the model was pulled and has safetensors format
+	pulledModel, err := handler.manager.GetLocal(tag)
+	if err != nil {
+		t.Fatalf("Failed to get pulled model: %v", err)
+	}
+
+	config, err := pulledModel.Config()
+	if err != nil {
+		t.Fatalf("Failed to get model config: %v", err)
+	}
+
+	// Verify the model format is safetensors (vLLM-compatible)
+	if config.Format != "safetensors" {
+		t.Errorf("Expected model format 'safetensors' (vLLM-compatible), got %q", config.Format)
+	}
+
+	// Verify safetensors path is available
+	safetensorsPaths, err := pulledModel.SafetensorsPaths()
+	if err != nil {
+		t.Fatalf("Failed to get safetensors paths: %v", err)
+	}
+	if len(safetensorsPaths) == 0 {
+		t.Error("Expected at least one safetensors file path, got none")
+	}
+}
+
+func TestNormalizeHuggingFaceVLLMModel(t *testing.T) {
+	// Test that HuggingFace vLLM-compatible model names are normalized correctly
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "Llama model from HuggingFace",
+			input:    "hf.co/meta-llama/Llama-3.1-8B-Instruct",
+			expected: "huggingface.co/meta-llama/llama-3.1-8b-instruct:latest",
+		},
+		{
+			name:     "Qwen model with quantization",
+			input:    "hf.co/Qwen/Qwen2.5-3B-Instruct:FP8",
+			expected: "huggingface.co/qwen/qwen2.5-3b-instruct:fp8",
+		},
+		{
+			name:     "Mistral model",
+			input:    "hf.co/mistralai/Mistral-7B-Instruct-v0.3",
+			expected: "huggingface.co/mistralai/mistral-7b-instruct-v0.3:latest",
+		},
+		{
+			name:     "DeepSeek model",
+			input:    "hf.co/deepseek-ai/DeepSeek-Coder-V2-Lite-Instruct",
+			expected: "huggingface.co/deepseek-ai/deepseek-coder-v2-lite-instruct:latest",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := NormalizeModelName(tt.input)
+			if result != tt.expected {
+				t.Errorf("NormalizeModelName(%q) = %q, want %q", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
 func TestHandleGetModel(t *testing.T) {
 	// Create temp directory for store
 	tempDir, err := os.MkdirTemp("", "model-distribution-test-*")

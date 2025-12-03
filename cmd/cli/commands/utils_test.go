@@ -50,6 +50,16 @@ func TestNormalizeModelName(t *testing.T) {
 			expected: "huggingface.co/bartowski/model:q4_k_s",
 		},
 		{
+			name:     "huggingface vllm-compatible model (safetensors)",
+			input:    "hf.co/meta-llama/Llama-3.1-8B-Instruct",
+			expected: "huggingface.co/meta-llama/llama-3.1-8b-instruct:latest",
+		},
+		{
+			name:     "huggingface vllm-compatible model with quantization tag",
+			input:    "hf.co/Qwen/Qwen2.5-3B-Instruct:FP8",
+			expected: "huggingface.co/qwen/qwen2.5-3b-instruct:fp8",
+		},
+		{
 			name:     "registry with model",
 			input:    "docker.io/library/model",
 			expected: "docker.io/library/model:latest",
