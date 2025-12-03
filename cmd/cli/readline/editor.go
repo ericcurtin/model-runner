@@ -3,6 +3,7 @@
 package readline
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"strings"
@@ -43,7 +44,10 @@ func OpenInEditor(fd uintptr, termios any, currentContent string) (string, error
 	}
 
 	// Restore terminal to normal mode before launching editor
-	t := termios.(*Termios)
+	t, ok := termios.(*Termios)
+	if !ok {
+		return "", fmt.Errorf("invalid termios type")
+	}
 	if err := UnsetRawMode(fd, t); err != nil {
 		return "", err
 	}
