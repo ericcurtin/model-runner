@@ -360,19 +360,6 @@ func (h *HTTPHandler) handleChat(w http.ResponseWriter, r *http.Request) {
 		modelName = req.Model
 	}
 
-	// Normalize model name
-	modelName = models.NormalizeModelName(modelName)
-
-	// Check if keep_alive is 0 (unload model)
-	sanitizedModelName := utils.SanitizeForLog(modelName, -1)
-	sanitizedKeepAlive := utils.SanitizeForLog(req.KeepAlive, -1)
-	h.log.Infof("handleChat: model=%s, keep_alive=%v", sanitizedModelName, sanitizedKeepAlive)
-	if req.KeepAlive == "0" || req.KeepAlive == "0s" || req.KeepAlive == "0m" {
-		h.log.Infof("handleChat: unloading model %s due to keep_alive=%s", sanitizedModelName, sanitizedKeepAlive)
-		h.unloadModel(ctx, w, modelName)
-		return
-	}
-
 	// Convert to OpenAI format chat completion request
 	openAIReq := map[string]interface{}{
 		"model":    modelName,
@@ -380,11 +367,14 @@ func (h *HTTPHandler) handleChat(w http.ResponseWriter, r *http.Request) {
 		"stream":   req.Stream == nil || *req.Stream,
 	}
 
+	// Add tools if present
+	if len(req.Tools) > 0 {
+		openAIReq["tools"] = req.Tools
+	}
+
 	if req.Options != nil {
 		// Handle num_ctx option for context size configuration
-		if numCtxRaw, ok := req.Options["num_ctx"]; ok {
-			h.configure(r.Context(), numCtxRaw, sanitizedModelName, modelName, r.UserAgent())
-		}
+		h.configureContextSize(r.Context(), req.Options, modelName, r.UserAgent()+" (Ollama API)")
 		h.mapOllamaOptionsToOpenAI(req.Options, openAIReq)
 	}
 
@@ -392,7 +382,7 @@ func (h *HTTPHandler) handleChat(w http.ResponseWriter, r *http.Request) {
 	h.proxyToChatCompletions(ctx, w, r, openAIReq, modelName, req.Stream == nil || *req.Stream)
 }
 
-func (h *HTTPHandler) configure(ctx context.Context, numCtxRaw, raw interface{}, modelName, userAgent string) {
+func (h *HTTPHandler) configure(ctx context.Context, numCtxRaw interface{}, modelName, userAgent string) {
 	if numCtx := convertToInt64(numCtxRaw); numCtx > 0 {
 		sanitizedNumCtx := utils.SanitizeForLog(fmt.Sprintf("%d", numCtx), -1)
 		sanitizedModelName := utils.SanitizeForLog(modelName, -1)
@@ -407,6 +397,32 @@ func (h *HTTPHandler) configure(ctx context.Context, numCtxRaw, raw interface{},
 			h.log.Warnf("handleChat: failed to configure context size for model %s: %v", sanitizedModelName, err)
 		}
 	}
+}
+
+// isZeroKeepAlive checks if the keep-alive duration string represents zero duration.
+// Returns true for "0", "0s", "0m", or empty string.
+func isZeroKeepAlive(keepAlive string) bool {
+	return keepAlive == "0" || keepAlive == "0s" || keepAlive == "0m" || keepAlive == ""
+}
+
+// configureContextSize extracts and applies the num_ctx option if present.
+// Returns 0 if options is nil or num_ctx is not present, otherwise returns the converted value.
+// Configuration is only applied if the value is positive (> 0).
+func (h *HTTPHandler) configureContextSize(ctx context.Context, options map[string]interface{}, modelName, userAgent string) int64 {
+	if options == nil {
+		return 0
+	}
+
+	numCtxRaw, ok := options["num_ctx"]
+	if !ok {
+		return 0
+	}
+
+	ctxSize := convertToInt64(numCtxRaw)
+	if ctxSize > 0 {
+		h.configure(ctx, ctxSize, modelName, userAgent)
+	}
+	return ctxSize
 }
 
 // handleGenerate handles POST /api/generate
@@ -426,26 +442,40 @@ func (h *HTTPHandler) handleGenerate(w http.ResponseWriter, r *http.Request) {
 		modelName = req.Model
 	}
 
-	// Normalize model name
-	modelName = models.NormalizeModelName(modelName)
-
-	// Check if keep_alive is 0 (unload model)
-	// Sanitize user input before logging to prevent log injection
-	sanitizedModelName := utils.SanitizeForLog(modelName, -1)
-	sanitizedKeepAlive := utils.SanitizeForLog(req.KeepAlive, -1)
-	h.log.Infof("handleGenerate: model=%s, keep_alive=%v", sanitizedModelName, sanitizedKeepAlive)
-	if req.KeepAlive == "0" || req.KeepAlive == "0s" || req.KeepAlive == "0m" {
-		h.log.Infof("handleGenerate: unloading model %s due to keep_alive=%s", sanitizedModelName, sanitizedKeepAlive)
+	if req.Prompt == "" && isZeroKeepAlive(req.KeepAlive) {
 		h.unloadModel(ctx, w, modelName)
 		return
 	}
 
-	// Handle num_ctx option for context size configuration
-	if req.Options != nil {
-		if numCtxRaw, ok := req.Options["num_ctx"]; ok {
-			h.configure(r.Context(), numCtxRaw, sanitizedModelName, modelName, r.UserAgent())
+	// Extract and configure context size if present (load model if needed)
+	ctxSize := h.configureContextSize(r.Context(), req.Options, modelName, r.UserAgent()+" (Ollama API)")
+
+	if req.Prompt == "" {
+		// Empty prompt - preload the model
+		// ConfigureRunner is idempotent, so calling it again with the same context size is safe
+		configureRequest := scheduling.ConfigureRequest{
+			Model:       modelName,
+			ContextSize: ctxSize, // Use extracted value (or 0 for default)
 		}
+
+		_, err := h.scheduler.ConfigureRunner(ctx, nil, configureRequest, r.UserAgent()+" (Ollama API)")
+		if err != nil {
+			sanitizedErr := utils.SanitizeForLog(err.Error(), -1)
+			sanitizedModelName := utils.SanitizeForLog(modelName, -1)
+			h.log.Warnf("handleGenerate: failed to preload model %s: %v", sanitizedModelName, sanitizedErr)
+			http.Error(w, fmt.Sprintf("Failed to preload model: %v", err), http.StatusInternalServerError)
+			return
+		}
+
+		// Return success response in Ollama format (empty JSON object)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("{}"))
+		return
 	}
+
+	// Normalize model name
+	modelName = models.NormalizeModelName(modelName)
 
 	// Convert to OpenAI format completion request
 	openAIReq := map[string]interface{}{
@@ -694,10 +724,41 @@ func (h *HTTPHandler) mapOllamaOptionsToOpenAI(ollamaOpts map[string]interface{}
 func convertMessages(messages []Message) []map[string]interface{} {
 	result := make([]map[string]interface{}, len(messages))
 	for i, msg := range messages {
-		result[i] = map[string]interface{}{
+		openAIMsg := map[string]interface{}{
 			"role":    msg.Role,
 			"content": msg.Content,
 		}
+
+		// Add tool calls if present (for assistant messages)
+		if len(msg.ToolCalls) > 0 {
+			// Ensure type field is set and arguments are JSON strings for OpenAI compatibility
+			toolCalls := make([]ToolCall, len(msg.ToolCalls))
+			for i, tc := range msg.ToolCalls {
+				toolCalls[i] = tc
+				if toolCalls[i].Type == "" {
+					toolCalls[i].Type = "function"
+				}
+				// Convert arguments to JSON string if it's an object
+				if argsObj, ok := tc.Function.Arguments.(map[string]interface{}); ok {
+					if argsJSON, err := json.Marshal(argsObj); err == nil {
+						toolCalls[i].Function.Arguments = string(argsJSON)
+					}
+				}
+			}
+			openAIMsg["tool_calls"] = toolCalls
+		}
+
+		// Add tool_call_id if present (for tool result messages)
+		if msg.ToolCallID != "" {
+			openAIMsg["tool_call_id"] = msg.ToolCallID
+		}
+
+		// Add images if present (for multimodal support)
+		if len(msg.Images) > 0 {
+			openAIMsg["images"] = msg.Images
+		}
+
+		result[i] = openAIMsg
 	}
 	return result
 }
@@ -906,21 +967,31 @@ func (s *streamingChatResponseWriter) Write(data []byte) (int, error) {
 			continue
 		}
 
-		// Extract content from structured response
+		// Extract content and tool calls from structured response
 		var content string
+		var toolCalls []ToolCall
 		if len(chunk.Choices) > 0 {
 			content = chunk.Choices[0].Delta.Content
+			if len(chunk.Choices[0].Delta.ToolCalls) > 0 {
+				// Convert tool calls to Ollama format
+				toolCalls = convertToolCallsToOllamaFormat(chunk.Choices[0].Delta.ToolCalls)
+			}
 		}
 
 		// Build Ollama chunk
+		message := Message{
+			Role:    "assistant",
+			Content: content,
+		}
+		if len(toolCalls) > 0 {
+			message.ToolCalls = toolCalls
+		}
+
 		ollamaChunk := ChatResponse{
 			Model:     s.modelName,
 			CreatedAt: time.Now(),
-			Message: Message{
-				Role:    "assistant",
-				Content: content,
-			},
-			Done: false,
+			Message:   message,
+			Done:      false,
 		}
 
 		if jsonData, err := json.Marshal(ollamaChunk); err == nil {
@@ -1070,27 +1141,58 @@ func (h *HTTPHandler) convertChatResponse(w http.ResponseWriter, respRecorder *r
 		return
 	}
 
-	// Extract the message content from structured response
-	var content string
+	// Extract the message from structured response
+	var message Message
 	if len(openAIResp.Choices) > 0 {
-		content = openAIResp.Choices[0].Message.Content
+		message.Role = "assistant"
+		message.Content = openAIResp.Choices[0].Message.Content
+		// Include tool calls if present
+		if len(openAIResp.Choices[0].Message.ToolCalls) > 0 {
+			message.ToolCalls = convertToolCallsToOllamaFormat(openAIResp.Choices[0].Message.ToolCalls)
+		}
 	}
 
 	// Build Ollama response
 	response := ChatResponse{
 		Model:     modelName,
 		CreatedAt: time.Now(),
-		Message: Message{
-			Role:    "assistant",
-			Content: content,
-		},
-		Done: true,
+		Message:   message,
+		Done:      true,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		h.log.Errorf("Failed to encode response: %v", err)
 	}
+}
+
+// convertToolCallsToOllamaFormat converts tool calls from OpenAI format to Ollama format
+// This parses the arguments from JSON string to object and adds index field
+func convertToolCallsToOllamaFormat(toolCalls []ToolCall) []ToolCall {
+	if len(toolCalls) == 0 {
+		return toolCalls
+	}
+
+	converted := make([]ToolCall, len(toolCalls))
+	for i, tc := range toolCalls {
+		converted[i] = tc
+		// Remove type field for Ollama compatibility (it will be omitted in JSON if empty)
+		converted[i].Type = ""
+
+		// Parse arguments from JSON string to object for Ollama compatibility
+		if argsStr, ok := tc.Function.Arguments.(string); ok && argsStr != "" {
+			var argsObj map[string]interface{}
+			if err := json.Unmarshal([]byte(argsStr), &argsObj); err == nil {
+				converted[i].Function.Arguments = argsObj
+			}
+		}
+
+		// Add index field
+		index := i
+		converted[i].Function.Index = &index
+	}
+
+	return converted
 }
 
 // convertGenerateResponse converts OpenAI chat completion response to Ollama generate format
