@@ -15,18 +15,14 @@ if (MINGW)
     add_compile_definitions(_WIN32_WINNT=${GGML_WIN_VER})
 endif()
 
-set(TARGET_SRCS
-    server.cpp
-    utils.hpp
-    httplib.h
-)
+file(GLOB TARGET_SRCS "*.cpp")
 
 add_executable(${TARGET} ${TARGET_SRCS})
 install(TARGETS ${TARGET} RUNTIME)
 
 target_include_directories(${TARGET} PRIVATE ../../vendor/llama.cpp/tools/mtmd)
 target_include_directories(${TARGET} PRIVATE ${CMAKE_SOURCE_DIR})
-target_link_libraries(${TARGET} PRIVATE common mtmd ${CMAKE_THREAD_LIBS_INIT})
+target_link_libraries(${TARGET} PRIVATE common mtmd ${CMAKE_THREAD_LIBS_INIT} cpp-httplib)
 
 if (WIN32)
     TARGET_LINK_LIBRARIES(${TARGET} PRIVATE ws2_32)

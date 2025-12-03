@@ -1,16 +1,18 @@
 LLAMA_SERVER_DIR = ../../vendor/llama.cpp/tools/server/
+SERVER_FILES = server-common server-context server-http server-models server-queue server-task server
+HEADERS = $(addsuffix .h, $(filter-out server, $(SERVER_FILES)))
+SOURCES = $(addsuffix .cpp, $(SERVER_FILES))
 
 .PHONY: clean all
 
-all: utils.hpp server.cpp
+all: $(HEADERS) $(SOURCES)
 
-utils.hpp: $(LLAMA_SERVER_DIR)/utils.hpp
-	cp $(LLAMA_SERVER_DIR)/utils.hpp .
+%.h: $(LLAMA_SERVER_DIR)/%.h
+	cp $< $@
 
-server.cpp: $(LLAMA_SERVER_DIR)/server.cpp
-	cp $(LLAMA_SERVER_DIR)/server.cpp .
-	patch server.cpp < server.patch
+%.cpp: $(LLAMA_SERVER_DIR)/%.cpp
+	cp $< $@
+	@if [ "$@" = "server-http.cpp" ]; then patch $@ < server-http.patch; fi
 
 clean:
-	rm *.cpp
-	rm *.hpp
+	rm -f $(HEADERS) $(SOURCES)
