@@ -120,8 +120,21 @@ func (s *Scheduler) routeHandlers() map[string]http.HandlerFunc {
 		"POST " + inference.InferencePrefix + "/{backend}/score",
 		"POST " + inference.InferencePrefix + "/score",
 	}
+
+	// Anthropic Messages API routes
+	anthropicRoutes := []string{
+		"POST " + inference.InferencePrefix + "/{backend}/v1/messages",
+		"POST " + inference.InferencePrefix + "/v1/messages",
+		"POST " + inference.InferencePrefix + "/{backend}/v1/messages/count_tokens",
+		"POST " + inference.InferencePrefix + "/v1/messages/count_tokens",
+	}
+
 	m := make(map[string]http.HandlerFunc)
 	for _, route := range openAIRoutes {
+		m[route] = s.handleOpenAIInference
+	}
+	// Anthropic routes use the same inference handler - llama.cpp handles the format conversion
+	for _, route := range anthropicRoutes {
 		m[route] = s.handleOpenAIInference
 	}
 
