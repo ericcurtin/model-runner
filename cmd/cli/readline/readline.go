@@ -209,6 +209,18 @@ func (i *Instance) Readline() (string, error) {
 			buf.ClearScreen()
 		case CharCtrlW:
 			buf.DeleteWord()
+		case CharCtrlX:
+			fd := os.Stdin.Fd()
+			content, err := OpenInEditor(fd, i.Terminal.termios, buf.String())
+			if err != nil {
+				// If editor fails, just continue with existing content
+				fmt.Print(ClearScreen + CursorReset + i.Prompt.prompt())
+				buf.ClearScreen()
+			} else {
+				// Replace buffer with edited content
+				fmt.Print(ClearScreen + CursorReset + i.Prompt.prompt())
+				buf.Replace([]rune(content))
+			}
 		case CharCtrlZ:
 			fd := os.Stdin.Fd()
 			return handleCharCtrlZ(fd, i.Terminal.termios)
