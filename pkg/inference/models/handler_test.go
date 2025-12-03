@@ -183,8 +183,10 @@ func TestPullSafetensorsModel(t *testing.T) {
 	}
 
 	safetensorsPath := filepath.Join(safetensorsDir, "model.safetensors")
-	// Create a minimal safetensors-like file (just for testing the flow)
-	if err := os.WriteFile(safetensorsPath, []byte("fake safetensors content for testing"), 0644); err != nil {
+	// Create a minimal safetensors-like file (just for testing the flow).
+	// This is NOT a valid safetensors binary format - it's a placeholder for testing.
+	testContent := []byte("# Test safetensors file - not a real model\n# Used only for testing the pull flow")
+	if err := os.WriteFile(safetensorsPath, testContent, 0644); err != nil {
 		t.Fatalf("Failed to create safetensors file: %v", err)
 	}
 
@@ -194,9 +196,12 @@ func TestPullSafetensorsModel(t *testing.T) {
 		t.Fatalf("Failed to create safetensors model builder: %v", err)
 	}
 
-	// The tag simulates a HuggingFace-style model name after normalization
-	// e.g., "hf.co/meta-llama/Llama-3.1-8B-Instruct" -> "huggingface.co/meta-llama/llama-3.1-8b-instruct:latest"
-	tag := uri.Host + "/meta-llama/llama-3.1-8b-instruct:latest"
+	// Use NormalizeModelName to generate the normalized tag from a HuggingFace-style model name
+	// This ensures consistency with the actual normalization logic used in the codebase
+	hfModelName := "hf.co/meta-llama/Llama-3.1-8B-Instruct"
+	normalizedName := NormalizeModelName(hfModelName)
+	// Replace the huggingface.co registry with our test registry
+	tag := uri.Host + strings.TrimPrefix(normalizedName, "huggingface.co")
 	client := reg.NewClient()
 	target, err := client.NewTarget(tag)
 	if err != nil {
