@@ -1,5 +1,7 @@
 # Native llama-server
 
+This project builds the vanilla llama.cpp server and renames it to `com.docker.llama-server` for use with Docker model-runner.
+
 ## Building
 
     cmake -B build
@@ -15,7 +17,7 @@
 
 This project uses llama.cpp as a git submodule located at `vendor/llama.cpp`, which points to the official llama.cpp repository at https://github.com/ggml-org/llama.cpp.git.
 
-The project applies custom patches to llama.cpp's server implementation (`server.cpp` and `utils.hpp`) to integrate with the Docker model-runner architecture. These patches are maintained in `src/server/server.patch`.
+We use the vanilla llama.cpp server without any modifications. The build system simply builds the upstream `llama-server` and copies it to `com.docker.llama-server`.
 
 ### Prerequisites
 
@@ -45,19 +47,7 @@ If the submodule is already initialized, this command is safe to run and will en
    popd
    ```
 
-3. **Apply the custom llama-server patch:**
-
-   ```bash
-   make -C src/server clean
-   make -C src/server
-   ```
-
-   This will:
-   - Clean the previous patched files
-   - Copy the new `server.cpp` and `utils.hpp` from the updated llama.cpp
-   - Apply our custom patches from `src/server/server.patch`
-
-4. **Build and test:**
+3. **Build and test:**
 
    ```bash
    # Build from the native directory   
@@ -70,7 +60,7 @@ If the submodule is already initialized, this command is safe to run and will en
 
    Make sure everything builds cleanly without errors.
 
-5. **Commit the submodule update:**
+4. **Commit the submodule update:**
 
    ```bash
    git add vendor/llama.cpp
