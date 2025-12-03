@@ -134,6 +134,7 @@ func (h *Handler) proxyToBackend(w http.ResponseWriter, r *http.Request, targetP
 	newReq.Body = io.NopCloser(bytes.NewReader(body))
 	newReq.ContentLength = int64(len(body))
 	newReq.Header.Set("Content-Type", "application/json")
+	newReq.Header.Set(inference.RequestOriginHeader, inference.OriginAnthropicMessages)
 
 	// Forward to the scheduler
 	h.scheduler.ServeHTTP(w, newReq)
