@@ -14,6 +14,7 @@ import (
 	"github.com/containerd/errdefs"
 	"github.com/docker/cli/cli/command"
 	"github.com/docker/cli/cli/context/docker"
+	"github.com/docker/docker/api/types/container"
 	clientpkg "github.com/docker/docker/client"
 	"github.com/docker/model-runner/cmd/cli/pkg/standalone"
 	"github.com/docker/model-runner/cmd/cli/pkg/types"
@@ -163,7 +164,7 @@ func wakeUpCloudIfIdle(ctx context.Context, cli *command.DockerCli) error {
 	// The call is expected to fail with a client error due to nil arguments, but it triggers
 	// Docker Cloud to wake up from idle. Only return unexpected failures (network issues,
 	// server errors) so they're logged as warnings.
-	_, err = dockerClient.ContainerCreate(ctx, nil, nil, nil, nil, "")
+	_, err = dockerClient.ContainerCreate(ctx, &container.Config{}, nil, nil, nil, "")
 	if err != nil && !errdefs.IsInvalidArgument(err) {
 		return fmt.Errorf("failed to wake up Docker Cloud: %w", err)
 	}
