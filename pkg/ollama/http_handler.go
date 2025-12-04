@@ -18,6 +18,25 @@ import (
 	"github.com/docker/model-runner/pkg/middleware"
 )
 
+// Reasoning budget constants for the think parameter conversion
+const (
+	// reasoningBudgetUnlimited represents unlimited reasoning tokens (-1 for llama.cpp)
+	reasoningBudgetUnlimited int64 = -1
+	// reasoningBudgetDisabled disables reasoning (0 tokens)
+	reasoningBudgetDisabled int64 = 0
+	// reasoningBudgetMedium represents a medium reasoning budget (1024 tokens)
+	reasoningBudgetMedium int64 = 1024
+	// reasoningBudgetLow represents a low reasoning budget (256 tokens)
+	reasoningBudgetLow int64 = 256
+)
+
+// Reasoning level string constants for the think parameter
+const (
+	reasoningLevelHigh   = "high"
+	reasoningLevelMedium = "medium"
+	reasoningLevelLow    = "low"
+)
+
 // HTTPHandler implements the Ollama API compatibility layer
 type HTTPHandler struct {
 	log           logging.Logger
@@ -412,8 +431,9 @@ func (h *HTTPHandler) configureModel(ctx context.Context, modelName string, opti
 		} else {
 			budgetStr = "nil"
 		}
-		h.log.Infof("configureModel: configuring model %s (context_size=%d, has_context_size=%t, reasoning_budget=%s)",
-			sanitizedModelName, contextSize, hasContextSize, budgetStr)
+		sanitizedContextSize := utils.SanitizeForLog(fmt.Sprintf("%d", contextSize), -1)
+		h.log.Infof("configureModel: configuring model %s (context_size=%s, has_context_size=%t, reasoning_budget=%s)",
+			sanitizedModelName, sanitizedContextSize, hasContextSize, budgetStr)
 
 		configureRequest := scheduling.ConfigureRequest{
 			Model:           modelName,
@@ -793,17 +813,17 @@ func convertThinkToReasoningBudget(think interface{}) *int64 {
 	switch v := think.(type) {
 	case bool:
 		if v {
-			return ptr(-1) // Unlimited reasoning
+			return ptr(reasoningBudgetUnlimited)
 		}
-		return ptr(0) // Disable reasoning
+		return ptr(reasoningBudgetDisabled)
 	case string:
 		switch strings.ToLower(v) {
-		case "high":
-			return ptr(-1) // Unlimited reasoning
-		case "medium":
-			return ptr(1024) // Medium budget (1024 tokens)
-		case "low":
-			return ptr(256) // Low budget (256 tokens)
+		case reasoningLevelHigh:
+			return ptr(reasoningBudgetUnlimited)
+		case reasoningLevelMedium:
+			return ptr(reasoningBudgetMedium)
+		case reasoningLevelLow:
+			return ptr(reasoningBudgetLow)
 		default:
 			return nil // Invalid string value
 		}
