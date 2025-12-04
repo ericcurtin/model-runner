@@ -67,6 +67,10 @@ func (c *Config) GetArgs(bundle types.ModelBundle, socket string, mode inference
 		return nil, fmt.Errorf("unsupported backend mode %q", mode)
 	}
 
+	if budget := GetReasoningBudget(config); budget != nil {
+		args = append(args, "--reasoning-budget", strconv.FormatInt(*budget, 10))
+	}
+
 	// Add context size from model config or backend config
 	args = append(args, "--ctx-size", strconv.FormatUint(GetContextSize(bundle.RuntimeConfig(), config), 10))
 
@@ -96,6 +100,13 @@ func GetContextSize(modelCfg types.Config, backendCfg *inference.BackendConfigur
 	}
 	// finally return default
 	return 4096 // llama.cpp default
+}
+
+func GetReasoningBudget(backendCfg *inference.BackendConfiguration) *int64 {
+	if backendCfg != nil && backendCfg.ReasoningBudget != nil {
+		return backendCfg.ReasoningBudget
+	}
+	return nil
 }
 
 // containsArg checks if the given argument is already in the args slice.

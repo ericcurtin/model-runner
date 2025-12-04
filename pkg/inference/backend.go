@@ -47,9 +47,10 @@ type SpeculativeDecodingConfig struct {
 }
 
 type BackendConfiguration struct {
-	ContextSize  int64                      `json:"context-size,omitempty"`
-	RuntimeFlags []string                   `json:"runtime-flags,omitempty"`
-	Speculative  *SpeculativeDecodingConfig `json:"speculative,omitempty"`
+	ContextSize     int64                      `json:"context-size,omitempty"`
+	RuntimeFlags    []string                   `json:"runtime-flags,omitempty"`
+	Speculative     *SpeculativeDecodingConfig `json:"speculative,omitempty"`
+	ReasoningBudget *int64                     `json:"reasoning-budget,omitempty"`
 }
 
 type RequiredMemory struct {

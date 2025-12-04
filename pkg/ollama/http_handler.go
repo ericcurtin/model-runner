@@ -360,6 +360,9 @@ func (h *HTTPHandler) handleChat(w http.ResponseWriter, r *http.Request) {
 		modelName = req.Model
 	}
 
+	// Configure model
+	h.configureModel(ctx, modelName, req.Options, req.Think, r.UserAgent()+" (Ollama API)")
+
 	// Convert to OpenAI format chat completion request
 	openAIReq := map[string]interface{}{
 		"model":    modelName,
@@ -372,9 +375,8 @@ func (h *HTTPHandler) handleChat(w http.ResponseWriter, r *http.Request) {
 		openAIReq["tools"] = req.Tools
 	}
 
+	// Map Ollama options to OpenAI format
 	if req.Options != nil {
-		// Handle num_ctx option for context size configuration
-		h.configureContextSize(r.Context(), req.Options, modelName, r.UserAgent()+" (Ollama API)")
 		h.mapOllamaOptionsToOpenAI(req.Options, openAIReq)
 	}
 
@@ -382,47 +384,59 @@ func (h *HTTPHandler) handleChat(w http.ResponseWriter, r *http.Request) {
 	h.proxyToChatCompletions(ctx, w, r, openAIReq, modelName, req.Stream == nil || *req.Stream)
 }
 
-func (h *HTTPHandler) configure(ctx context.Context, numCtxRaw interface{}, modelName, userAgent string) {
-	if numCtx := convertToInt64(numCtxRaw); numCtx > 0 {
-		sanitizedNumCtx := utils.SanitizeForLog(fmt.Sprintf("%d", numCtx), -1)
-		sanitizedModelName := utils.SanitizeForLog(modelName, -1)
-		h.log.Infof("handleChat: configuring context size %s for model %s", sanitizedNumCtx, sanitizedModelName)
-		configureRequest := scheduling.ConfigureRequest{
-			Model:       modelName,
-			ContextSize: numCtx,
-		}
-		_, err := h.scheduler.ConfigureRunner(ctx, nil, configureRequest, userAgent+" (Ollama API)")
-		if err != nil {
-			// Log the error but continue with the request
-			h.log.Warnf("handleChat: failed to configure context size for model %s: %v", sanitizedModelName, err)
+// configureModel extracts and applies model configuration options.
+// Handles num_ctx from options and think parameter for reasoning budget.
+// Returns the context size for use in preloading scenarios.
+func (h *HTTPHandler) configureModel(ctx context.Context, modelName string, options map[string]interface{}, think interface{}, userAgent string) int64 {
+	var contextSize int64
+	var hasContextSize bool
+
+	// Extract context size from options
+	if options != nil {
+		if numCtxRaw, ok := options["num_ctx"]; ok {
+			contextSize = convertToInt64(numCtxRaw)
+			hasContextSize = true
 		}
 	}
+
+	// Convert think parameter to --reasoning-budget flag (returns nil if not specified)
+	reasoningBudget := convertThinkToReasoningBudget(think)
+
+	// Only call ConfigureRunner if we have something to configure
+	if hasContextSize || reasoningBudget != nil {
+		sanitizedModelName := utils.SanitizeForLog(modelName, -1)
+		// Build reasoning budget string for logging (show "nil" when not specified)
+		var budgetStr string
+		if reasoningBudget != nil {
+			budgetStr = fmt.Sprintf("%d", *reasoningBudget)
+		} else {
+			budgetStr = "nil"
+		}
+		h.log.Infof("configureModel: configuring model %s (context_size=%d, has_context_size=%t, reasoning_budget=%s)",
+			sanitizedModelName, contextSize, hasContextSize, budgetStr)
+
+		configureRequest := scheduling.ConfigureRequest{
+			Model:           modelName,
+			ReasoningBudget: reasoningBudget,
+		}
+		// Only include ContextSize if explicitly defined
+		if hasContextSize {
+			configureRequest.ContextSize = contextSize
+		}
+		_, err := h.scheduler.ConfigureRunner(ctx, nil, configureRequest, userAgent)
+		if err != nil {
+			// Log the error but continue with the request
+			h.log.Warnf("configureModel: failed to configure model %s: %v", sanitizedModelName, err)
+		}
+	}
+
+	return contextSize
 }
 
 // isZeroKeepAlive checks if the keep-alive duration string represents zero duration.
 // Returns true for "0", "0s", "0m", or empty string.
 func isZeroKeepAlive(keepAlive string) bool {
 	return keepAlive == "0" || keepAlive == "0s" || keepAlive == "0m" || keepAlive == ""
-}
-
-// configureContextSize extracts and applies the num_ctx option if present.
-// Returns 0 if options is nil or num_ctx is not present, otherwise returns the converted value.
-// Configuration is only applied if the value is positive (> 0).
-func (h *HTTPHandler) configureContextSize(ctx context.Context, options map[string]interface{}, modelName, userAgent string) int64 {
-	if options == nil {
-		return 0
-	}
-
-	numCtxRaw, ok := options["num_ctx"]
-	if !ok {
-		return 0
-	}
-
-	ctxSize := convertToInt64(numCtxRaw)
-	if ctxSize > 0 {
-		h.configure(ctx, ctxSize, modelName, userAgent)
-	}
-	return ctxSize
 }
 
 // handleGenerate handles POST /api/generate
@@ -447,8 +461,8 @@ func (h *HTTPHandler) handleGenerate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Extract and configure context size if present (load model if needed)
-	ctxSize := h.configureContextSize(r.Context(), req.Options, modelName, r.UserAgent()+" (Ollama API)")
+	// Configure model
+	ctxSize := h.configureModel(ctx, modelName, req.Options, req.Think, r.UserAgent()+" (Ollama API)")
 
 	if req.Prompt == "" {
 		// Empty prompt - preload the model
@@ -761,6 +775,41 @@ func convertMessages(messages []Message) []map[string]interface{} {
 		result[i] = openAIMsg
 	}
 	return result
+}
+
+// convertThinkToReasoningBudget converts the Ollama 'think' parameter to llama.cpp's 'reasoning_budget'.
+// The think parameter can be:
+// - bool: true (unlimited reasoning, -1) or false (no reasoning, 0)
+// - string: "high" (-1, unlimited), "medium" (1024 tokens), "low" (256 tokens)
+// Returns nil if think is nil or invalid, otherwise returns a pointer to the reasoning_budget value.
+func convertThinkToReasoningBudget(think interface{}) *int64 {
+	if think == nil {
+		return nil
+	}
+
+	// Helper to create a pointer to an int64 value
+	ptr := func(v int64) *int64 { return &v }
+
+	switch v := think.(type) {
+	case bool:
+		if v {
+			return ptr(-1) // Unlimited reasoning
+		}
+		return ptr(0) // Disable reasoning
+	case string:
+		switch strings.ToLower(v) {
+		case "high":
+			return ptr(-1) // Unlimited reasoning
+		case "medium":
+			return ptr(1024) // Medium budget (1024 tokens)
+		case "low":
+			return ptr(256) // Low budget (256 tokens)
+		default:
+			return nil // Invalid string value
+		}
+	default:
+		return nil // Invalid type
+	}
 }
 
 // convertToInt64 converts various numeric types to int64
@@ -1084,10 +1133,12 @@ func (s *streamingGenerateResponseWriter) Write(data []byte) (int, error) {
 			continue
 		}
 
-		// Extract content from structured response
+		// Extract content and reasoning_content from structured response
 		var content string
+		var thinking string
 		if len(chunk.Choices) > 0 {
 			content = chunk.Choices[0].Delta.Content
+			thinking = chunk.Choices[0].Delta.ReasoningContent
 		}
 
 		// Build Ollama generate chunk
@@ -1095,6 +1146,7 @@ func (s *streamingGenerateResponseWriter) Write(data []byte) (int, error) {
 			Model:     s.modelName,
 			CreatedAt: time.Now(),
 			Response:  content,
+			Thinking:  thinking,
 			Done:      false,
 		}
 
@@ -1224,10 +1276,12 @@ func (h *HTTPHandler) convertGenerateResponse(w http.ResponseWriter, respRecorde
 		return
 	}
 
-	// Extract the message content from structured response
+	// Extract the message content and reasoning content from structured response
 	var content string
+	var thinking string
 	if len(openAIResp.Choices) > 0 {
 		content = openAIResp.Choices[0].Message.Content
+		thinking = openAIResp.Choices[0].Message.ReasoningContent
 	}
 
 	// Build Ollama generate response
@@ -1235,6 +1289,7 @@ func (h *HTTPHandler) convertGenerateResponse(w http.ResponseWriter, respRecorde
 		Model:     modelName,
 		CreatedAt: time.Now(),
 		Response:  content,
+		Thinking:  thinking,
 		Done:      true,
 	}
 

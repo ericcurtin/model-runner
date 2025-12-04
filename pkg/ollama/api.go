@@ -54,6 +54,7 @@ type ChatRequest struct {
 	Messages  []Message              `json:"messages"`
 	Tools     []Tool                 `json:"tools,omitempty"` // Function calling tools
 	Stream    *bool                  `json:"stream,omitempty"`
+	Think     interface{}            `json:"think,omitempty"`      // Can be bool or string ("high", "medium", "low") for reasoning/thinking models
 	KeepAlive string                 `json:"keep_alive,omitempty"` // Duration like "5m" or "0s" to unload immediately
 	Options   map[string]interface{} `json:"options,omitempty"`
 }
@@ -109,6 +110,7 @@ type GenerateRequest struct {
 	Model     string                 `json:"model"` // Also accept 'model' for compatibility
 	Prompt    string                 `json:"prompt"`
 	Stream    *bool                  `json:"stream,omitempty"`
+	Think     interface{}            `json:"think,omitempty"`      // Can be bool or string ("high", "medium", "low") for reasoning/thinking models
 	KeepAlive string                 `json:"keep_alive,omitempty"` // Duration like "5m" or "0s" to unload immediately
 	Options   map[string]interface{} `json:"options,omitempty"`
 }
@@ -118,6 +120,7 @@ type GenerateResponse struct {
 	Model     string    `json:"model"`
 	CreatedAt time.Time `json:"created_at"`
 	Response  string    `json:"response,omitempty"`
+	Thinking  string    `json:"thinking,omitempty"` // The model's generated thinking output
 	Done      bool      `json:"done"`
 }
 
@@ -174,8 +177,9 @@ type ollamaPullStatus struct {
 type openAIChatResponse struct {
 	Choices []struct {
 		Message struct {
-			Content   string     `json:"content"`
-			ToolCalls []ToolCall `json:"tool_calls,omitempty"`
+			Content          string     `json:"content"`
+			ReasoningContent string     `json:"reasoning_content,omitempty"`
+			ToolCalls        []ToolCall `json:"tool_calls,omitempty"`
 		} `json:"message"`
 	} `json:"choices"`
 }
@@ -184,8 +188,9 @@ type openAIChatResponse struct {
 type openAIChatStreamChunk struct {
 	Choices []struct {
 		Delta struct {
-			Content   string     `json:"content"`
-			ToolCalls []ToolCall `json:"tool_calls,omitempty"`
+			Content          string     `json:"content"`
+			ReasoningContent string     `json:"reasoning_content,omitempty"`
+			ToolCalls        []ToolCall `json:"tool_calls,omitempty"`
 		} `json:"delta"`
 	} `json:"choices"`
 }
