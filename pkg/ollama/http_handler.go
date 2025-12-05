@@ -436,12 +436,17 @@ func (h *HTTPHandler) configureModel(ctx context.Context, modelName string, opti
 			sanitizedModelName, sanitizedContextSize, hasContextSize, budgetStr)
 
 		configureRequest := scheduling.ConfigureRequest{
-			Model:           modelName,
-			ReasoningBudget: reasoningBudget,
+			Model: modelName,
 		}
 		// Only include ContextSize if explicitly defined
 		if hasContextSize {
 			configureRequest.ContextSize = contextSize
+		}
+		// Set llama.cpp-specific reasoning budget if provided
+		if reasoningBudget != nil {
+			configureRequest.LlamaCpp = &inference.LlamaCppConfig{
+				ReasoningBudget: reasoningBudget,
+			}
 		}
 		_, err := h.scheduler.ConfigureRunner(ctx, nil, configureRequest, userAgent)
 		if err != nil {
@@ -488,8 +493,10 @@ func (h *HTTPHandler) handleGenerate(w http.ResponseWriter, r *http.Request) {
 		// Empty prompt - preload the model
 		// ConfigureRunner is idempotent, so calling it again with the same context size is safe
 		configureRequest := scheduling.ConfigureRequest{
-			Model:       modelName,
-			ContextSize: ctxSize, // Use extracted value (or 0 for default)
+			Model: modelName,
+			BackendConfiguration: inference.BackendConfiguration{
+				ContextSize: ctxSize, // Use extracted value (or 0 for default)
+			},
 		}
 
 		_, err := h.scheduler.ConfigureRunner(ctx, nil, configureRequest, r.UserAgent()+" (Ollama API)")
