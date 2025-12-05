@@ -374,7 +374,7 @@ func printBenchmarkSummary(cmd *cobra.Command, allStats []benchStats) {
 
 func formatDuration(d time.Duration) string {
 	if d < time.Millisecond {
-		return fmt.Sprintf("%.2fµs", float64(d.Microseconds()))
+		return fmt.Sprintf("%.2fµs", float64(d.Nanoseconds())/1e3)
 	}
 	if d < time.Second {
 		return fmt.Sprintf("%.2fms", float64(d.Nanoseconds())/1e6)
