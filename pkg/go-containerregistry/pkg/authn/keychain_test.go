@@ -463,3 +463,77 @@ func TestRefreshingAuth(t *testing.T) {
 		t.Errorf("refreshed %d times, wanted %d", got, want)
 	}
 }
+
+func TestHuggingFaceToken(t *testing.T) {
+	tests := []struct {
+		desc     string
+		registry string
+		token    string
+		wantAuth bool
+	}{
+		{
+			desc:     "hf.co with HF_TOKEN",
+			registry: "hf.co",
+			token:    "hf_test_token_123",
+			wantAuth: true,
+		},
+		{
+			desc:     "huggingface.co with HF_TOKEN",
+			registry: "huggingface.co",
+			token:    "hf_test_token_456",
+			wantAuth: true,
+		},
+		{
+			desc:     "hf.co without HF_TOKEN",
+			registry: "hf.co",
+			token:    "",
+			wantAuth: false,
+		},
+		{
+			desc:     "other registry with HF_TOKEN",
+			registry: "docker.io",
+			token:    "hf_test_token_789",
+			wantAuth: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			// Setup: create a temporary config directory to ensure no auth is loaded from files
+			setupConfigDir(t)
+
+			// Set HF_TOKEN using t.Setenv (empty string to unset)
+			t.Setenv("HF_TOKEN", test.token)
+
+			// Parse the registry
+			reg, err := name.NewRegistry(test.registry, name.WeakValidation)
+			if err != nil {
+				t.Fatalf("NewRegistry(%q): %v", test.registry, err)
+			}
+
+			// Resolve authentication
+			auth, err := DefaultKeychain.Resolve(reg)
+			if err != nil {
+				t.Fatalf("Resolve(%q): %v", test.registry, err)
+			}
+
+			// Check if authentication was provided
+			cfg, err := auth.Authorization()
+			if err != nil {
+				t.Fatalf("Authorization: %v", err)
+			}
+
+			if test.wantAuth {
+				// Should have RegistryToken set to the HF_TOKEN value
+				if cfg.RegistryToken != test.token {
+					t.Errorf("RegistryToken: got %q, want %q", cfg.RegistryToken, test.token)
+				}
+			} else {
+				// Should be anonymous (empty auth config)
+				if cfg.RegistryToken != "" || cfg.Username != "" || cfg.Password != "" {
+					t.Errorf("Expected anonymous auth, got %+v", cfg)
+				}
+			}
+		})
+	}
+}

@@ -88,6 +88,19 @@ func (dk *defaultKeychain) ResolveContext(_ context.Context, target Resource) (A
 	dk.mu.Lock()
 	defer dk.mu.Unlock()
 
+	// Check for HuggingFace token environment variable for HuggingFace registries
+	// HuggingFace uses Bearer token authentication via HF_TOKEN
+	registryStr := target.RegistryStr()
+	if registryStr == "hf.co" || registryStr == "huggingface.co" {
+		if hfToken := os.Getenv("HF_TOKEN"); hfToken != "" {
+			// HuggingFace uses Bearer token authentication
+			// We use the RegistryToken field which is meant for bearer tokens
+			return FromConfig(AuthConfig{
+				RegistryToken: hfToken,
+			}), nil
+		}
+	}
+
 	// Podman users may have their container registry auth configured in a
 	// different location, that Docker packages aren't aware of.
 	// If the Docker config file isn't found, we'll fallback to look where

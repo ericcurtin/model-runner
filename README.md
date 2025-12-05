@@ -388,6 +388,33 @@ NIM containers:
 - Mount `~/.cache/nim` for model caching
 - Support NVIDIA GPU acceleration when available
 
+## Authentication for HuggingFace Models
+
+When pulling models from HuggingFace (hf.co or huggingface.co), you can authenticate using the `HF_TOKEN` environment variable to avoid rate limiting issues. This is particularly useful for:
+
+- Avoiding 429 "Too Many Requests" errors
+- Accessing private or gated models
+- Increasing your download rate limit
+
+### Usage
+
+Set the `HF_TOKEN` environment variable before pulling models:
+
+```bash
+# Set your HuggingFace token
+export HF_TOKEN=hf_your_token_here
+
+# Pull a model from HuggingFace
+docker model pull hf.co/username/model-name
+```
+
+You can obtain a HuggingFace token by:
+1. Creating an account at https://huggingface.co
+2. Going to Settings → Access Tokens
+3. Creating a new token with read permissions
+
+The token will be automatically used as a Bearer token when making requests to HuggingFace registries.
+
 ## Metrics
 
 The Model Runner exposes [the metrics endpoint](https://github.com/ggml-org/llama.cpp/tree/master/tools/server#get-metrics-prometheus-compatible-metrics-exporter) of llama.cpp server at the `/metrics` endpoint. This allows you to monitor model performance, request statistics, and resource usage.
