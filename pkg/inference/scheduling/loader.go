@@ -276,6 +276,7 @@ func (l *loader) evict(idleOnly bool) int {
 // It returns the number of remaining runners.
 func (l *loader) evictRunner(backend, model string, mode inference.BackendMode) int {
 	allBackends := backend == ""
+	found := false
 	for r, runnerInfo := range l.runners {
 		unused := l.references[runnerInfo.slot] == 0
 		if unused && (allBackends || r.backend == backend) && r.modelID == model && r.mode == mode {
@@ -283,7 +284,11 @@ func (l *loader) evictRunner(backend, model string, mode inference.BackendMode) 
 				r.backend, r.modelID, runnerInfo.modelRef, r.mode,
 			)
 			l.freeRunnerSlot(runnerInfo.slot, r)
+			found = true
 		}
+	}
+	if !found {
+		l.log.Warnf("No unused runner found for backend=%s, model=%s, mode=%s", backend, model, mode)
 	}
 	return len(l.runners)
 }
@@ -308,10 +313,11 @@ func (l *loader) Unload(ctx context.Context, unload UnloadRequest) int {
 						delete(l.runnerConfigs, key)
 					}
 				}
-				// Evict both, completion and embedding models. We should consider
+				// Evict all mode types. We should consider
 				// accepting a mode parameter in unload requests.
 				l.evictRunner(unload.Backend, modelID, inference.BackendModeCompletion)
 				l.evictRunner(unload.Backend, modelID, inference.BackendModeEmbedding)
+				l.evictRunner(unload.Backend, modelID, inference.BackendModeReranking)
 			}
 			return len(l.runners)
 		}
