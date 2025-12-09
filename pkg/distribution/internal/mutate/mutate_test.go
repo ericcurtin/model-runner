@@ -30,9 +30,6 @@ func TestAppendLayer(t *testing.T) {
 	mdl2 := mutate.AppendLayers(mdl1,
 		static.NewLayer([]byte("some layer content"), "application/vnd.example.some.media.type"),
 	)
-	if err != nil {
-		t.Fatalf("Failed to create layer: %v", err)
-	}
 	if mdl2 == nil {
 		t.Fatal("Expected non-nil model")
 	}
