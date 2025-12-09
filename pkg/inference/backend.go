@@ -40,6 +40,22 @@ func (m BackendMode) String() string {
 	}
 }
 
+// ParseBackendMode converts a string mode to BackendMode.
+// It returns the parsed mode and a boolean indicating if the mode was known.
+// For unknown modes, it returns BackendModeCompletion and false.
+func ParseBackendMode(mode string) (BackendMode, bool) {
+	switch mode {
+	case "completion":
+		return BackendModeCompletion, true
+	case "embedding":
+		return BackendModeEmbedding, true
+	case "reranking":
+		return BackendModeReranking, true
+	default:
+		return BackendModeCompletion, false
+	}
+}
+
 type SpeculativeDecodingConfig struct {
 	DraftModel        string  `json:"draft_model,omitempty"`
 	NumTokens         int     `json:"num_tokens,omitempty"`

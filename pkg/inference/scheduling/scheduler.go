@@ -161,7 +161,10 @@ func (s *Scheduler) GetAllActiveRunners() []metrics.ActiveRunner {
 	defer s.loader.unlock()
 
 	for _, backend := range runningBackends {
-		mode := parseBackendMode(backend.Mode)
+		mode, ok := inference.ParseBackendMode(backend.Mode)
+		if !ok {
+			s.log.Warnf("Unknown backend mode %q, defaulting to completion.", backend.Mode)
+		}
 		// Find the runner slot for this backend/model combination
 		// We iterate through all runners since we don't know the draftModelID
 		for key, runnerInfo := range s.loader.runners {
@@ -198,7 +201,10 @@ func (s *Scheduler) GetLlamaCppSocket() (string, error) {
 	// Look for an active llama.cpp backend
 	for _, backend := range runningBackends {
 		if backend.BackendName == llamacpp.Name {
-			mode := parseBackendMode(backend.Mode)
+			mode, ok := inference.ParseBackendMode(backend.Mode)
+			if !ok {
+				s.log.Warnf("Unknown backend mode %q, defaulting to completion.", backend.Mode)
+			}
 			// Find the runner slot for this backend/model combination
 			// We iterate through all runners since we don't know the draftModelID
 			for key, runnerInfo := range s.loader.runners {
@@ -211,18 +217,6 @@ func (s *Scheduler) GetLlamaCppSocket() (string, error) {
 	}
 
 	return "", errors.New("no active llama.cpp backend found")
-}
-
-// parseBackendMode converts a string mode to BackendMode
-func parseBackendMode(mode string) inference.BackendMode {
-	switch mode {
-	case "completion":
-		return inference.BackendModeCompletion
-	case "embedding":
-		return inference.BackendModeEmbedding
-	default:
-		return inference.BackendModeCompletion
-	}
 }
 
 // ConfigureRunner configures a runner for a specific model and backend.
