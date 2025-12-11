@@ -241,7 +241,8 @@ func (s *Scheduler) ConfigureRunner(ctx context.Context, backend inference.Backe
 			}
 		}
 		runnerConfig.VLLM = &inference.VLLMConfig{
-			HFOverrides: req.VLLM.HFOverrides,
+			HFOverrides:          req.VLLM.HFOverrides,
+			GPUMemoryUtilization: req.VLLM.GPUMemoryUtilization,
 		}
 	}
 
