@@ -189,14 +189,12 @@ func (s *sglang) GetRequiredMemoryForModel(_ context.Context, _ string, _ *infer
 	return inference.RequiredMemory{}, ErrNotImplemented
 }
 
-// pythonCmd creates an exec.Cmd that runs python3 with the given arguments.
+// pythonCmd creates an exec.Cmd that runs python with the given arguments.
+// It uses the configured pythonPath if available, otherwise falls back to "python3".
 func (s *sglang) pythonCmd(args ...string) *exec.Cmd {
-	cmd := exec.Command("python3", args...)
-
-	// Override the actual binary path if we discovered a specific interpreter.
-	if s.pythonPath != "" && s.pythonPath != "python3" {
-		cmd.Path = s.pythonPath
+	pythonBinary := "python3"
+	if s.pythonPath != "" {
+		pythonBinary = s.pythonPath
 	}
-
-	return cmd
+	return exec.Command(pythonBinary, args...)
 }
