@@ -17,22 +17,9 @@ import (
 	"github.com/docker/model-runner/pkg/distribution/builder"
 	reg "github.com/docker/model-runner/pkg/distribution/registry"
 	"github.com/docker/model-runner/pkg/inference"
-	"github.com/docker/model-runner/pkg/inference/memory"
 
 	"github.com/sirupsen/logrus"
 )
-
-type mockMemoryEstimator struct{}
-
-func (me *mockMemoryEstimator) SetDefaultBackend(_ memory.MemoryEstimatorBackend) {}
-
-func (me *mockMemoryEstimator) GetRequiredMemoryForModel(_ context.Context, _ string, _ *inference.BackendConfiguration) (inference.RequiredMemory, error) {
-	return inference.RequiredMemory{RAM: 0, VRAM: 0}, nil
-}
-
-func (me *mockMemoryEstimator) HaveSufficientMemoryForModel(_ context.Context, _ string, _ *inference.BackendConfiguration) (bool, inference.RequiredMemory, inference.RequiredMemory, error) {
-	return true, inference.RequiredMemory{}, inference.RequiredMemory{}, nil
-}
 
 // getProjectRoot returns the absolute path to the project root directory
 func getProjectRoot(t *testing.T) string {
@@ -123,12 +110,11 @@ func TestPullModel(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			log := logrus.NewEntry(logrus.StandardLogger())
-			memEstimator := &mockMemoryEstimator{}
 			manager := NewManager(log.WithFields(logrus.Fields{"component": "model-manager"}), ClientConfig{
 				StoreRootPath: tempDir,
 				Logger:        log.WithFields(logrus.Fields{"component": "model-manager"}),
 			})
-			handler := NewHTTPHandler(log, manager, nil, memEstimator)
+			handler := NewHTTPHandler(log, manager, nil)
 
 			r := httptest.NewRequest(http.MethodPost, "/models/create", strings.NewReader(`{"from": "`+tag+`"}`))
 			if tt.acceptHeader != "" {
@@ -235,14 +221,13 @@ func TestHandleGetModel(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			log := logrus.NewEntry(logrus.StandardLogger())
-			memEstimator := &mockMemoryEstimator{}
 			manager := NewManager(log.WithFields(logrus.Fields{"component": "model-manager"}), ClientConfig{
 				StoreRootPath: tempDir,
 				Logger:        log.WithFields(logrus.Fields{"component": "model-manager"}),
 				Transport:     http.DefaultTransport,
 				UserAgent:     "test-agent",
 			})
-			handler := NewHTTPHandler(log, manager, nil, memEstimator)
+			handler := NewHTTPHandler(log, manager, nil)
 
 			// First pull the model if we're testing local access
 			if !tt.remote && !strings.Contains(tt.modelName, "nonexistent") {
@@ -324,7 +309,6 @@ func TestCors(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.path, func(t *testing.T) {
 			t.Parallel()
-			memEstimator := &mockMemoryEstimator{}
 			discard := logrus.New()
 			discard.SetOutput(io.Discard)
 			log := logrus.NewEntry(discard)
@@ -332,7 +316,7 @@ func TestCors(t *testing.T) {
 				StoreRootPath: tempDir,
 				Logger:        log.WithFields(logrus.Fields{"component": "model-manager"}),
 			})
-			m := NewHTTPHandler(log, manager, []string{"*"}, memEstimator)
+			m := NewHTTPHandler(log, manager, []string{"*"})
 			req := httptest.NewRequest(http.MethodOptions, "http://model-runner.docker.internal"+tt.path, http.NoBody)
 			req.Header.Set("Origin", "docker.com")
 			w := httptest.NewRecorder()
