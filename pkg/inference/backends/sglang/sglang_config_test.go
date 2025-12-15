@@ -207,7 +207,7 @@ func TestGetContextLength(t *testing.T) {
 			backendCfg: &inference.BackendConfiguration{
 				ContextSize: int32ptr(4096),
 			},
-			expectedValue: ptrUint64(4096),
+			expectedValue: float64ptr(4096),
 		},
 		{
 			name: "model config only",
@@ -215,7 +215,7 @@ func TestGetContextLength(t *testing.T) {
 				ContextSize: int32ptr(8192),
 			},
 			backendCfg:    nil,
-			expectedValue: ptrUint64(8192),
+			expectedValue: float64ptr(8192),
 		},
 		{
 			name: "model config takes precedence",
@@ -225,7 +225,7 @@ func TestGetContextLength(t *testing.T) {
 			backendCfg: &inference.BackendConfiguration{
 				ContextSize: int32ptr(4096),
 			},
-			expectedValue: ptrUint64(16384),
+			expectedValue: float64ptr(16384),
 		},
 		{
 			name:     "zero context size in backend config returns nil",
@@ -249,7 +249,7 @@ func TestGetContextLength(t *testing.T) {
 	}
 }
 
-func ptrUint64(v uint64) *uint64 {
+func float64ptr(v uint64) *uint64 {
 	return &v
 }
 
