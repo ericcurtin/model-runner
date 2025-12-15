@@ -80,7 +80,7 @@ func TestGetArgs(t *testing.T) {
 			},
 			mode: inference.BackendModeCompletion,
 			config: &inference.BackendConfiguration{
-				ContextSize: 8192,
+				ContextSize: int32ptr(8192),
 			},
 			expected: []string{
 				"-m",
@@ -96,38 +96,16 @@ func TestGetArgs(t *testing.T) {
 			},
 		},
 		{
-			name: "with runtime flags",
-			bundle: &mockModelBundle{
-				safetensorsPath: "/path/to/model/model.safetensors",
-			},
-			mode: inference.BackendModeCompletion,
-			config: &inference.BackendConfiguration{
-				RuntimeFlags: []string{"--mem-fraction-static", "0.9"},
-			},
-			expected: []string{
-				"-m",
-				"sglang.launch_server",
-				"--model-path",
-				"/path/to/model",
-				"--host",
-				"127.0.0.1",
-				"--port",
-				"30000",
-				"--mem-fraction-static",
-				"0.9",
-			},
-		},
-		{
 			name: "with model context size (takes precedence)",
 			bundle: &mockModelBundle{
 				safetensorsPath: "/path/to/model/model.safetensors",
 				runtimeConfig: types.Config{
-					ContextSize: ptrUint64(16384),
+					ContextSize: int32ptr(16384),
 				},
 			},
 			mode: inference.BackendModeCompletion,
 			config: &inference.BackendConfiguration{
-				ContextSize: 8192,
+				ContextSize: int32ptr(8192),
 			},
 			expected: []string{
 				"-m",
@@ -179,32 +157,6 @@ func TestGetArgs(t *testing.T) {
 				"30000",
 			},
 		},
-		{
-			name: "combined config with context size and runtime flags",
-			bundle: &mockModelBundle{
-				safetensorsPath: "/path/to/model/model.safetensors",
-			},
-			mode: inference.BackendModeCompletion,
-			config: &inference.BackendConfiguration{
-				ContextSize:  4096,
-				RuntimeFlags: []string{"--tp-size", "2", "--enable-flashinfer"},
-			},
-			expected: []string{
-				"-m",
-				"sglang.launch_server",
-				"--model-path",
-				"/path/to/model",
-				"--host",
-				"127.0.0.1",
-				"--port",
-				"30000",
-				"--context-length",
-				"4096",
-				"--tp-size",
-				"2",
-				"--enable-flashinfer",
-			},
-		},
 	}
 
 	for _, tt := range tests {
@@ -253,14 +205,14 @@ func TestGetContextLength(t *testing.T) {
 			name:     "backend config only",
 			modelCfg: types.Config{},
 			backendCfg: &inference.BackendConfiguration{
-				ContextSize: 4096,
+				ContextSize: int32ptr(4096),
 			},
 			expectedValue: ptrUint64(4096),
 		},
 		{
 			name: "model config only",
 			modelCfg: types.Config{
-				ContextSize: ptrUint64(8192),
+				ContextSize: int32ptr(8192),
 			},
 			backendCfg:    nil,
 			expectedValue: ptrUint64(8192),
@@ -268,10 +220,10 @@ func TestGetContextLength(t *testing.T) {
 		{
 			name: "model config takes precedence",
 			modelCfg: types.Config{
-				ContextSize: ptrUint64(16384),
+				ContextSize: int32ptr(16384),
 			},
 			backendCfg: &inference.BackendConfiguration{
-				ContextSize: 4096,
+				ContextSize: int32ptr(4096),
 			},
 			expectedValue: ptrUint64(16384),
 		},
@@ -279,7 +231,7 @@ func TestGetContextLength(t *testing.T) {
 			name:     "zero context size in backend config returns nil",
 			modelCfg: types.Config{},
 			backendCfg: &inference.BackendConfiguration{
-				ContextSize: 0,
+				ContextSize: int32ptr(0),
 			},
 			expectedValue: nil,
 		},
@@ -298,5 +250,9 @@ func TestGetContextLength(t *testing.T) {
 }
 
 func ptrUint64(v uint64) *uint64 {
+	return &v
+}
+
+func int32ptr(v int32) *int32 {
 	return &v
 }

@@ -59,11 +59,6 @@ func (c *Config) GetArgs(bundle types.ModelBundle, socket string, mode inference
 		args = append(args, "--context-length", strconv.FormatUint(*contextLen, 10))
 	}
 
-	// Add arguments from backend config
-	if config != nil {
-		args = append(args, config.RuntimeFlags...)
-	}
-
 	return args, nil
 }
 
@@ -73,11 +68,12 @@ func (c *Config) GetArgs(bundle types.ModelBundle, socket string, mode inference
 func GetContextLength(modelCfg types.Config, backendCfg *inference.BackendConfiguration) *uint64 {
 	// Model config takes precedence
 	if modelCfg.ContextSize != nil {
-		return modelCfg.ContextSize
+		val := uint64(*modelCfg.ContextSize)
+		return &val
 	}
-	// else use backend config
-	if backendCfg != nil && backendCfg.ContextSize > 0 {
-		val := uint64(backendCfg.ContextSize)
+	// Fallback to backend config
+	if backendCfg != nil && backendCfg.ContextSize != nil && *backendCfg.ContextSize > 0 {
+		val := uint64(*backendCfg.ContextSize)
 		return &val
 	}
 	// Return nil to let SGLang auto-derive from model config
