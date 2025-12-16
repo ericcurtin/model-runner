@@ -3,7 +3,9 @@ package scheduling
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
+	"slices"
 	"time"
 
 	"github.com/docker/model-runner/pkg/distribution/types"
@@ -14,6 +16,7 @@ import (
 	"github.com/docker/model-runner/pkg/internal/utils"
 	"github.com/docker/model-runner/pkg/logging"
 	"github.com/docker/model-runner/pkg/metrics"
+	"github.com/mattn/go-shellwords"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -225,10 +228,28 @@ func (s *Scheduler) ConfigureRunner(ctx context.Context, backend inference.Backe
 		backend = s.defaultBackend
 	}
 
+	// Parse runtime flags from either array or raw string
+	var runtimeFlags []string
+	if len(req.RuntimeFlags) > 0 {
+		runtimeFlags = req.RuntimeFlags
+	} else if req.RawRuntimeFlags != "" {
+		var err error
+		runtimeFlags, err = shellwords.Parse(req.RawRuntimeFlags)
+		if err != nil {
+			return nil, fmt.Errorf("invalid runtime flags: %w", err)
+		}
+	}
+
+	// Validate runtime flags to prevent path-based security issues
+	if err := inference.ValidateRuntimeFlags(runtimeFlags); err != nil {
+		return nil, err
+	}
+
 	// Build runner configuration with shared settings
 	var runnerConfig inference.BackendConfiguration
 	runnerConfig.ContextSize = req.ContextSize
 	runnerConfig.Speculative = req.Speculative
+	runnerConfig.RuntimeFlags = runtimeFlags
 
 	// Set vLLM-specific configuration if provided
 	if req.VLLM != nil {
@@ -255,6 +276,8 @@ func (s *Scheduler) ConfigureRunner(ctx context.Context, backend inference.Backe
 	mode := inference.BackendModeCompletion
 	if req.Mode != nil {
 		mode = *req.Mode
+	} else if slices.Contains(runnerConfig.RuntimeFlags, "--embeddings") {
+		mode = inference.BackendModeEmbedding
 	}
 
 	// Get model, track usage, and select appropriate backend
