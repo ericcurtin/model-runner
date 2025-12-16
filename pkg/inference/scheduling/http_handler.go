@@ -84,6 +84,7 @@ func (h *HTTPHandler) routeHandlers() map[string]http.HandlerFunc {
 	m["POST "+inference.InferencePrefix+"/unload"] = h.Unload
 	m["POST "+inference.InferencePrefix+"/{backend}/_configure"] = h.Configure
 	m["POST "+inference.InferencePrefix+"/_configure"] = h.Configure
+	m["GET "+inference.InferencePrefix+"/_configure"] = h.GetModelConfigs
 	m["GET "+inference.InferencePrefix+"/requests"] = h.scheduler.openAIRecorder.GetRecordsHandler()
 	return m
 }
@@ -348,6 +349,31 @@ func (h *HTTPHandler) Configure(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusAccepted)
+}
+
+// GetModelConfigs returns model configurations. If a model is specified in the query parameter,
+// returns only configs for that model; otherwise returns all configs.
+func (h *HTTPHandler) GetModelConfigs(w http.ResponseWriter, r *http.Request) {
+	model := r.URL.Query().Get("model")
+
+	configs := h.scheduler.loader.getAllRunnerConfigs(r.Context())
+
+	if model != "" {
+		modelID := h.scheduler.modelManager.ResolveID(model)
+		filtered := configs[:0]
+		for _, entry := range configs {
+			if entry.ModelID == modelID {
+				filtered = append(filtered, entry)
+			}
+		}
+		configs = filtered
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(configs); err != nil {
+		http.Error(w, fmt.Sprintf("Failed to encode response: %v", err), http.StatusInternalServerError)
+		return
+	}
 }
 
 // ServeHTTP implements net/http.Handler.ServeHTTP.

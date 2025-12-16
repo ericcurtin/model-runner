@@ -2,6 +2,8 @@ package inference
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"net/http"
 )
 
@@ -38,6 +40,25 @@ func (m BackendMode) String() string {
 	default:
 		return "unknown"
 	}
+}
+
+// MarshalJSON implements json.Marshaler for BackendMode.
+func (m BackendMode) MarshalJSON() ([]byte, error) {
+	return []byte(`"` + m.String() + `"`), nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler for BackendMode.
+func (m *BackendMode) UnmarshalJSON(data []byte) error {
+	var s string
+	if err := json.Unmarshal(data, &s); err != nil {
+		return err
+	}
+	mode, ok := ParseBackendMode(s)
+	if !ok {
+		return fmt.Errorf("unknown backend mode: %q", s)
+	}
+	*m = mode
+	return nil
 }
 
 // ParseBackendMode converts a string mode to BackendMode.
