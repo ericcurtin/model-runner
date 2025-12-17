@@ -670,6 +670,35 @@ func (c *Client) Unload(req UnloadRequest) (UnloadResponse, error) {
 	return unloadResp, nil
 }
 
+func (c *Client) ShowConfigs(modelFilter string) ([]scheduling.ModelConfigEntry, error) {
+	configureBackendPath := inference.InferencePrefix + "/_configure"
+	if modelFilter != "" {
+		configureBackendPath += "?model=" + url.QueryEscape(modelFilter)
+	}
+	resp, err := c.doRequest(http.MethodGet, configureBackendPath, nil)
+	if err != nil {
+		return nil, c.handleQueryError(err, configureBackendPath)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("listing configs failed with status %s: %s", resp.Status, string(body))
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	var configs []scheduling.ModelConfigEntry
+	if err := json.Unmarshal(body, &configs); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal response body: %w", err)
+	}
+
+	return configs, nil
+}
+
 func (c *Client) ConfigureBackend(request scheduling.ConfigureRequest) error {
 	configureBackendPath := inference.InferencePrefix + "/_configure"
 	jsonData, err := json.Marshal(request)
