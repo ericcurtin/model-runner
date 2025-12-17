@@ -22,9 +22,10 @@ import (
 func newListCmd() *cobra.Command {
 	var jsonFormat, openai, quiet bool
 	c := &cobra.Command{
-		Use:     "list [OPTIONS]",
+		Use:     "list [OPTIONS] [MODEL]",
 		Aliases: []string{"ls"},
 		Short:   "List the models pulled to your local environment",
+		Args:    cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if openai && quiet {
 				return fmt.Errorf("--quiet flag cannot be used with --openai flag or OpenAI backend")
@@ -58,50 +59,56 @@ func newListCmd() *cobra.Command {
 	return c
 }
 
+func normalizeModelFilter(filter string) string {
+	if !strings.Contains(filter, "/") {
+		return "ai/" + filter
+	}
+	return filter
+}
+
+func matchesModelFilter(tag, filter string) bool {
+	if strings.Contains(filter, ":") {
+		return tag == filter
+	}
+	repository, _, _ := strings.Cut(tag, ":")
+	return repository == filter
+}
+
 func listModels(openai bool, desktopClient *desktop.Client, quiet bool, jsonFormat bool, modelFilter string) (string, error) {
 	if openai {
 		models, err := desktopClient.ListOpenAI()
 		if err != nil {
 			return "", handleClientError(err, "Failed to list models")
 		}
+		if modelFilter != "" {
+			filter := normalizeModelFilter(modelFilter)
+			filtered := models.Data[:0]
+			for _, m := range models.Data {
+				if matchesModelFilter(m.ID, filter) {
+					filtered = append(filtered, m)
+				}
+			}
+			models.Data = filtered
+		}
 		return formatter.ToStandardJSON(models)
 	}
+
 	models, err := desktopClient.List()
 	if err != nil {
 		return "", handleClientError(err, "Failed to list models")
 	}
-
 	if modelFilter != "" {
-		// If filter doesn't contain '/', prepend default namespace 'ai/'
-		if !strings.Contains(modelFilter, "/") {
-			modelFilter = "ai/" + modelFilter
-		}
-
+		filter := normalizeModelFilter(modelFilter)
 		var filteredModels []dmrm.Model
-
-		// Check if filter has a colon (i.e., includes a tag)
-		hasColon := strings.Contains(modelFilter, ":")
 
 		for _, m := range models {
 			var matchingTags []string
 			for _, tag := range m.Tags {
-				if hasColon {
-					// Filter includes a tag part - do exact match
-					// Tags are stored in normalized format by the backend
-					if tag == modelFilter {
-						matchingTags = append(matchingTags, tag)
-					}
-				} else {
-					// Filter has no colon - match repository name only (part before ':')
-					repository, _, _ := strings.Cut(tag, ":")
-					if repository == modelFilter {
-						matchingTags = append(matchingTags, tag)
-					}
+				if matchesModelFilter(tag, filter) {
+					matchingTags = append(matchingTags, tag)
 				}
 			}
-			// Only include the model if at least one tag matched, and only include matching tags
 			if len(matchingTags) > 0 {
-				// Create a copy of the model with only the matching tags
 				filteredModel := m
 				filteredModel.Tags = matchingTags
 				filteredModels = append(filteredModels, filteredModel)
@@ -109,7 +116,6 @@ func listModels(openai bool, desktopClient *desktop.Client, quiet bool, jsonForm
 		}
 		models = filteredModels
 	}
-
 	if jsonFormat {
 		return formatter.ToStandardJSON(models)
 	}
