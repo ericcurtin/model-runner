@@ -57,7 +57,7 @@ func newBenchCmd() *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:   "bench [MODEL]",
+		Use:   "bench MODEL",
 		Short: "Benchmark a model's performance at different concurrency levels",
 		Long: `Benchmark a model's performance showing tokens per second at different concurrency levels.
 
