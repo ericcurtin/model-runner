@@ -22,7 +22,7 @@ import (
 func newListCmd() *cobra.Command {
 	var jsonFormat, openai, quiet bool
 	c := &cobra.Command{
-		Use:     "list [OPTIONS]",
+		Use:     "list [OPTIONS] [MODEL]",
 		Aliases: []string{"ls"},
 		Short:   "List the models pulled to your local environment",
 		RunE: func(cmd *cobra.Command, args []string) error {
