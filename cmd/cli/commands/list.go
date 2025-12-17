@@ -25,6 +25,7 @@ func newListCmd() *cobra.Command {
 		Use:     "list [OPTIONS] [MODEL]",
 		Aliases: []string{"ls"},
 		Short:   "List the models pulled to your local environment",
+		Args:    cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if openai && quiet {
 				return fmt.Errorf("--quiet flag cannot be used with --openai flag or OpenAI backend")
