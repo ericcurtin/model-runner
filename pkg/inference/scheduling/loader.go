@@ -626,3 +626,30 @@ func (l *loader) setRunnerConfig(ctx context.Context, backendName, modelID strin
 	l.runnerConfigs[configKey] = runnerConfig
 	return nil
 }
+
+// getAllRunnerConfigs retrieves all runner configurations.
+func (l *loader) getAllRunnerConfigs(ctx context.Context) []ModelConfigEntry {
+	if !l.lock(ctx) {
+		return nil
+	}
+	defer l.unlock()
+
+	entries := make([]ModelConfigEntry, 0, len(l.runnerConfigs))
+	for key, config := range l.runnerConfigs {
+		model, err := l.modelManager.GetLocal(key.modelID)
+		if err == nil {
+			modelName := ""
+			if len(model.Tags()) > 0 {
+				modelName = model.Tags()[0]
+			}
+			entries = append(entries, ModelConfigEntry{
+				Backend: key.backend,
+				Model:   modelName,
+				ModelID: key.modelID,
+				Mode:    key.mode,
+				Config:  config,
+			})
+		}
+	}
+	return entries
+}

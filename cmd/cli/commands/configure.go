@@ -11,9 +11,10 @@ func newConfigureCmd() *cobra.Command {
 	var flags ConfigureFlags
 
 	c := &cobra.Command{
-		Use:    "configure [--context-size=<n>] [--speculative-draft-model=<model>] [--hf_overrides=<json>] [--gpu-memory-utilization=<float>] [--mode=<mode>] [--think] MODEL [-- <runtime-flags...>]",
-		Short:  "Configure runtime options for a model",
-		Hidden: true,
+		Use:     "configure [--context-size=<n>] [--speculative-draft-model=<model>] [--hf_overrides=<json>] [--gpu-memory-utilization=<float>] [--mode=<mode>] [--think] MODEL [-- <runtime-flags...>]",
+		Aliases: []string{"config"},
+		Short:   "Manage model runtime configurations",
+		Hidden:  true,
 		Args: func(cmd *cobra.Command, args []string) error {
 			argsBeforeDash := cmd.ArgsLenAtDash()
 			if argsBeforeDash == -1 {
@@ -48,5 +49,6 @@ func newConfigureCmd() *cobra.Command {
 	}
 
 	flags.RegisterFlags(c)
+	c.AddCommand(newConfigureShowCmd())
 	return c
 }

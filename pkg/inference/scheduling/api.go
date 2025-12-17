@@ -98,3 +98,12 @@ type ConfigureRequest struct {
 	RawRuntimeFlags string                 `json:"raw-runtime-flags,omitempty"`
 	inference.BackendConfiguration
 }
+
+// ModelConfigEntry represents a model configuration entry with its associated metadata.
+type ModelConfigEntry struct {
+	Backend string
+	Model   string
+	ModelID string
+	Mode    inference.BackendMode
+	Config  inference.BackendConfiguration
+}

@@ -1,9 +1,14 @@
 command: docker model configure
-short: Configure runtime options for a model
-long: Configure runtime options for a model
+aliases: docker model configure, docker model config
+short: Manage model runtime configurations
+long: Manage model runtime configurations
 usage: docker model configure [--context-size=<n>] [--speculative-draft-model=<model>] [--hf_overrides=<json>] [--gpu-memory-utilization=<float>] [--mode=<mode>] [--think] MODEL [-- <runtime-flags...>]
 pname: docker model
 plink: docker_model.yaml
+cname:
+    - docker model configure show
+clink:
+    - docker_model_configure_show.yaml
 options:
     - option: context-size
       value_type: int32
