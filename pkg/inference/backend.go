@@ -159,7 +159,4 @@ type Backend interface {
 	Status() string
 	// GetDiskUsage returns the disk usage of the backend.
 	GetDiskUsage() (int64, error)
-	// GetRequiredMemoryForModel returns the required working memory for a given
-	// model.
-	GetRequiredMemoryForModel(ctx context.Context, model string, config *BackendConfiguration) (RequiredMemory, error)
 }

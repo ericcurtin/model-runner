@@ -39,10 +39,6 @@ func (m *mockBackend) GetDiskUsage() (int64, error) {
 	return 0, nil
 }
 
-func (m *mockBackend) GetRequiredMemoryForModel(ctx context.Context, model string, config *inference.BackendConfiguration) (inference.RequiredMemory, error) {
-	return m.requiredMemory, nil
-}
-
 func (m *mockBackend) UsesExternalModelManagement() bool {
 	return m.usesExternalModelMgmt
 }
