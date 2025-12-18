@@ -56,7 +56,7 @@ func (c *Config) GetArgs(bundle types.ModelBundle, socket string, mode inference
 
 	// Add context-length if specified in model config or backend config
 	if contextLen := GetContextLength(bundle.RuntimeConfig(), config); contextLen != nil {
-		args = append(args, "--context-length", strconv.FormatUint(*contextLen, 10))
+		args = append(args, "--context-length", strconv.Itoa(int(*contextLen)))
 	}
 
 	return args, nil
@@ -65,16 +65,14 @@ func (c *Config) GetArgs(bundle types.ModelBundle, socket string, mode inference
 // GetContextLength returns the context length (context size) from model config or backend config.
 // Model config takes precedence over backend config.
 // Returns nil if neither is specified (SGLang will auto-derive from model).
-func GetContextLength(modelCfg types.Config, backendCfg *inference.BackendConfiguration) *uint64 {
+func GetContextLength(modelCfg types.Config, backendCfg *inference.BackendConfiguration) *int32 {
 	// Model config takes precedence
-	if modelCfg.ContextSize != nil {
-		val := uint64(*modelCfg.ContextSize)
-		return &val
+	if modelCfg.ContextSize != nil && *modelCfg.ContextSize > 0 {
+		return modelCfg.ContextSize
 	}
 	// Fallback to backend config
 	if backendCfg != nil && backendCfg.ContextSize != nil && *backendCfg.ContextSize > 0 {
-		val := uint64(*backendCfg.ContextSize)
-		return &val
+		return backendCfg.ContextSize
 	}
 	// Return nil to let SGLang auto-derive from model config
 	return nil
