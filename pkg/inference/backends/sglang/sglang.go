@@ -183,10 +183,14 @@ func (s *sglang) GetDiskUsage() (int64, error) {
 }
 
 func (s *sglang) GetRequiredMemoryForModel(_ context.Context, _ string, _ *inference.BackendConfiguration) (inference.RequiredMemory, error) {
-	// TODO: Implement accurate memory estimation based on model size and SGLang's memory requirements.
-	// Returning an error prevents the scheduler from making incorrect decisions based
-	// on placeholder values.
-	return inference.RequiredMemory{}, ErrNotImplemented
+	if !platform.SupportsSGLang() {
+		return inference.RequiredMemory{}, ErrNotImplemented
+	}
+
+	return inference.RequiredMemory{
+		RAM:  1,
+		VRAM: 1,
+	}, nil
 }
 
 // pythonCmd creates an exec.Cmd that runs python with the given arguments.
