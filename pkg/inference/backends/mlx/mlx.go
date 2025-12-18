@@ -138,12 +138,3 @@ func (m *mlx) GetDiskUsage() (int64, error) {
 	// It's installed via pip in the system Python environment
 	return 0, nil
 }
-
-func (m *mlx) GetRequiredMemoryForModel(ctx context.Context, model string, config *inference.BackendConfiguration) (inference.RequiredMemory, error) {
-	// TODO: Implement accurate memory estimation based on model size.
-	// MLX runs on unified memory architecture (Apple Silicon), so memory estimation
-	// will need to account for the unified nature of RAM and VRAM on Apple Silicon.
-	// Returning an error prevents the scheduler from making incorrect decisions based
-	// on placeholder values.
-	return inference.RequiredMemory{}, errors.New("not implemented")
-}

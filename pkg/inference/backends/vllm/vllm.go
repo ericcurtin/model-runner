@@ -165,17 +165,6 @@ func (v *vLLM) GetDiskUsage() (int64, error) {
 	return size, nil
 }
 
-func (v *vLLM) GetRequiredMemoryForModel(_ context.Context, _ string, _ *inference.BackendConfiguration) (inference.RequiredMemory, error) {
-	if !platform.SupportsVLLM() {
-		return inference.RequiredMemory{}, errors.New("not implemented")
-	}
-
-	return inference.RequiredMemory{
-		RAM:  1,
-		VRAM: 1,
-	}, nil
-}
-
 func (v *vLLM) binaryPath() string {
 	return filepath.Join(vllmDir, "vllm")
 }
