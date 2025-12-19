@@ -9,9 +9,8 @@ import (
 	"sync"
 	"time"
 
-	v1 "github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1"
-
 	"github.com/docker/model-runner/pkg/distribution/internal/progress"
+	v1 "github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1"
 )
 
 const (

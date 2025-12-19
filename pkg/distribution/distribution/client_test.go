@@ -16,17 +16,16 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/name"
-	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/registry"
-	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1/remote"
-	"github.com/sirupsen/logrus"
-
 	"github.com/docker/model-runner/pkg/distribution/internal/gguf"
 	"github.com/docker/model-runner/pkg/distribution/internal/mutate"
 	"github.com/docker/model-runner/pkg/distribution/internal/progress"
 	"github.com/docker/model-runner/pkg/distribution/internal/safetensors"
 	mdregistry "github.com/docker/model-runner/pkg/distribution/registry"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/name"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/registry"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1/remote"
 	"github.com/docker/model-runner/pkg/inference/platform"
+	"github.com/sirupsen/logrus"
 )
 
 var (

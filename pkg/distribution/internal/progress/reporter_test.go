@@ -7,10 +7,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/docker/model-runner/pkg/distribution/types"
 	v1 "github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1"
 	v1types "github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1/types"
-
-	"github.com/docker/model-runner/pkg/distribution/types"
 )
 
 // mockLayer implements v1.Layer for testing

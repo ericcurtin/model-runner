@@ -8,10 +8,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	v1 "github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1"
-
 	"github.com/docker/model-runner/pkg/distribution/internal/gguf"
 	"github.com/docker/model-runner/pkg/distribution/tarball"
+	v1 "github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1"
 )
 
 func TestTarget(t *testing.T) {

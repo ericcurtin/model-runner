@@ -5,10 +5,9 @@ import (
 	"os"
 	"path/filepath"
 
-	v1 "github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1"
-
 	"github.com/docker/model-runner/pkg/distribution/internal/bundle"
 	"github.com/docker/model-runner/pkg/distribution/types"
+	v1 "github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1"
 )
 
 const (

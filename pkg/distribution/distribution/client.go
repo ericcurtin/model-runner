@@ -9,9 +9,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/docker/model-runner/pkg/internal/utils"
-	"github.com/sirupsen/logrus"
-
 	"github.com/docker/model-runner/pkg/distribution/internal/progress"
 	"github.com/docker/model-runner/pkg/distribution/internal/store"
 	"github.com/docker/model-runner/pkg/distribution/registry"
@@ -20,6 +17,8 @@ import (
 	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/authn"
 	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1/remote"
 	"github.com/docker/model-runner/pkg/inference/platform"
+	"github.com/docker/model-runner/pkg/internal/utils"
+	"github.com/sirupsen/logrus"
 )
 
 // Client provides model distribution functionality

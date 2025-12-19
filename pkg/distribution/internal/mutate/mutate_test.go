@@ -5,12 +5,11 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1/static"
-	ggcr "github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1/types"
-
 	"github.com/docker/model-runner/pkg/distribution/internal/gguf"
 	"github.com/docker/model-runner/pkg/distribution/internal/mutate"
 	"github.com/docker/model-runner/pkg/distribution/types"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1/static"
+	ggcr "github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1/types"
 )
 
 func TestAppendLayer(t *testing.T) {
