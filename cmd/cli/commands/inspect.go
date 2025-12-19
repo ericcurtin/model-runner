@@ -18,9 +18,6 @@ func newInspectCmd() *cobra.Command {
 		Short: "Display detailed information on one model",
 		Args:  requireExactArgs(1, "inspect", "MODEL"),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if _, err := ensureStandaloneRunnerAvailable(cmd.Context(), asPrinter(cmd), false); err != nil {
-				return fmt.Errorf("unable to initialize standalone model runner: %w", err)
-			}
 			if openai && remote {
 				return fmt.Errorf("--remote flag cannot be used with --openai flag")
 			}

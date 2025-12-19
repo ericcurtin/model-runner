@@ -21,9 +21,9 @@ func newStatusCmd() *cobra.Command {
 		Use:   "status",
 		Short: "Check if the Docker Model Runner is running",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			runner, err := ensureStandaloneRunnerAvailable(cmd.Context(), asPrinter(cmd), false)
+			runner, err := getStandaloneRunner(cmd.Context())
 			if err != nil {
-				return fmt.Errorf("unable to initialize standalone model runner: %w", err)
+				return fmt.Errorf("unable to get standalone model runner info: %w", err)
 			}
 			status := desktopClient.Status()
 			if status.Error != nil {

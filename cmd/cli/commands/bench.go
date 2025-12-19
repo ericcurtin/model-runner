@@ -83,11 +83,6 @@ measuring the tokens per second (TPS) that the model can generate.`,
 				return handleClientError(err, "Failed to inspect model")
 			}
 
-			// Ensure model runner is available
-			if _, err := ensureStandaloneRunnerAvailable(cmd.Context(), asPrinter(cmd), false); err != nil {
-				return fmt.Errorf("unable to initialize standalone model runner: %w", err)
-			}
-
 			if !jsonOutput {
 				fmt.Printf("Prompt: %s\n", prompt)
 				fmt.Printf("Duration: %v per concurrency level\n", duration)

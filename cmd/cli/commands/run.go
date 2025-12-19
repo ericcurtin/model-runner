@@ -586,6 +586,10 @@ func newRunCmd() *cobra.Command {
 			}
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if _, err := ensureStandaloneRunnerAvailable(cmd.Context(), asPrinter(cmd), debug); err != nil {
+				return fmt.Errorf("unable to initialize standalone model runner: %w", err)
+			}
+
 			model := args[0]
 			prompt := ""
 			argsLen := len(args)
@@ -673,10 +677,6 @@ func newRunCmd() *cobra.Command {
 				}
 				cmd.Println()
 				return nil
-			}
-
-			if _, err := ensureStandaloneRunnerAvailable(cmd.Context(), asPrinter(cmd), debug); err != nil {
-				return fmt.Errorf("unable to initialize standalone model runner: %w", err)
 			}
 
 			_, err := desktopClient.Inspect(model, false)

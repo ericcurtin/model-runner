@@ -17,9 +17,6 @@ func newTagCmd() *cobra.Command {
 		Short: "Tag a model",
 		Args:  requireExactArgs(2, "tag", "SOURCE TARGET"),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if _, err := ensureStandaloneRunnerAvailable(cmd.Context(), asPrinter(cmd), false); err != nil {
-				return fmt.Errorf("unable to initialize standalone model runner: %w", err)
-			}
 			return tagModel(cmd, desktopClient, args[0], args[1])
 		},
 		ValidArgsFunction: completion.ModelNames(getDesktopClient, 1),
