@@ -52,13 +52,13 @@ func newUpCommand() *cobra.Command {
 
 			sendInfo("Initializing model runner...")
 			kind := modelRunner.EngineKind()
-			standalone, err := ensureStandaloneRunnerAvailable(cmd.Context(), nil, false)
+			runner, err := getStandaloneRunner(cmd.Context())
 			if err != nil {
-				_ = sendErrorf("Failed to initialize standalone model runner: %v", err)
-				return fmt.Errorf("Failed to initialize standalone model runner: %w", err)
+				_ = sendErrorf("Failed to get standalone model runner info: %v", err)
+				return fmt.Errorf("Failed to get standalone model runner info: %w", err)
 			} else if ((kind == types.ModelRunnerEngineKindMoby || kind == types.ModelRunnerEngineKindCloud) &&
-				standalone == nil) ||
-				(standalone != nil && (standalone.gatewayIP == "" || standalone.gatewayPort == 0)) {
+				runner == nil) ||
+				(runner != nil && (runner.gatewayIP == "" || runner.gatewayPort == 0)) {
 				return errors.New("unable to determine standalone runner endpoint")
 			}
 
@@ -109,7 +109,7 @@ func newUpCommand() *cobra.Command {
 			case types.ModelRunnerEngineKindCloud:
 				fallthrough
 			case types.ModelRunnerEngineKindMoby:
-				_ = setenv("URL", "http://"+net.JoinHostPort(standalone.gatewayIP, strconv.Itoa(int(standalone.gatewayPort)))+"/engines/v1/")
+				_ = setenv("URL", "http://"+net.JoinHostPort(runner.gatewayIP, strconv.Itoa(int(runner.gatewayPort)))+"/engines/v1/")
 			default:
 				return fmt.Errorf("unhandled engine kind: %v", kind)
 			}

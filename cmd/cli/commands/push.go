@@ -1,8 +1,6 @@
 package commands
 
 import (
-	"fmt"
-
 	"github.com/docker/model-runner/cmd/cli/commands/completion"
 	"github.com/docker/model-runner/cmd/cli/desktop"
 	"github.com/spf13/cobra"
@@ -14,9 +12,6 @@ func newPushCmd() *cobra.Command {
 		Short: "Push a model to Docker Hub",
 		Args:  requireExactArgs(1, "push", "MODEL"),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if _, err := ensureStandaloneRunnerAvailable(cmd.Context(), asPrinter(cmd), false); err != nil {
-				return fmt.Errorf("unable to initialize standalone model runner: %w", err)
-			}
 			return pushModel(cmd, desktopClient, args[0])
 		},
 		ValidArgsFunction: completion.NoComplete,

@@ -84,26 +84,29 @@ func NewRootCmd(cli *command.DockerCli) *cobra.Command {
 		globalOptions.InstallFlags(rootCmd.Flags())
 	}
 
-	// Add subcommands.
+	// Runner management commands - these manage the runner itself and don't need automatic runner initialization.
 	rootCmd.AddCommand(
 		newVersionCmd(),
-		newStatusCmd(),
-		newPullCmd(),
-		newPushCmd(),
-		newPackagedCmd(),
-		newListCmd(),
-		newLogsCmd(),
-		newRunCmd(),
-		newRemoveCmd(),
-		newInspectCmd(),
-		newComposeCmd(),
-		newTagCmd(),
 		newInstallRunner(),
 		newUninstallRunner(),
 		newStartRunner(),
 		newStopRunner(),
 		newRestartRunner(),
 		newReinstallRunner(),
+	)
+
+	// Commands that require a running model runner. These are wrapped to ensure the standalone runner is available.
+	for _, cmd := range []*cobra.Command{
+		newStatusCmd(),
+		newPullCmd(),
+		newPushCmd(),
+		newPackagedCmd(),
+		newListCmd(),
+		newLogsCmd(),
+		newRemoveCmd(),
+		newInspectCmd(),
+		newComposeCmd(),
+		newTagCmd(),
 		newConfigureCmd(),
 		newPSCmd(),
 		newDFCmd(),
@@ -111,6 +114,12 @@ func NewRootCmd(cli *command.DockerCli) *cobra.Command {
 		newRequestsCmd(),
 		newPurgeCmd(),
 		newBenchCmd(),
-	)
+	} {
+		rootCmd.AddCommand(withStandaloneRunner(cmd))
+	}
+
+	// run command handles standalone runner initialization itself (needs debug flag)
+	rootCmd.AddCommand(newRunCmd())
+
 	return rootCmd
 }

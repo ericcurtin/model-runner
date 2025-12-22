@@ -163,6 +163,53 @@ func ensureStandaloneRunnerAvailable(ctx context.Context, printer standalone.Sta
 	return inspectStandaloneRunner(container), nil
 }
 
+// withStandaloneRunner wraps a command's RunE to ensure the standalone runner
+// is available before executing the command. This is a no-op in unsupported
+// contexts (e.g., Docker Desktop) or if automatic installations have been disabled.
+func withStandaloneRunner(cmd *cobra.Command) *cobra.Command {
+	if cmd.RunE == nil {
+		return cmd
+	}
+	originalRunE := cmd.RunE
+	cmd.RunE = func(cmd *cobra.Command, args []string) error {
+		if _, err := ensureStandaloneRunnerAvailable(cmd.Context(), asPrinter(cmd), false); err != nil {
+			return fmt.Errorf("unable to initialize standalone model runner: %w", err)
+		}
+		return originalRunE(cmd, args)
+	}
+	return cmd
+}
+
+// getStandaloneRunner returns the standalone runner info by finding the controller container.
+// This is useful for commands that need runner details after withStandaloneRunner has run.
+// Returns nil for non-standalone contexts (e.g., Docker Desktop).
+func getStandaloneRunner(ctx context.Context) (*standaloneRunner, error) {
+	// Only standalone contexts have a runner container to inspect.
+	engineKind := modelRunner.EngineKind()
+	standaloneSupported := engineKind == types.ModelRunnerEngineKindMoby ||
+		engineKind == types.ModelRunnerEngineKindCloud
+	if !standaloneSupported {
+		return nil, nil
+	}
+
+	if dockerCLI == nil {
+		return nil, nil
+	}
+
+	dockerClient, err := desktop.DockerClientForContext(dockerCLI, dockerCLI.CurrentContext())
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Docker client: %w", err)
+	}
+	containerID, _, ctr, err := standalone.FindControllerContainer(ctx, dockerClient)
+	if err != nil {
+		return nil, fmt.Errorf("unable to find standalone model runner: %w", err)
+	}
+	if containerID == "" {
+		return nil, nil
+	}
+	return inspectStandaloneRunner(ctr), nil
+}
+
 // runnerOptions holds common configuration for install/start/reinstall commands
 type runnerOptions struct {
 	port            uint16
