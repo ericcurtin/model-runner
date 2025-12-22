@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
@@ -13,6 +14,9 @@ import (
 	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/name"
 	"github.com/docker/model-runner/pkg/inference/backends/vllm"
 	"github.com/moby/term"
+	"github.com/olekukonko/tablewriter"
+	"github.com/olekukonko/tablewriter/renderer"
+	"github.com/olekukonko/tablewriter/tw"
 	"github.com/spf13/cobra"
 )
 
@@ -217,4 +221,35 @@ func addRunnerFlags(cmd *cobra.Command, opts runnerFlagOptions) {
 	if opts.ProxyCert != nil {
 		cmd.Flags().StringVar(opts.ProxyCert, "proxy-cert", "", "Path to a CA certificate file for proxy SSL inspection")
 	}
+}
+
+// newTable creates a new table with Docker CLI-style formatting:
+// no borders, no column separators, no header line, left-aligned, and 2-space padding.
+func newTable(w io.Writer) *tablewriter.Table {
+	return tablewriter.NewTable(w,
+		tablewriter.WithRenderer(renderer.NewBlueprint(tw.Rendition{
+			Borders: tw.BorderNone,
+			Settings: tw.Settings{
+				Separators: tw.Separators{
+					BetweenColumns: tw.Off,
+				},
+				Lines: tw.Lines{
+					ShowHeaderLine: tw.Off,
+				},
+			},
+		})),
+		tablewriter.WithConfig(tablewriter.Config{
+			Header: tw.CellConfig{
+				Formatting: tw.CellFormatting{
+					AutoFormat: tw.Off,
+				},
+				Alignment: tw.CellAlignment{Global: tw.AlignLeft},
+				Padding:   tw.CellPadding{Global: tw.Padding{Left: "", Right: "  "}},
+			},
+			Row: tw.CellConfig{
+				Alignment: tw.CellAlignment{Global: tw.AlignLeft},
+				Padding:   tw.CellPadding{Global: tw.Padding{Left: "", Right: "  "}},
+			},
+		}),
+	)
 }
