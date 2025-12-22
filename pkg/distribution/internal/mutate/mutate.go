@@ -1,10 +1,9 @@
 package mutate
 
 import (
+	"github.com/docker/model-runner/pkg/distribution/types"
 	v1 "github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1"
 	ggcr "github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1/types"
-
-	"github.com/docker/model-runner/pkg/distribution/types"
 )
 
 func AppendLayers(mdl types.ModelArtifact, layers ...v1.Layer) types.ModelArtifact {

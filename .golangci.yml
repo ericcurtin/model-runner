@@ -7,6 +7,12 @@ formatters:
   enable:
     - gofmt
     - goimports
+    - gci
+  settings:
+    gci:
+      sections:
+        - standard # stdlib
+        - default  # everything else
 
 linters:
   enable:

@@ -11,7 +11,6 @@ import (
 
 	"github.com/docker/docker/pkg/jsonmessage"
 	"github.com/docker/go-units"
-
 	"github.com/docker/model-runner/cmd/cli/pkg/standalone"
 )
 

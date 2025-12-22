@@ -12,12 +12,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/registry"
-
 	"github.com/docker/model-runner/pkg/distribution/builder"
 	reg "github.com/docker/model-runner/pkg/distribution/registry"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/registry"
 	"github.com/docker/model-runner/pkg/inference"
-
 	"github.com/sirupsen/logrus"
 )
 

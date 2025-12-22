@@ -10,18 +10,16 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/docker/model-runner/cmd/cli/commands/completion"
+	"github.com/docker/model-runner/cmd/cli/desktop"
 	"github.com/docker/model-runner/pkg/distribution/builder"
 	"github.com/docker/model-runner/pkg/distribution/distribution"
 	"github.com/docker/model-runner/pkg/distribution/packaging"
 	"github.com/docker/model-runner/pkg/distribution/registry"
 	"github.com/docker/model-runner/pkg/distribution/tarball"
 	"github.com/docker/model-runner/pkg/distribution/types"
-
 	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/name"
 	"github.com/spf13/cobra"
-
-	"github.com/docker/model-runner/cmd/cli/commands/completion"
-	"github.com/docker/model-runner/cmd/cli/desktop"
 )
 
 // validateAbsolutePath validates that a path is absolute and returns the cleaned path

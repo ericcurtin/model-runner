@@ -8,9 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/name"
-
 	"github.com/docker/model-runner/pkg/distribution/registry"
+	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/name"
 )
 
 // Index represents the index of all models in the store

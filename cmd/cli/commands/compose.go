@@ -9,15 +9,14 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/docker/model-runner/cmd/cli/pkg/types"
-	"github.com/spf13/pflag"
-
 	"github.com/docker/model-runner/cmd/cli/desktop"
+	"github.com/docker/model-runner/cmd/cli/pkg/types"
 	"github.com/docker/model-runner/pkg/inference"
 	"github.com/docker/model-runner/pkg/inference/backends/llamacpp"
 	dmrm "github.com/docker/model-runner/pkg/inference/models"
 	"github.com/docker/model-runner/pkg/inference/scheduling"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 )
 
 func newComposeCmd() *cobra.Command {
