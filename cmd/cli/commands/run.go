@@ -571,6 +571,7 @@ func newRunCmd() *cobra.Command {
 	var debug bool
 	var colorMode string
 	var detach bool
+	var openaiURL string
 
 	const cmdArgs = "MODEL [PROMPT]"
 	c := &cobra.Command{
@@ -585,10 +586,6 @@ func newRunCmd() *cobra.Command {
 			}
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if _, err := ensureStandaloneRunnerAvailable(cmd.Context(), asPrinter(cmd), debug); err != nil {
-				return fmt.Errorf("unable to initialize standalone model runner: %w", err)
-			}
-
 			model := args[0]
 			prompt := ""
 			argsLen := len(args)
@@ -619,6 +616,43 @@ func newRunCmd() *cobra.Command {
 				} else {
 					cmd.Printf("Running model %s with prompt %s\n", model, prompt)
 				}
+			}
+
+			// Handle --openaiurl flag for external OpenAI endpoints
+			if openaiURL != "" {
+				if detach {
+					return fmt.Errorf("--detach flag cannot be used with --openaiurl flag")
+				}
+				ctx, err := desktop.NewContextForOpenAI(openaiURL)
+				if err != nil {
+					return fmt.Errorf("invalid OpenAI URL: %w", err)
+				}
+				openaiClient := desktop.New(ctx)
+
+				if prompt != "" {
+					// Single prompt mode
+					useMarkdown := shouldUseMarkdown(colorMode)
+					if err := openaiClient.ChatWithContext(cmd.Context(), model, prompt, nil, func(content string) {
+						cmd.Print(content)
+					}, useMarkdown); err != nil {
+						return handleClientError(err, "Failed to generate a response")
+					}
+					cmd.Println()
+					return nil
+				}
+
+				// Interactive mode for external OpenAI endpoint
+				if term.IsTerminal(int(os.Stdin.Fd())) {
+					termenv.SetDefaultOutput(
+						termenv.NewOutput(asPrinter(cmd), termenv.WithColorCache(true)),
+					)
+					return generateInteractiveWithReadline(cmd, openaiClient, model)
+				}
+				return generateInteractiveBasic(cmd, openaiClient, model)
+			}
+
+			if _, err := ensureStandaloneRunnerAvailable(cmd.Context(), asPrinter(cmd), debug); err != nil {
+				return fmt.Errorf("unable to initialize standalone model runner: %w", err)
 			}
 
 			// Check if this is an NVIDIA NIM image
@@ -733,6 +767,7 @@ func newRunCmd() *cobra.Command {
 	c.Flags().BoolVar(&debug, "debug", false, "Enable debug logging")
 	c.Flags().StringVar(&colorMode, "color", "no", "Use colored output (auto|yes|no)")
 	c.Flags().BoolVarP(&detach, "detach", "d", false, "Load the model in the background without interaction")
+	c.Flags().StringVar(&openaiURL, "openaiurl", "", "OpenAI-compatible API endpoint URL to chat with")
 
 	return c
 }

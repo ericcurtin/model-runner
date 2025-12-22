@@ -276,7 +276,7 @@ func (c *Client) List() ([]dmrm.Model, error) {
 }
 
 func (c *Client) ListOpenAI() (dmrm.OpenAIModelList, error) {
-	modelsRoute := inference.InferencePrefix + "/v1/models"
+	modelsRoute := c.modelRunner.OpenAIPathPrefix() + "/models"
 	body, err := c.listRaw(modelsRoute, "")
 	if err != nil {
 		return dmrm.OpenAIModelList{}, err
@@ -304,7 +304,7 @@ func (c *Client) Inspect(model string, remote bool) (dmrm.Model, error) {
 }
 
 func (c *Client) InspectOpenAI(model string) (dmrm.OpenAIModel, error) {
-	modelsRoute := inference.InferencePrefix + "/v1/models"
+	modelsRoute := c.modelRunner.OpenAIPathPrefix() + "/models"
 	rawResponse, err := c.listRaw(fmt.Sprintf("%s/%s", modelsRoute, model), model)
 	if err != nil {
 		return dmrm.OpenAIModel{}, err
@@ -398,7 +398,7 @@ func (c *Client) ChatWithContext(ctx context.Context, model, prompt string, imag
 		return fmt.Errorf("error marshaling request: %w", err)
 	}
 
-	completionsPath := inference.InferencePrefix + "/v1/chat/completions"
+	completionsPath := c.modelRunner.OpenAIPathPrefix() + "/chat/completions"
 
 	resp, err := c.doRequestWithAuthContext(
 		ctx,

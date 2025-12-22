@@ -21,6 +21,7 @@ import (
 
 func newListCmd() *cobra.Command {
 	var jsonFormat, openai, quiet bool
+	var openaiURL string
 	c := &cobra.Command{
 		Use:     "list [OPTIONS] [MODEL]",
 		Aliases: []string{"ls"},
@@ -29,6 +30,46 @@ func newListCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if openai && quiet {
 				return fmt.Errorf("--quiet flag cannot be used with --openai flag or OpenAI backend")
+			}
+
+			// Handle --openaiurl flag for external OpenAI endpoints
+			if openaiURL != "" {
+				if quiet {
+					return fmt.Errorf("--quiet flag cannot be used with --openaiurl flag")
+				}
+				ctx, err := desktop.NewContextForOpenAI(openaiURL)
+				if err != nil {
+					return fmt.Errorf("invalid OpenAI URL: %w", err)
+				}
+				client := desktop.New(ctx)
+				models, err := client.ListOpenAI()
+				if err != nil {
+					return handleClientError(err, "Failed to list models from OpenAI endpoint")
+				}
+				var modelFilter string
+				if len(args) > 0 {
+					modelFilter = args[0]
+				}
+				if modelFilter != "" {
+					filtered := models.Data[:0]
+					for _, m := range models.Data {
+						if matchesModelFilter(m.ID, modelFilter) {
+							filtered = append(filtered, m)
+						}
+					}
+					models.Data = filtered
+				}
+				if jsonFormat {
+					output, err := formatter.ToStandardJSON(models)
+					if err != nil {
+						return err
+					}
+					fmt.Fprint(cmd.OutOrStdout(), output)
+					return nil
+				}
+				// Display in table format with only MODEL NAME populated
+				fmt.Fprint(cmd.OutOrStdout(), prettyPrintOpenAIModels(models))
+				return nil
 			}
 
 			// If we're doing an automatic install, only show the installation
@@ -56,6 +97,7 @@ func newListCmd() *cobra.Command {
 	c.Flags().BoolVar(&jsonFormat, "json", false, "List models in a JSON format")
 	c.Flags().BoolVar(&openai, "openai", false, "List models in an OpenAI format")
 	c.Flags().BoolVarP(&quiet, "quiet", "q", false, "Only show model IDs")
+	c.Flags().StringVar(&openaiURL, "openaiurl", "", "OpenAI-compatible API endpoint URL to list models from")
 	return c
 }
 
@@ -238,4 +280,25 @@ func appendRow(table *tablewriter.Table, tag string, model dmrm.Model) {
 		contextSize,
 		model.Config.Size,
 	})
+}
+
+// prettyPrintOpenAIModels formats OpenAI model list in table format with only MODEL NAME populated
+func prettyPrintOpenAIModels(models dmrm.OpenAIModelList) string {
+	// Sort models by ID
+	sort.Slice(models.Data, func(i, j int) bool {
+		return strings.ToLower(models.Data[i].ID) < strings.ToLower(models.Data[j].ID)
+	})
+
+	var buf bytes.Buffer
+	table := newTable(&buf)
+	table.Header([]string{"MODEL NAME", "CREATED"})
+	for _, model := range models.Data {
+		table.Append([]string{
+			model.ID,
+			units.HumanDuration(time.Since(time.Unix(model.Created, 0))) + " ago",
+		})
+	}
+
+	table.Render()
+	return buf.String()
 }

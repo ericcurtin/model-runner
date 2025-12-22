@@ -41,6 +41,15 @@ options:
       experimentalcli: false
       kubernetes: false
       swarm: false
+    - option: openaiurl
+      value_type: string
+      description: OpenAI-compatible API endpoint URL to chat with
+      deprecated: false
+      hidden: false
+      experimental: false
+      experimentalcli: false
+      kubernetes: false
+      swarm: false
 examples: |-
     ### One-time prompt
 
