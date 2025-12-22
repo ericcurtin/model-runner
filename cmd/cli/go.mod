@@ -15,6 +15,7 @@ require (
 	github.com/emirpasic/gods/v2 v2.0.0-alpha
 	github.com/fatih/color v1.18.0
 	github.com/mattn/go-runewidth v0.0.19
+	github.com/moby/moby/client v0.2.1
 	github.com/moby/term v0.5.2
 	github.com/muesli/termenv v0.16.0
 	github.com/nxadm/tail v1.4.11
@@ -95,7 +96,6 @@ require (
 	github.com/moby/go-archive v0.1.0 // indirect
 	github.com/moby/locker v1.0.1 // indirect
 	github.com/moby/moby/api v1.52.0 // indirect
-	github.com/moby/moby/client v0.2.1 // indirect
 	github.com/moby/patternmatcher v0.6.0 // indirect
 	github.com/moby/sys/atomicwriter v0.1.0 // indirect
 	github.com/moby/sys/sequential v0.6.0 // indirect
