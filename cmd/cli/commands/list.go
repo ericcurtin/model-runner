@@ -197,27 +197,8 @@ func prettyPrintModels(models []dmrm.Model) string {
 	})
 
 	var buf bytes.Buffer
-	table := tablewriter.NewWriter(&buf)
-
-	table.SetHeader([]string{"MODEL NAME", "PARAMETERS", "QUANTIZATION", "ARCHITECTURE", "MODEL ID", "CREATED", "CONTEXT", "SIZE"})
-
-	table.SetBorder(false)
-	table.SetColumnSeparator("")
-	table.SetHeaderLine(false)
-	table.SetTablePadding("  ")
-	table.SetNoWhiteSpace(true)
-
-	table.SetColumnAlignment([]int{
-		tablewriter.ALIGN_LEFT,  // MODEL
-		tablewriter.ALIGN_LEFT,  // PARAMETERS
-		tablewriter.ALIGN_LEFT,  // QUANTIZATION
-		tablewriter.ALIGN_LEFT,  // ARCHITECTURE
-		tablewriter.ALIGN_LEFT,  // MODEL ID
-		tablewriter.ALIGN_LEFT,  // CREATED
-		tablewriter.ALIGN_RIGHT, // CONTEXT
-		tablewriter.ALIGN_LEFT,  // SIZE
-	})
-	table.SetHeaderAlignment(tablewriter.ALIGN_LEFT)
+	table := newTable(&buf)
+	table.Header([]string{"MODEL NAME", "PARAMETERS", "QUANTIZATION", "ARCHITECTURE", "MODEL ID", "CREATED", "CONTEXT", "SIZE"})
 
 	for _, row := range rows {
 		appendRow(table, row.tag, row.model)

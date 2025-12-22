@@ -19,6 +19,7 @@ import (
 	"github.com/docker/model-runner/cmd/cli/pkg/standalone"
 	"github.com/docker/model-runner/cmd/cli/pkg/types"
 	"github.com/docker/model-runner/pkg/inference"
+	"github.com/moby/moby/client"
 )
 
 // isDesktopContext returns true if the CLI instance points to a Docker Desktop
@@ -26,7 +27,7 @@ import (
 func isDesktopContext(ctx context.Context, cli *command.DockerCli) bool {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	serverInfo, _ := cli.Client().Info(ctx)
+	serverInfo, _ := cli.Client().Info(ctx, client.InfoOptions{})
 
 	// We don't currently support Docker Model Runner in Docker Desktop for
 	// Linux, so we won't treat that as a Docker Desktop case (though it will
@@ -44,16 +45,16 @@ func isDesktopContext(ctx context.Context, cli *command.DockerCli) bool {
 	}
 
 	// docker run -it --rm --privileged --pid=host justincormack/nsenter1 /bin/sh -c 'cat /etc/os-release'
-	return serverInfo.OperatingSystem == "Docker Desktop"
+	return serverInfo.Info.OperatingSystem == "Docker Desktop"
 }
 
 func IsDesktopWSLContext(ctx context.Context, cli *command.DockerCli) bool {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	serverInfo, _ := cli.Client().Info(ctx)
+	serverInfo, _ := cli.Client().Info(ctx, client.InfoOptions{})
 
-	return strings.Contains(serverInfo.KernelVersion, "-microsoft-standard-WSL2") &&
-		serverInfo.OperatingSystem == "Docker Desktop"
+	return strings.Contains(serverInfo.Info.KernelVersion, "-microsoft-standard-WSL2") &&
+		serverInfo.Info.OperatingSystem == "Docker Desktop"
 }
 
 // isCloudContext returns true if the CLI instance points to a Docker Cloud
@@ -138,14 +139,14 @@ func wakeUpCloudIfIdle(ctx context.Context, cli *command.DockerCli) error {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	info, err := cli.Client().Info(ctx)
+	info, err := cli.Client().Info(ctx, client.InfoOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to get Docker info: %w", err)
 	}
 
 	// Check if the cloud.docker.run.engine label is set to "idle".
 	isIdle := false
-	for _, label := range info.Labels {
+	for _, label := range info.Info.Labels {
 		if label == "cloud.docker.run.engine=idle" {
 			isIdle = true
 			break
@@ -170,12 +171,12 @@ func wakeUpCloudIfIdle(ctx context.Context, cli *command.DockerCli) error {
 	}
 
 	// Verify Docker Cloud is no longer idle.
-	info, err = cli.Client().Info(ctx)
+	info, err = cli.Client().Info(ctx, client.InfoOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to verify Docker Cloud wake-up: %w", err)
 	}
 
-	for _, label := range info.Labels {
+	for _, label := range info.Info.Labels {
 		if label == "cloud.docker.run.engine=idle" {
 			return fmt.Errorf("failed to wake up Docker Cloud from idle state")
 		}

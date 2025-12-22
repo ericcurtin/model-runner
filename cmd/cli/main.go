@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/docker/cli/cli-plugins/manager"
+	"github.com/docker/cli/cli-plugins/metadata"
 	"github.com/docker/cli/cli-plugins/plugin"
 	"github.com/docker/cli/cli/command"
 	"github.com/docker/model-runner/cmd/cli/commands"
@@ -30,7 +30,7 @@ func run() error {
 		return rootCmd.Execute()
 	}
 
-	return plugin.RunPlugin(cli, rootCmd, manager.Metadata{
+	return plugin.RunPlugin(cli, rootCmd, metadata.Metadata{
 		SchemaVersion: "0.1.0",
 		Vendor:        "Docker Inc.",
 		Version:       desktop.Version,

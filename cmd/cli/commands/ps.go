@@ -8,7 +8,6 @@ import (
 	"github.com/docker/go-units"
 	"github.com/docker/model-runner/cmd/cli/commands/completion"
 	"github.com/docker/model-runner/cmd/cli/desktop"
-	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 )
 
@@ -31,23 +30,8 @@ func newPSCmd() *cobra.Command {
 
 func psTable(ps []desktop.BackendStatus) string {
 	var buf bytes.Buffer
-	table := tablewriter.NewWriter(&buf)
-
-	table.SetHeader([]string{"MODEL NAME", "BACKEND", "MODE", "LAST USED"})
-
-	table.SetBorder(false)
-	table.SetColumnSeparator("")
-	table.SetHeaderLine(false)
-	table.SetTablePadding("  ")
-	table.SetNoWhiteSpace(true)
-
-	table.SetColumnAlignment([]int{
-		tablewriter.ALIGN_LEFT, // MODEL
-		tablewriter.ALIGN_LEFT, // BACKEND
-		tablewriter.ALIGN_LEFT, // MODE
-		tablewriter.ALIGN_LEFT, // LAST USED
-	})
-	table.SetHeaderAlignment(tablewriter.ALIGN_LEFT)
+	table := newTable(&buf)
+	table.Header([]string{"MODEL NAME", "BACKEND", "MODE", "LAST USED"})
 
 	for _, status := range ps {
 		modelName := status.ModelName
