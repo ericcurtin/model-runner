@@ -140,8 +140,7 @@ func generateInteractiveWithReadline(cmd *cobra.Command, desktopClient *desktop.
 		AltPlaceholder: `Use """ to end multi-line input`,
 	})
 	if err != nil {
-		// Fall back to basic input mode if readline initialization fails
-		return generateInteractiveBasic(cmd, desktopClient, model)
+		return err
 	}
 
 	// Disable history if the environment variable is set
@@ -154,6 +153,7 @@ func generateInteractiveWithReadline(cmd *cobra.Command, desktopClient *desktop.
 
 	var sb strings.Builder
 	var multiline bool
+	var conversationHistory []desktop.OpenAIChatMessage
 
 	// Add a helper function to handle file inclusion when @ is pressed
 	// We'll implement a basic version here that shows a message when @ is pressed
@@ -245,7 +245,7 @@ func generateInteractiveWithReadline(cmd *cobra.Command, desktopClient *desktop.
 				}
 			}()
 
-			err := chatWithMarkdownContext(chatCtx, cmd, desktopClient, model, userInput)
+			assistantResponse, processedUserMessage, err := chatWithMarkdownContext(chatCtx, cmd, desktopClient, model, userInput, conversationHistory)
 
 			// Clean up signal handler
 			signal.Stop(sigChan)
@@ -263,68 +263,19 @@ func generateInteractiveWithReadline(cmd *cobra.Command, desktopClient *desktop.
 				continue
 			}
 
+			// Add the processed user message and assistant response to conversation history.
+			// Using the processed message ensures the history reflects exactly what the model
+			// received (after file inclusions and image processing), not the raw user input.
+			conversationHistory = append(conversationHistory, processedUserMessage)
+			conversationHistory = append(conversationHistory, desktop.OpenAIChatMessage{
+				Role:    "assistant",
+				Content: assistantResponse,
+			})
+
 			cmd.Println()
 			sb.Reset()
 		}
 	}
-}
-
-// generateInteractiveBasic provides a basic interactive mode (fallback)
-func generateInteractiveBasic(cmd *cobra.Command, desktopClient *desktop.Client, model string) error {
-	scanner := bufio.NewScanner(os.Stdin)
-	for {
-		userInput, err := readMultilineInput(cmd, scanner)
-		if err != nil {
-			if err.Error() == "EOF" {
-				break
-			}
-			return fmt.Errorf("Error reading input: %w", err)
-		}
-
-		if strings.ToLower(strings.TrimSpace(userInput)) == "/bye" {
-			break
-		}
-
-		if strings.TrimSpace(userInput) == "" {
-			continue
-		}
-
-		// Create a cancellable context for the chat request
-		// This allows us to cancel the request if the user presses Ctrl+C during response generation
-		chatCtx, cancelChat := context.WithCancel(cmd.Context())
-
-		// Set up signal handler to cancel the context on Ctrl+C
-		sigChan := make(chan os.Signal, 1)
-		signal.Notify(sigChan, syscall.SIGINT)
-		go func() {
-			select {
-			case <-sigChan:
-				cancelChat()
-			case <-chatCtx.Done():
-				// Context cancelled, exit goroutine
-				// Context cancelled, exit goroutine
-			}
-		}()
-
-		err = chatWithMarkdownContext(chatCtx, cmd, desktopClient, model, userInput)
-
-		cancelChat()
-		signal.Stop(sigChan)
-		cancelChat()
-
-		if err != nil {
-			// Check if the error is due to context cancellation (Ctrl+C during response)
-			if errors.Is(err, context.Canceled) {
-				fmt.Println("\nUse Ctrl + d or /bye to exit.")
-			} else {
-				cmd.PrintErrln(handleClientError(err, "Failed to generate a response"))
-			}
-			continue
-		}
-
-		cmd.Println()
-	}
-	return nil
 }
 
 var (
@@ -507,47 +458,93 @@ func renderMarkdown(content string) (string, error) {
 	return rendered, nil
 }
 
+// buildUserMessage constructs an OpenAIChatMessage for the user with the processed prompt and images.
+// This is used to ensure conversation history reflects exactly what the model received.
+func buildUserMessage(prompt string, imageURLs []string) desktop.OpenAIChatMessage {
+	if len(imageURLs) > 0 {
+		// Multimodal message with images - build content array
+		contentParts := make([]desktop.ContentPart, 0, len(imageURLs)+1)
+
+		// Add all images first
+		for _, imageURL := range imageURLs {
+			contentParts = append(contentParts, desktop.ContentPart{
+				Type: "image_url",
+				ImageURL: &desktop.ImageURL{
+					URL: imageURL,
+				},
+			})
+		}
+
+		// Add text prompt if present
+		if prompt != "" {
+			contentParts = append(contentParts, desktop.ContentPart{
+				Type: "text",
+				Text: prompt,
+			})
+		}
+
+		return desktop.OpenAIChatMessage{
+			Role:    "user",
+			Content: contentParts,
+		}
+	}
+
+	// Simple text-only message
+	return desktop.OpenAIChatMessage{
+		Role:    "user",
+		Content: prompt,
+	}
+}
+
 // chatWithMarkdown performs chat and streams the response with selective markdown rendering.
 func chatWithMarkdown(cmd *cobra.Command, client *desktop.Client, model, prompt string) error {
-	return chatWithMarkdownContext(cmd.Context(), cmd, client, model, prompt)
+	_, _, err := chatWithMarkdownContext(cmd.Context(), cmd, client, model, prompt, nil)
+	return err
 }
 
 // chatWithMarkdownContext performs chat with context support and streams the response with selective markdown rendering.
-func chatWithMarkdownContext(ctx context.Context, cmd *cobra.Command, client *desktop.Client, model, prompt string) error {
+// It accepts an optional conversation history and returns both the assistant's response and the processed user message
+// (after file inclusions and image processing) for accurate history tracking.
+func chatWithMarkdownContext(ctx context.Context, cmd *cobra.Command, client *desktop.Client, model, prompt string, conversationHistory []desktop.OpenAIChatMessage) (assistantResponse string, processedUserMessage desktop.OpenAIChatMessage, err error) {
 	colorMode, _ := cmd.Flags().GetString("color")
 	useMarkdown := shouldUseMarkdown(colorMode)
 	debug, _ := cmd.Flags().GetBool("debug")
 
 	// Process file inclusions first (files referenced with @ symbol)
-	prompt, err := processFileInclusions(prompt)
+	prompt, err = processFileInclusions(prompt)
 	if err != nil {
-		return fmt.Errorf("failed to process file inclusions: %w", err)
+		return "", desktop.OpenAIChatMessage{}, fmt.Errorf("failed to process file inclusions: %w", err)
 	}
 
 	var imageURLs []string
 	cleanedPrompt, imgs, err := processImagesInPrompt(prompt)
 	if err != nil {
-		return fmt.Errorf("failed to process images: %w", err)
+		return "", desktop.OpenAIChatMessage{}, fmt.Errorf("failed to process images: %w", err)
 	}
 	prompt = cleanedPrompt
 	imageURLs = imgs
 
+	// Build the processed user message to return for history tracking.
+	// This reflects exactly what the model receives.
+	processedUserMessage = buildUserMessage(prompt, imageURLs)
+
 	if !useMarkdown {
 		// Simple case: just stream as plain text
-		return client.ChatWithContext(ctx, model, prompt, imageURLs, func(content string) {
+		assistantResponse, err = client.ChatWithMessagesContext(ctx, model, conversationHistory, prompt, imageURLs, func(content string) {
 			cmd.Print(content)
 		}, false)
+		return assistantResponse, processedUserMessage, err
 	}
 
 	// For markdown: use streaming buffer to render code blocks as they complete
 	markdownBuffer := NewStreamingMarkdownBuffer()
 
-	err = client.ChatWithContext(ctx, model, prompt, imageURLs, func(content string) {
+	assistantResponse, err = client.ChatWithMessagesContext(ctx, model, conversationHistory, prompt, imageURLs, func(content string) {
 		// Use the streaming markdown buffer to intelligently render content
-		rendered, err := markdownBuffer.AddContent(content, true)
-		if err != nil {
+		rendered, renderErr := markdownBuffer.AddContent(content, true)
+		if renderErr != nil {
 			if debug {
-				cmd.PrintErrln(err)
+				cmd.PrintErrln(renderErr)
 			}
 			// Fallback to plain text on error
 			cmd.Print(content)
@@ -556,7 +553,7 @@ func chatWithMarkdownContext(ctx context.Context, cmd *cobra.Command, client *de
 		}
 	}, true)
 	if err != nil {
-		return err
+		return assistantResponse, processedUserMessage, err
 	}
 
 	// Flush any remaining content from the markdown buffer
@@ -564,7 +561,7 @@ func chatWithMarkdownContext(ctx context.Context, cmd *cobra.Command, client *de
 		cmd.Print(remaining)
 	}
 
-	return nil
+	return assistantResponse, processedUserMessage, nil
 }
 
 func newRunCmd() *cobra.Command {
@@ -641,14 +638,10 @@ func newRunCmd() *cobra.Command {
 					return nil
 				}
 
-				// Interactive mode for external OpenAI endpoint
-				if term.IsTerminal(int(os.Stdin.Fd())) {
-					termenv.SetDefaultOutput(
-						termenv.NewOutput(asPrinter(cmd), termenv.WithColorCache(true)),
-					)
-					return generateInteractiveWithReadline(cmd, openaiClient, model)
-				}
-				return generateInteractiveBasic(cmd, openaiClient, model)
+				termenv.SetDefaultOutput(
+					termenv.NewOutput(asPrinter(cmd), termenv.WithColorCache(true)),
+				)
+				return generateInteractiveWithReadline(cmd, openaiClient, model)
 			}
 
 			if _, err := ensureStandaloneRunnerAvailable(cmd.Context(), asPrinter(cmd), debug); err != nil {
@@ -746,19 +739,15 @@ func newRunCmd() *cobra.Command {
 				return nil
 			}
 
-			// Use enhanced readline-based interactive mode when terminal is available
-			if term.IsTerminal(int(os.Stdin.Fd())) {
-				// Initialize termenv with color caching before starting interactive session.
-				// This queries the terminal background color once and caches it, preventing
-				// OSC response sequences from appearing in stdin during the interactive loop.
-				termenv.SetDefaultOutput(
-					termenv.NewOutput(asPrinter(cmd), termenv.WithColorCache(true)),
-				)
-				return generateInteractiveWithReadline(cmd, desktopClient, model)
-			}
+			// Initialize termenv with color caching before starting interactive session.
+			// This queries the terminal background color once and caches it, preventing
+			// OSC response sequences from appearing in stdin during the interactive loop.
+			termenv.SetDefaultOutput(
+				termenv.NewOutput(asPrinter(cmd), termenv.WithColorCache(true)),
+			)
 
-			// Fall back to basic mode if not a terminal
-			return generateInteractiveBasic(cmd, desktopClient, model)
+			return generateInteractiveWithReadline(cmd, desktopClient, model)
+
 		},
 		ValidArgsFunction: completion.ModelNames(getDesktopClient, 1),
 	}

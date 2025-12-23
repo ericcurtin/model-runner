@@ -350,13 +350,14 @@ func (c *Client) Chat(model, prompt string, imageURLs []string, outputFunc func(
 	return c.ChatWithContext(context.Background(), model, prompt, imageURLs, outputFunc, shouldUseMarkdown)
 }
 
-// ChatWithContext performs a chat request with context support for cancellation and streams the response content with selective markdown rendering.
-func (c *Client) ChatWithContext(ctx context.Context, model, prompt string, imageURLs []string, outputFunc func(string), shouldUseMarkdown bool) error {
-	// Build the message content - either simple string or multimodal array
+// ChatWithMessagesContext performs a chat request with conversation history and returns the assistant's response.
+// This allows maintaining conversation context across multiple exchanges.
+func (c *Client) ChatWithMessagesContext(ctx context.Context, model string, conversationHistory []OpenAIChatMessage, prompt string, imageURLs []string, outputFunc func(string), shouldUseMarkdown bool) (string, error) {
+	// Build the current user message content - either simple string or multimodal array
 	var messageContent interface{}
 	if len(imageURLs) > 0 {
 		// Multimodal message with images
-		contentParts := make([]ContentPart, 0, len(imageURLs))
+		contentParts := make([]ContentPart, 0, len(imageURLs)+1)
 
 		// Add all images first
 		for _, imageURL := range imageURLs {
@@ -382,20 +383,23 @@ func (c *Client) ChatWithContext(ctx context.Context, model, prompt string, imag
 		messageContent = prompt
 	}
 
+	// Build messages array with conversation history plus current message
+	messages := make([]OpenAIChatMessage, 0, len(conversationHistory)+1)
+	messages = append(messages, conversationHistory...)
+	messages = append(messages, OpenAIChatMessage{
+		Role:    "user",
+		Content: messageContent,
+	})
+
 	reqBody := OpenAIChatRequest{
-		Model: model,
-		Messages: []OpenAIChatMessage{
-			{
-				Role:    "user",
-				Content: messageContent,
-			},
-		},
-		Stream: true,
+		Model:    model,
+		Messages: messages,
+		Stream:   true,
 	}
 
 	jsonData, err := json.Marshal(reqBody)
 	if err != nil {
-		return fmt.Errorf("error marshaling request: %w", err)
+		return "", fmt.Errorf("error marshaling request: %w", err)
 	}
 
 	completionsPath := c.modelRunner.OpenAIPathPrefix() + "/chat/completions"
@@ -407,13 +411,13 @@ func (c *Client) ChatWithContext(ctx context.Context, model, prompt string, imag
 		bytes.NewReader(jsonData),
 	)
 	if err != nil {
-		return c.handleQueryError(err, completionsPath)
+		return "", c.handleQueryError(err, completionsPath)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("error response: status=%d body=%s", resp.StatusCode, body)
+		return "", fmt.Errorf("error response: status=%d body=%s", resp.StatusCode, body)
 	}
 
 	type chatPrinterState int
@@ -425,7 +429,11 @@ func (c *Client) ChatWithContext(ctx context.Context, model, prompt string, imag
 
 	printerState := chatPrinterNone
 	reasoningFmt := color.New().Add(color.Italic)
+	if !shouldUseMarkdown {
+		reasoningFmt.DisableColor()
+	}
 
+	var assistantResponse strings.Builder
 	var finalUsage *struct {
 		CompletionTokens int `json:"completion_tokens"`
 		PromptTokens     int `json:"prompt_tokens"`
@@ -437,7 +445,7 @@ func (c *Client) ChatWithContext(ctx context.Context, model, prompt string, imag
 		// Check if context was cancelled
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return assistantResponse.String(), ctx.Err()
 		default:
 		}
 
@@ -458,7 +466,7 @@ func (c *Client) ChatWithContext(ctx context.Context, model, prompt string, imag
 
 		var streamResp OpenAIChatResponse
 		if err := json.Unmarshal([]byte(data), &streamResp); err != nil {
-			return fmt.Errorf("error parsing stream response: %w", err)
+			return assistantResponse.String(), fmt.Errorf("error parsing stream response: %w", err)
 		}
 
 		if streamResp.Usage != nil {
@@ -493,12 +501,13 @@ func (c *Client) ChatWithContext(ctx context.Context, model, prompt string, imag
 				}
 				printerState = chatPrinterContent
 				outputFunc(chunk)
+				assistantResponse.WriteString(chunk)
 			}
 		}
 	}
 
 	if err := scanner.Err(); err != nil {
-		return fmt.Errorf("error reading response stream: %w", err)
+		return assistantResponse.String(), fmt.Errorf("error reading response stream: %w", err)
 	}
 
 	if finalUsage != nil {
@@ -514,7 +523,13 @@ func (c *Client) ChatWithContext(ctx context.Context, model, prompt string, imag
 		outputFunc(usageFmt.Sprint(usageInfo))
 	}
 
-	return nil
+	return assistantResponse.String(), nil
+}
+
+// ChatWithContext performs a chat request with context support for cancellation and streams the response content with selective markdown rendering.
+func (c *Client) ChatWithContext(ctx context.Context, model, prompt string, imageURLs []string, outputFunc func(string), shouldUseMarkdown bool) error {
+	_, err := c.ChatWithMessagesContext(ctx, model, nil, prompt, imageURLs, outputFunc, shouldUseMarkdown)
+	return err
 }
 
 func (c *Client) Remove(modelArgs []string, force bool) (string, error) {
