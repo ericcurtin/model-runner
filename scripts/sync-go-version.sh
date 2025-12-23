@@ -86,6 +86,10 @@ DOCKERFILE_FILES=()
 while IFS= read -r -d '' file; do
     DOCKERFILE_FILES+=("$file")
 done < <(find . -name 'Dockerfile*' -not -path './pkg/go-containerregistry/*' -print0)
+WORKFLOW_FILES=()
+while IFS= read -r -d '' file; do
+    WORKFLOW_FILES+=("$file")
+done < <(find .github/workflows -name '*.yml' -print0 2>/dev/null || true)
 
 case "${1:-}" in
     check)
@@ -105,6 +109,12 @@ case "${1:-}" in
         for dockerfile in "${DOCKERFILE_FILES[@]}"; do
             if grep -q "ARG GO_VERSION=" "$dockerfile" 2>/dev/null; then
                 check_file "$dockerfile" "ARG GO_VERSION=$GO_VERSION_MINOR" "ARG GO_VERSION=" "ARG GO_VERSION=$GO_VERSION_MINOR"
+            fi
+        done
+
+        for workflow in "${WORKFLOW_FILES[@]}"; do
+            if grep -q "go-version:" "$workflow" 2>/dev/null; then
+                check_file "$workflow" "go-version: $GO_VERSION" "go-version:" "go-version: $GO_VERSION"
             fi
         done
 
@@ -131,6 +141,10 @@ case "${1:-}" in
 
         for dockerfile in "${DOCKERFILE_FILES[@]}"; do
             update_file "$dockerfile" "ARG GO_VERSION=.*" "ARG GO_VERSION=$GO_VERSION_MINOR"
+        done
+
+        for workflow in "${WORKFLOW_FILES[@]}"; do
+            update_file "$workflow" "go-version: .*" "go-version: $GO_VERSION"
         done
 
         echo ""
