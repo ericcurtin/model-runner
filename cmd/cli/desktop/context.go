@@ -98,6 +98,10 @@ type ModelRunnerContext struct {
 	urlPrefix *url.URL
 	// client is the model runner client.
 	client DockerHttpClient
+	// openaiPathPrefix is the path prefix for OpenAI-compatible endpoints.
+	// For internal Docker Model Runner, this is "/engines/v1".
+	// For external OpenAI-compatible endpoints, this is empty (the URL already includes the version path).
+	openaiPathPrefix string
 }
 
 // NewContextForMock is a ModelRunnerContext constructor exposed only for the
@@ -108,9 +112,10 @@ func NewContextForMock(client DockerHttpClient) *ModelRunnerContext {
 		panic("error occurred while parsing known-good URL")
 	}
 	return &ModelRunnerContext{
-		kind:      types.ModelRunnerEngineKindDesktop,
-		urlPrefix: urlPrefix,
-		client:    client,
+		kind:             types.ModelRunnerEngineKindDesktop,
+		urlPrefix:        urlPrefix,
+		client:           client,
+		openaiPathPrefix: inference.InferencePrefix + "/v1",
 	}
 }
 
@@ -128,9 +133,26 @@ func NewContextForTest(endpoint string, client DockerHttpClient, kind types.Mode
 	}
 
 	return &ModelRunnerContext{
-		kind:      kind,
-		urlPrefix: urlPrefix,
-		client:    client,
+		kind:             kind,
+		urlPrefix:        urlPrefix,
+		client:           client,
+		openaiPathPrefix: inference.InferencePrefix + "/v1",
+	}, nil
+}
+
+// NewContextForOpenAI creates a ModelRunnerContext for connecting to an external
+// OpenAI-compatible API endpoint. This is used when the --openaiurl flag is specified.
+func NewContextForOpenAI(endpoint string) (*ModelRunnerContext, error) {
+	urlPrefix, err := url.Parse(endpoint)
+	if err != nil {
+		return nil, fmt.Errorf("invalid OpenAI endpoint URL: %w", err)
+	}
+
+	return &ModelRunnerContext{
+		kind:             types.ModelRunnerEngineKindMobyManual,
+		urlPrefix:        urlPrefix,
+		client:           http.DefaultClient,
+		openaiPathPrefix: "", // Empty prefix for external OpenAI-compatible endpoints
 	}, nil
 }
 
@@ -262,9 +284,10 @@ func DetectContext(ctx context.Context, cli *command.DockerCli, printer standalo
 
 	// Success.
 	return &ModelRunnerContext{
-		kind:      kind,
-		urlPrefix: urlPrefix,
-		client:    client,
+		kind:             kind,
+		urlPrefix:        urlPrefix,
+		client:           client,
+		openaiPathPrefix: inference.InferencePrefix + "/v1",
 	}, nil
 }
 
@@ -287,6 +310,13 @@ func (c *ModelRunnerContext) URL(path string) string {
 // Client returns an HTTP client appropriate for accessing the model runner.
 func (c *ModelRunnerContext) Client() DockerHttpClient {
 	return c.client
+}
+
+// OpenAIPathPrefix returns the path prefix for OpenAI-compatible endpoints.
+// For internal Docker Model Runner, this returns the inference prefix.
+// For external OpenAI-compatible endpoints, this returns an empty string.
+func (c *ModelRunnerContext) OpenAIPathPrefix() string {
+	return c.openaiPathPrefix
 }
 
 func setUserAgent(client DockerHttpClient, userAgent string) {
