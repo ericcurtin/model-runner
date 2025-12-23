@@ -68,7 +68,8 @@ check_file() {
 
     if ! grep -q "$expected_pattern" "$file"; then
         local current
-        current=$(grep "$search_pattern" "$file" 2>/dev/null | head -1 || echo "(not found)")
+        current=$(grep "$search_pattern" "$file" 2>/dev/null | head -1 | xargs)
+        current=${current:-(not found)}
         echo "Mismatch: $(realpath "$file")"
         echo "  have: $current"
         echo "  want: $expected_value"
