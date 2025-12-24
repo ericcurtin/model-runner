@@ -1055,10 +1055,9 @@ struct server_context_impl {
                 common_sampler_free(slot.smpl);
             }
 
-            // If grammar is an empty string, clear it to ensure common_sampler_init doesn't try to parse it
+            // If grammar is an empty string, clear related fields to ensure common_sampler_init doesn't fail
             // Empty grammar means no grammar constraints should be applied
             if (task.params.sampling.grammar.empty()) {
-                task.params.sampling.grammar.clear();
                 task.params.sampling.grammar_triggers.clear();
                 task.params.sampling.grammar_lazy = false;
             }
