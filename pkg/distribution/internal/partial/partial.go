@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/docker/model-runner/pkg/distribution/modelpack"
 	"github.com/docker/model-runner/pkg/distribution/types"
 	v1 "github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1"
 	"github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1/partial"
@@ -15,25 +16,43 @@ type WithRawConfigFile interface {
 	RawConfigFile() ([]byte, error)
 }
 
+// Config returns the model configuration. Returns *types.Config for Docker format
+// or *modelpack.Model for ModelPack format, without any conversion.
+func Config(i WithRawConfigFile) (types.ModelConfig, error) {
+	raw, err := i.RawConfigFile()
+	if err != nil {
+		return nil, fmt.Errorf("get raw config file: %w", err)
+	}
+
+	// ModelPack format: parse directly into modelpack.Model without conversion
+	if modelpack.IsModelPackConfig(raw) {
+		var mp modelpack.Model
+		if err := json.Unmarshal(raw, &mp); err != nil {
+			return nil, fmt.Errorf("unmarshal modelpack config: %w", err)
+		}
+		return &mp, nil
+	}
+
+	// Docker format: parse into types.Config
+	var cf types.ConfigFile
+	if err := json.Unmarshal(raw, &cf); err != nil {
+		return nil, fmt.Errorf("unmarshal config: %w", err)
+	}
+	return &cf.Config, nil
+}
+
+// ConfigFile returns the full Docker format config file (only for Docker format models).
 func ConfigFile(i WithRawConfigFile) (*types.ConfigFile, error) {
 	raw, err := i.RawConfigFile()
 	if err != nil {
 		return nil, fmt.Errorf("get raw config file: %w", err)
 	}
+
 	var cf types.ConfigFile
 	if err := json.Unmarshal(raw, &cf); err != nil {
-		return nil, fmt.Errorf("unmarshal : %w", err)
+		return nil, fmt.Errorf("unmarshal config: %w", err)
 	}
 	return &cf, nil
-}
-
-// Config returns the types.Config for the model.
-func Config(i WithRawConfigFile) (types.Config, error) {
-	cf, err := ConfigFile(i)
-	if err != nil {
-		return types.Config{}, fmt.Errorf("config file: %w", err)
-	}
-	return cf.Config, nil
 }
 
 // Descriptor returns the types.Descriptor for the model.
@@ -117,7 +136,8 @@ func ConfigArchivePath(i WithLayers) (string, error) {
 	return paths[0], err
 }
 
-// layerPathsByMediaType is a generic helper function that finds a layer by media type and returns its path
+// layerPathsByMediaType is a generic helper function that finds a layer by media type and returns its path.
+// Natively supports both Docker and ModelPack media types without any conversion.
 func layerPathsByMediaType(i WithLayers, mediaType ggcr.MediaType) ([]string, error) {
 	layers, err := i.Layers()
 	if err != nil {
@@ -126,7 +146,10 @@ func layerPathsByMediaType(i WithLayers, mediaType ggcr.MediaType) ([]string, er
 	var paths []string
 	for _, l := range layers {
 		mt, err := l.MediaType()
-		if err != nil || mt != mediaType {
+		if err != nil {
+			continue
+		}
+		if !matchesMediaType(mt, mediaType) {
 			continue
 		}
 		layer, ok := l.(*Layer)
@@ -136,6 +159,29 @@ func layerPathsByMediaType(i WithLayers, mediaType ggcr.MediaType) ([]string, er
 		paths = append(paths, layer.Path)
 	}
 	return paths, nil
+}
+
+// matchesMediaType checks if a layer media type matches the target type.
+// Natively supports both Docker and ModelPack formats without any conversion.
+func matchesMediaType(layerMT, targetMT ggcr.MediaType) bool {
+	// Exact match
+	if layerMT == targetMT {
+		return true
+	}
+
+	// Native ModelPack support: check equivalent ModelPack types
+	//nolint:exhaustive // Only GGUF and Safetensors need cross-format matching
+	switch targetMT {
+	case types.MediaTypeGGUF:
+		// ModelPack GGUF layers also match Docker GGUF target
+		return layerMT == ggcr.MediaType(modelpack.MediaTypeWeightGGUF)
+	case types.MediaTypeSafetensors:
+		// ModelPack safetensors layers also match Docker safetensors target
+		return layerMT == ggcr.MediaType(modelpack.MediaTypeWeightSafetensors)
+	default:
+		// Other media types have no cross-format equivalents
+		return false
+	}
 }
 
 func ManifestForLayers(i WithLayers) (*v1.Manifest, error) {

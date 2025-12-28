@@ -145,7 +145,7 @@ func (m *Model) ID() (string, error) {
 	return mdpartial.ID(m)
 }
 
-func (m *Model) Config() (mdtypes.Config, error) {
+func (m *Model) Config() (mdtypes.ModelConfig, error) {
 	return mdpartial.Config(m)
 }
 

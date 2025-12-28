@@ -16,7 +16,7 @@ func (a *artifact) ID() (string, error) {
 	return partial.ID(a)
 }
 
-func (a *artifact) Config() (types.Config, error) {
+func (a *artifact) Config() (types.ModelConfig, error) {
 	return partial.Config(a)
 }
 

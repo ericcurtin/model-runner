@@ -100,7 +100,7 @@ func (s *Scheduler) selectBackendForModel(model types.Model, backend inference.B
 		return backend
 	}
 
-	if config.Format == types.FormatSafetensors {
+	if config.GetFormat() == types.FormatSafetensors {
 		// Prefer vLLM for safetensors models
 		if vllmBackend, ok := s.backends[vllm.Name]; ok && vllmBackend != nil {
 			return vllmBackend

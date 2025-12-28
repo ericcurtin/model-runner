@@ -8,7 +8,107 @@ import (
 	"github.com/docker/model-runner/pkg/distribution/internal/mutate"
 	"github.com/docker/model-runner/pkg/distribution/internal/partial"
 	"github.com/docker/model-runner/pkg/distribution/types"
+	ggcr "github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1/types"
 )
+
+// mockConfig is used to test ConfigFile and Config functions
+type mockConfig struct {
+	raw []byte
+	err error
+}
+
+func (m *mockConfig) RawConfigFile() ([]byte, error) {
+	return m.raw, m.err
+}
+
+// TestConfig_NativeFormatSupport tests that Config() returns native format without conversion
+func TestConfig_NativeFormatSupport(t *testing.T) {
+	t.Run("Docker format returns *types.Config", func(t *testing.T) {
+		// Docker format config
+		dockerJSON := `{
+			"config": {"format": "gguf", "parameters": "8B"},
+			"descriptor": {},
+			"rootfs": {"type": "layers", "diff_ids": []}
+		}`
+
+		mock := &mockConfig{raw: []byte(dockerJSON)}
+		cfg, err := partial.Config(mock)
+		if err != nil {
+			t.Fatalf("Config() error = %v", err)
+		}
+
+		if cfg.GetFormat() != types.FormatGGUF {
+			t.Errorf("GetFormat() = %v, want %v", cfg.GetFormat(), types.FormatGGUF)
+		}
+		if cfg.GetParameters() != "8B" {
+			t.Errorf("GetParameters() = %q, want %q", cfg.GetParameters(), "8B")
+		}
+	})
+
+	t.Run("ModelPack format returns *modelpack.Model without conversion", func(t *testing.T) {
+		// ModelPack format config (uses paramSize not parameters)
+		modelPackJSON := `{
+			"descriptor": {"createdAt": "2025-01-15T10:30:00Z"},
+			"config": {"format": "gguf", "paramSize": "8B"},
+			"modelfs": {"type": "layers", "diffIds": []}
+		}`
+
+		mock := &mockConfig{raw: []byte(modelPackJSON)}
+		cfg, err := partial.Config(mock)
+		if err != nil {
+			t.Fatalf("Config() error = %v", err)
+		}
+
+		// Should return native format with interface methods working
+		if cfg.GetFormat() != types.FormatGGUF {
+			t.Errorf("GetFormat() = %v, want %v", cfg.GetFormat(), types.FormatGGUF)
+		}
+		// GetParameters() returns ParamSize for ModelPack
+		if cfg.GetParameters() != "8B" {
+			t.Errorf("GetParameters() = %q, want %q", cfg.GetParameters(), "8B")
+		}
+	})
+
+	t.Run("invalid JSON returns error", func(t *testing.T) {
+		mock := &mockConfig{raw: []byte("not valid json")}
+		_, err := partial.Config(mock)
+		if err == nil {
+			t.Error("expected error for invalid JSON")
+		}
+	})
+}
+
+// TestConfigFile tests ConfigFile() which is for Docker format only
+func TestConfigFile(t *testing.T) {
+	t.Run("Docker format parses correctly", func(t *testing.T) {
+		dockerJSON := `{
+			"config": {"format": "gguf", "parameters": "8B"},
+			"descriptor": {},
+			"rootfs": {"type": "layers", "diff_ids": []}
+		}`
+
+		mock := &mockConfig{raw: []byte(dockerJSON)}
+		cf, err := partial.ConfigFile(mock)
+		if err != nil {
+			t.Fatalf("ConfigFile() error = %v", err)
+		}
+
+		if cf.Config.Format != types.FormatGGUF {
+			t.Errorf("Format = %v, want %v", cf.Config.Format, types.FormatGGUF)
+		}
+		if cf.Config.Parameters != "8B" {
+			t.Errorf("Parameters = %q, want %q", cf.Config.Parameters, "8B")
+		}
+	})
+
+	t.Run("invalid JSON returns error", func(t *testing.T) {
+		mock := &mockConfig{raw: []byte("not valid json")}
+		_, err := partial.ConfigFile(mock)
+		if err == nil {
+			t.Error("expected error for invalid JSON")
+		}
+	})
+}
 
 func TestMMPROJPath(t *testing.T) {
 	// Create a model from GGUF file
@@ -121,4 +221,34 @@ func TestLayerPathByMediaType(t *testing.T) {
 		t.Errorf("Expected multimodal projector path to be: %s, got: %s", filepath.Join("..", "..", "assets", "dummy.mmproj"), mmprojPath)
 	}
 
+}
+
+// TestGGUFPaths_ModelPackMediaType tests that GGUFPaths can find ModelPack format layers
+func TestGGUFPaths_ModelPackMediaType(t *testing.T) {
+	// Create a layer with ModelPack GGUF media type
+	modelPackGGUFType := ggcr.MediaType("application/vnd.cncf.model.weight.v1.gguf")
+
+	layer, err := partial.NewLayer(filepath.Join("..", "..", "assets", "dummy.gguf"), modelPackGGUFType)
+	if err != nil {
+		t.Fatalf("Failed to create ModelPack layer: %v", err)
+	}
+
+	// Create a model with mutate and add the layer
+	mdl, err := gguf.NewModel(filepath.Join("..", "..", "assets", "dummy.gguf"))
+	if err != nil {
+		t.Fatalf("Failed to create GGUF model: %v", err)
+	}
+
+	mdlWithModelPackLayer := mutate.AppendLayers(mdl, layer)
+
+	// GGUFPaths should be able to find ModelPack format GGUF layers
+	paths, err := partial.GGUFPaths(mdlWithModelPackLayer)
+	if err != nil {
+		t.Fatalf("GGUFPaths() error = %v", err)
+	}
+
+	// Should find two: original Docker format + newly added ModelPack format
+	if len(paths) != 2 {
+		t.Errorf("Expected 2 GGUF paths, got %d", len(paths))
+	}
 }

@@ -26,7 +26,7 @@ func (m *model) ID() (string, error) {
 	return partial.ID(m)
 }
 
-func (m *model) Config() (types.Config, error) {
+func (m *model) Config() (types.ModelConfig, error) {
 	return partial.Config(m)
 }
 

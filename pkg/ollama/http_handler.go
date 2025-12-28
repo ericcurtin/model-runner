@@ -209,10 +209,10 @@ func (h *HTTPHandler) handleListModels(w http.ResponseWriter, r *http.Request) {
 		// Extract details from the model
 		details := ModelDetails{
 			Format:            "gguf", // Default to gguf for now
-			Family:            model.Config.Architecture,
-			Families:          []string{model.Config.Architecture},
-			ParameterSize:     model.Config.Parameters,
-			QuantizationLevel: model.Config.Quantization,
+			Family:            model.Config.GetArchitecture(),
+			Families:          []string{model.Config.GetArchitecture()},
+			ParameterSize:     model.Config.GetParameters(),
+			QuantizationLevel: model.Config.GetQuantization(),
 		}
 
 		// Parse size from config string to int64
@@ -336,10 +336,10 @@ func (h *HTTPHandler) handleShowModel(w http.ResponseWriter, r *http.Request) {
 	response := ShowResponse{
 		Details: ModelDetails{
 			Format:            "gguf",
-			Family:            config.Architecture,
-			Families:          []string{config.Architecture},
-			ParameterSize:     config.Parameters,
-			QuantizationLevel: config.Quantization,
+			Family:            config.GetArchitecture(),
+			Families:          []string{config.GetArchitecture()},
+			ParameterSize:     config.GetParameters(),
+			QuantizationLevel: config.GetQuantization(),
 		},
 	}
 

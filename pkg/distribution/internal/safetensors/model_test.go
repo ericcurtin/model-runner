@@ -82,42 +82,48 @@ func TestNewModel_WithMetadata(t *testing.T) {
 	}
 
 	// Verify format
-	if config.Format != types.FormatSafetensors {
-		t.Errorf("Config.Format = %v, want %v", config.Format, types.FormatSafetensors)
+	if config.GetFormat() != types.FormatSafetensors {
+		t.Errorf("Config.Format = %v, want %v", config.GetFormat(), types.FormatSafetensors)
 	}
 
 	// Verify architecture
-	if config.Architecture != "LlamaForCausalLM" {
-		t.Errorf("Config.Architecture = %v, want %v", config.Architecture, "LlamaForCausalLM")
+	if config.GetArchitecture() != "LlamaForCausalLM" {
+		t.Errorf("Config.Architecture = %v, want %v", config.GetArchitecture(), "LlamaForCausalLM")
 	}
 
 	// Verify parameters (4096*4096 + 4096 = 16781312)
 	expectedParams := "16.78M"
-	if config.Parameters != expectedParams {
-		t.Errorf("Config.Parameters = %v, want %v", config.Parameters, expectedParams)
+	if config.GetParameters() != expectedParams {
+		t.Errorf("Config.Parameters = %v, want %v", config.GetParameters(), expectedParams)
 	}
 
 	// Verify quantization
-	if config.Quantization != "F16" {
-		t.Errorf("Config.Quantization = %v, want %v", config.Quantization, "F16")
+	if config.GetQuantization() != "F16" {
+		t.Errorf("Config.Quantization = %v, want %v", config.GetQuantization(), "F16")
 	}
 
 	// Verify size is calculated
-	if config.Size == "" {
+	if config.GetSize() == "" {
 		t.Error("Config.Size is empty")
 	}
 
+	// Type assert to access Docker format specific fields
+	dockerConfig, ok := config.(*types.Config)
+	if !ok {
+		t.Fatal("Expected *types.Config for safetensors model")
+	}
+
 	// Verify safetensors metadata map
-	if config.Safetensors == nil {
+	if dockerConfig.Safetensors == nil {
 		t.Fatal("Config.Safetensors is nil")
 	}
 
-	if config.Safetensors["architecture"] != "LlamaForCausalLM" {
-		t.Errorf("Config.Safetensors[architecture] = %v, want %v", config.Safetensors["architecture"], "LlamaForCausalLM")
+	if dockerConfig.Safetensors["architecture"] != "LlamaForCausalLM" {
+		t.Errorf("Config.Safetensors[architecture] = %v, want %v", dockerConfig.Safetensors["architecture"], "LlamaForCausalLM")
 	}
 
-	if config.Safetensors["tensor_count"] != "2" {
-		t.Errorf("Config.Safetensors[tensor_count] = %v, want %v", config.Safetensors["tensor_count"], "2")
+	if dockerConfig.Safetensors["tensor_count"] != "2" {
+		t.Errorf("Config.Safetensors[tensor_count] = %v, want %v", dockerConfig.Safetensors["tensor_count"], "2")
 	}
 
 	// Test annotations
@@ -260,33 +266,39 @@ func TestNewModel_NoMetadata(t *testing.T) {
 	}
 
 	// Verify format
-	if config.Format != types.FormatSafetensors {
-		t.Errorf("Config.Format = %v, want %v", config.Format, types.FormatSafetensors)
+	if config.GetFormat() != types.FormatSafetensors {
+		t.Errorf("Config.Format = %v, want %v", config.GetFormat(), types.FormatSafetensors)
 	}
 
 	// Verify parameters (100*200 = 20000)
 	expectedParams := "20.00K"
-	if config.Parameters != expectedParams {
-		t.Errorf("Config.Parameters = %v, want %v", config.Parameters, expectedParams)
+	if config.GetParameters() != expectedParams {
+		t.Errorf("Config.Parameters = %v, want %v", config.GetParameters(), expectedParams)
 	}
 
 	// Verify quantization
-	if config.Quantization != "F32" {
-		t.Errorf("Config.Quantization = %v, want %v", config.Quantization, "F32")
+	if config.GetQuantization() != "F32" {
+		t.Errorf("Config.Quantization = %v, want %v", config.GetQuantization(), "F32")
 	}
 
 	// Architecture should be empty when no metadata
-	if config.Architecture != "" {
-		t.Errorf("Config.Architecture = %v, want empty string", config.Architecture)
+	if config.GetArchitecture() != "" {
+		t.Errorf("Config.Architecture = %v, want empty string", config.GetArchitecture())
+	}
+
+	// Type assert to access Docker format specific fields
+	dockerConfig, ok := config.(*types.Config)
+	if !ok {
+		t.Fatal("Expected *types.Config for safetensors model")
 	}
 
 	// Verify safetensors metadata map exists with tensor count
-	if config.Safetensors == nil {
+	if dockerConfig.Safetensors == nil {
 		t.Fatal("Config.Safetensors is nil")
 	}
 
-	if config.Safetensors["tensor_count"] != "1" {
-		t.Errorf("Config.Safetensors[tensor_count] = %v, want %v", config.Safetensors["tensor_count"], "1")
+	if dockerConfig.Safetensors["tensor_count"] != "1" {
+		t.Errorf("Config.Safetensors[tensor_count] = %v, want %v", dockerConfig.Safetensors["tensor_count"], "1")
 	}
 
 	// Test annotations

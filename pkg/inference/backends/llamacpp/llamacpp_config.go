@@ -94,10 +94,12 @@ func (c *Config) GetArgs(bundle types.ModelBundle, socket string, mode inference
 	return args, nil
 }
 
-func GetContextSize(modelCfg types.Config, backendCfg *inference.BackendConfiguration) *int32 {
+func GetContextSize(modelCfg types.ModelConfig, backendCfg *inference.BackendConfiguration) *int32 {
 	// Model config takes precedence
-	if modelCfg.ContextSize != nil && (*modelCfg.ContextSize == UnlimitedContextSize || *modelCfg.ContextSize > 0) {
-		return modelCfg.ContextSize
+	if modelCfg != nil {
+		if ctxSize := modelCfg.GetContextSize(); ctxSize != nil && (*ctxSize == UnlimitedContextSize || *ctxSize > 0) {
+			return ctxSize
+		}
 	}
 	// Fallback to backend config
 	if backendCfg != nil && backendCfg.ContextSize != nil && (*backendCfg.ContextSize == UnlimitedContextSize || *backendCfg.ContextSize > 0) {

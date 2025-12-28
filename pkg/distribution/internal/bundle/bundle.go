@@ -17,7 +17,7 @@ type Bundle struct {
 	mmprojPath       string
 	ggufFile         string // path to GGUF file (first shard when model is split among files)
 	safetensorsFile  string // path to safetensors file (first shard when model is split among files)
-	runtimeConfig    types.Config
+	runtimeConfig    types.ModelConfig
 	chatTemplatePath string
 }
 
@@ -60,6 +60,7 @@ func (b *Bundle) SafetensorsPath() string {
 }
 
 // RuntimeConfig returns config that should be respected by the backend at runtime.
-func (b *Bundle) RuntimeConfig() types.Config {
+// Can return either Docker format (*types.Config) or ModelPack format (*modelpack.Model).
+func (b *Bundle) RuntimeConfig() types.ModelConfig {
 	return b.runtimeConfig
 }

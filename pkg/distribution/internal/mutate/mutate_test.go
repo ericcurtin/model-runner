@@ -89,8 +89,8 @@ func TestContextSize(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to get config file: %v", err)
 	}
-	if cfg.ContextSize != nil {
-		t.Fatalf("Epected nil context size got %d", cfg.ContextSize)
+	if cfg.GetContextSize() != nil {
+		t.Fatalf("Epected nil context size got %d", *cfg.GetContextSize())
 	}
 
 	// set the context size
@@ -101,10 +101,10 @@ func TestContextSize(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to get config file: %v", err)
 	}
-	if cfg2.ContextSize == nil {
+	if cfg2.GetContextSize() == nil {
 		t.Fatal("Expected non-nil context")
 	}
-	if *cfg2.ContextSize != 2096 {
-		t.Fatalf("Expected context size of 2096 got %d", *cfg2.ContextSize)
+	if *cfg2.GetContextSize() != 2096 {
+		t.Fatalf("Expected context size of 2096 got %d", *cfg2.GetContextSize())
 	}
 }
