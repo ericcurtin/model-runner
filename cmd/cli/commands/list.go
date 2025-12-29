@@ -14,6 +14,7 @@ import (
 	"github.com/docker/model-runner/cmd/cli/commands/formatter"
 	"github.com/docker/model-runner/cmd/cli/desktop"
 	"github.com/docker/model-runner/cmd/cli/pkg/standalone"
+	"github.com/docker/model-runner/pkg/distribution/types"
 	dmrm "github.com/docker/model-runner/pkg/inference/models"
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
@@ -258,10 +259,10 @@ func appendRow(table *tablewriter.Table, tag string, model dmrm.Model) {
 	// Strip default "ai/" prefix and ":latest" tag for display
 	displayTag := stripDefaultsFromModelName(tag)
 	contextSize := ""
-	if model.Config.ContextSize != nil {
-		contextSize = fmt.Sprintf("%d", *model.Config.ContextSize)
-	} else if model.Config.GGUF != nil {
-		if v, ok := model.Config.GGUF["llama.context_length"]; ok {
+	if model.Config.GetContextSize() != nil {
+		contextSize = fmt.Sprintf("%d", *model.Config.GetContextSize())
+	} else if dockerConfig, ok := model.Config.(*types.Config); ok && dockerConfig.GGUF != nil {
+		if v, ok := dockerConfig.GGUF["llama.context_length"]; ok {
 			if parsed, err := strconv.ParseUint(v, 10, 64); err == nil {
 				contextSize = fmt.Sprintf("%d", parsed)
 			} else {
@@ -272,13 +273,13 @@ func appendRow(table *tablewriter.Table, tag string, model dmrm.Model) {
 
 	table.Append([]string{
 		displayTag,
-		model.Config.Parameters,
-		model.Config.Quantization,
-		model.Config.Architecture,
+		model.Config.GetParameters(),
+		model.Config.GetQuantization(),
+		model.Config.GetArchitecture(),
 		model.ID[7:19],
 		units.HumanDuration(time.Since(time.Unix(model.Created, 0))) + " ago",
 		contextSize,
-		model.Config.Size,
+		model.Config.GetSize(),
 	})
 }
 

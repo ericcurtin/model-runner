@@ -15,7 +15,7 @@ func testModel(id string, tags []string, created int64) dmrm.Model {
 		ID:      id,
 		Tags:    tags,
 		Created: created,
-		Config: types.Config{
+		Config: &types.Config{
 			Parameters:   "7B",
 			Quantization: "Q4_0",
 			Architecture: "llama",
@@ -177,7 +177,7 @@ func TestListModelsSingleModel(t *testing.T) {
 			ID:      "sha256:123456789012345678901234567890123456789012345678901234567890abcd",
 			Tags:    []string{"single:latest"},
 			Created: 1000,
-			Config: types.Config{
+			Config: &types.Config{
 				Parameters:   "7B",
 				Quantization: "Q4_0",
 				Architecture: "llama",
@@ -234,7 +234,7 @@ func TestPrettyPrintModelsWithSortedInput(t *testing.T) {
 			ID:      "sha256:123456789012345678901234567890123456789012345678901234567890abcd",
 			Tags:    []string{"ai/apple:latest"},
 			Created: 1000,
-			Config: types.Config{
+			Config: &types.Config{
 				Parameters:   "7B",
 				Quantization: "Q4_0",
 				Architecture: "llama",
@@ -245,7 +245,7 @@ func TestPrettyPrintModelsWithSortedInput(t *testing.T) {
 			ID:      "sha256:223456789012345678901234567890123456789012345678901234567890abcd",
 			Tags:    []string{"ai/banana:v1"},
 			Created: 2000,
-			Config: types.Config{
+			Config: &types.Config{
 				Parameters:   "13B",
 				Quantization: "Q4_K_M",
 				Architecture: "llama",
@@ -282,7 +282,7 @@ func TestPrettyPrintModelsWithMultipleTags(t *testing.T) {
 			ID:      "sha256:123456789012345678901234567890123456789012345678901234567890abcd",
 			Tags:    []string{"qwen3:8B-Q4_K_M", "qwen3:latest", "qwen3:0.6B-F16"},
 			Created: 1000,
-			Config: types.Config{
+			Config: &types.Config{
 				Parameters:   "8B",
 				Quantization: "Q4_K_M",
 				Architecture: "qwen3",

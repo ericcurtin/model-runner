@@ -5,11 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/opencontainers/go-digest"
-
-	v1 "github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1"
-
 	"github.com/docker/model-runner/pkg/distribution/types"
+	v1 "github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1"
+	"github.com/opencontainers/go-digest"
 )
 
 // IsModelPackMediaType checks if the given media type indicates a CNCF ModelPack format.

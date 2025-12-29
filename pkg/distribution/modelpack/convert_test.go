@@ -5,9 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/opencontainers/go-digest"
-
 	"github.com/docker/model-runner/pkg/distribution/types"
+	"github.com/opencontainers/go-digest"
 )
 
 func TestIsModelPackMediaType(t *testing.T) {
