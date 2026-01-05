@@ -10,8 +10,11 @@ import (
 	"strings"
 )
 
-// configExtensions defines the file extensions that should be treated as config files
-var configExtensions = []string{".md", ".txt", ".json", ".vocab", ".jinja"}
+// ConfigExtensions defines the file extensions that should be treated as config files
+var ConfigExtensions = []string{".md", ".txt", ".json", ".vocab", ".jinja"}
+
+// SpecialConfigFiles are specific filenames treated as config files
+var SpecialConfigFiles = []string{"tokenizer.model"}
 
 // PackageFromDirectory scans a directory for safetensors files and config files,
 // creating a temporary tar archive of the config files.
@@ -71,8 +74,16 @@ func PackageFromDirectory(dirPath string) (safetensorsPaths []string, tempConfig
 // It returns the path to the temporary tar file and any error encountered.
 // The caller is responsible for removing the temporary file when done.
 func CreateTempConfigArchive(configFiles []string) (string, error) {
-	// Create temp file
-	tmpFile, err := os.CreateTemp("", "vllm-config-*.tar")
+	return CreateConfigArchiveInDir(configFiles, "")
+}
+
+// CreateConfigArchiveInDir creates a tar archive containing the specified config files in the given directory.
+// If dir is empty, the system temp directory is used.
+// It returns the path to the tar file and any error encountered.
+// The caller is responsible for removing the file when done.
+func CreateConfigArchiveInDir(configFiles []string, dir string) (string, error) {
+	// Create temp file in specified directory
+	tmpFile, err := os.CreateTemp(dir, "vllm-config-*.tar")
 	if err != nil {
 		return "", fmt.Errorf("create temp file: %w", err)
 	}
@@ -150,14 +161,20 @@ func addFileToTar(tw *tar.Writer, filePath string) error {
 }
 
 // isConfigFile checks if a file should be included as a config file based on its name.
-// It checks for extensions listed in configExtensions and the special case of the tokenizer.model file.
+// It checks for extensions listed in ConfigExtensions and the special case of the tokenizer.model file.
 func isConfigFile(name string) bool {
 	lower := strings.ToLower(name)
-	for _, ext := range configExtensions {
+	for _, ext := range ConfigExtensions {
 		if strings.HasSuffix(lower, ext) {
 			return true
 		}
 	}
 
-	return strings.EqualFold(name, "tokenizer.model")
+	for _, special := range SpecialConfigFiles {
+		if strings.EqualFold(name, special) {
+			return true
+		}
+	}
+
+	return false
 }

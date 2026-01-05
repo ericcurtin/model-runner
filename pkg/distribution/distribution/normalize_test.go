@@ -2,12 +2,14 @@ package distribution
 
 import (
 	"context"
+	"errors"
 	"io"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/docker/model-runner/pkg/distribution/builder"
+	"github.com/docker/model-runner/pkg/distribution/registry"
 	"github.com/docker/model-runner/pkg/distribution/tarball"
 	"github.com/sirupsen/logrus"
 )
@@ -66,7 +68,7 @@ func TestNormalizeModelName(t *testing.T) {
 			expected: "registry.example.com/myorg/model:v1",
 		},
 
-		// HuggingFace cases
+		// HuggingFace cases (lowercased for OCI reference compatibility)
 		{
 			name:     "huggingface short form lowercase",
 			input:    "hf.co/model",
@@ -75,12 +77,12 @@ func TestNormalizeModelName(t *testing.T) {
 		{
 			name:     "huggingface short form uppercase",
 			input:    "hf.co/Model",
-			expected: "huggingface.co/model:latest",
+			expected: "huggingface.co/model:latest", // lowercased for OCI compatibility
 		},
 		{
 			name:     "huggingface short form with org",
 			input:    "hf.co/MyOrg/MyModel",
-			expected: "huggingface.co/myorg/mymodel:latest",
+			expected: "huggingface.co/myorg/mymodel:latest", // lowercased for OCI compatibility
 		},
 		{
 			name:     "huggingface with tag",
@@ -353,6 +355,116 @@ func createTestClient(t *testing.T) (*Client, func()) {
 	}
 
 	return client, cleanup
+}
+
+func TestIsHuggingFaceReference(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected bool
+	}{
+		{"huggingface.co prefix", "huggingface.co/org/model:latest", true},
+		{"huggingface.co without tag", "huggingface.co/org/model", true},
+		{"not huggingface", "registry.example.com/model:latest", false},
+		{"docker hub", "ai/gemma3:latest", false},
+		{"hf.co prefix (not normalized)", "hf.co/org/model", false}, // This is the un-normalized form
+		{"empty", "", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := isHuggingFaceReference(tt.input)
+			if result != tt.expected {
+				t.Errorf("isHuggingFaceReference(%q) = %v, want %v", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestParseHFReference(t *testing.T) {
+	tests := []struct {
+		name         string
+		input        string
+		expectedRepo string
+		expectedRev  string
+	}{
+		{
+			name:         "basic with latest tag",
+			input:        "huggingface.co/org/model:latest",
+			expectedRepo: "org/model",
+			expectedRev:  "main", // latest maps to main
+		},
+		{
+			name:         "with explicit revision",
+			input:        "huggingface.co/org/model:v1.0",
+			expectedRepo: "org/model",
+			expectedRev:  "v1.0",
+		},
+		{
+			name:         "without tag",
+			input:        "huggingface.co/org/model",
+			expectedRepo: "org/model",
+			expectedRev:  "main",
+		},
+		{
+			name:         "with commit hash as tag",
+			input:        "huggingface.co/HuggingFaceTB/SmolLM2-135M-Instruct:abc123",
+			expectedRepo: "HuggingFaceTB/SmolLM2-135M-Instruct",
+			expectedRev:  "abc123",
+		},
+		{
+			name:         "single name (no org)",
+			input:        "huggingface.co/model:latest",
+			expectedRepo: "model",
+			expectedRev:  "main",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo, rev := parseHFReference(tt.input)
+			if repo != tt.expectedRepo {
+				t.Errorf("parseHFReference(%q) repo = %q, want %q", tt.input, repo, tt.expectedRepo)
+			}
+			if rev != tt.expectedRev {
+				t.Errorf("parseHFReference(%q) rev = %q, want %q", tt.input, rev, tt.expectedRev)
+			}
+		})
+	}
+}
+
+func TestIsNotOCIError(t *testing.T) {
+	tests := []struct {
+		name     string
+		err      error
+		expected bool
+	}{
+		{"nil error", nil, false},
+		{"generic error", errors.New("some error"), false},
+		{"manifest unknown in message", errors.New("MANIFEST_UNKNOWN: manifest not found"), true},
+		{"name unknown in message", errors.New("NAME_UNKNOWN: repository not found"), true},
+		{"manifest unknown lowercase", errors.New("manifest unknown"), true},
+		{"unrelated error", errors.New("network timeout"), false},
+		{"HuggingFace not GGUF error", errors.New("Repository is not GGUF or is not compatible with llama.cpp"), true},
+		{"HuggingFace llama.cpp incompatible", errors.New("not compatible with llama.cpp"), true},
+		// registry.Error typed error cases
+		{"registry error MANIFEST_UNKNOWN", &registry.Error{Code: "MANIFEST_UNKNOWN"}, true},
+		{"registry error NAME_UNKNOWN", &registry.Error{Code: "NAME_UNKNOWN"}, true},
+		{"registry error other code", &registry.Error{Code: "UNAUTHORIZED"}, false},
+		// ErrInvalidReference is NOT treated as "not OCI" - it's a format error
+		// that should be reported to the user. Model names are lowercased during
+		// normalization to ensure OCI compatibility.
+		{"invalid reference error", registry.ErrInvalidReference, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := isNotOCIError(tt.err)
+			if result != tt.expected {
+				t.Errorf("isNotOCIError(%v) = %v, want %v", tt.err, result, tt.expected)
+			}
+		})
+	}
 }
 
 // Helper function to load a test model and return its ID
