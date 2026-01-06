@@ -31,7 +31,7 @@ func ToModel(m types.Model) (*Model, error) {
 		ID:      id,
 		Tags:    m.Tags(),
 		Created: created,
-		Config:  cfg,
+		Config:  &ModelConfigWrapper{ModelConfig: cfg},
 	}, nil
 }
 
@@ -62,6 +62,6 @@ func ToModelFromArtifact(artifact types.ModelArtifact) (*Model, error) {
 		ID:      id,
 		Tags:    nil, // Remote models don't have local tags
 		Created: created,
-		Config:  cfg,
+		Config:  &ModelConfigWrapper{ModelConfig: cfg},
 	}, nil
 }

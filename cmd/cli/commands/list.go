@@ -261,7 +261,7 @@ func appendRow(table *tablewriter.Table, tag string, model dmrm.Model) {
 	contextSize := ""
 	if model.Config.GetContextSize() != nil {
 		contextSize = fmt.Sprintf("%d", *model.Config.GetContextSize())
-	} else if dockerConfig, ok := model.Config.(*types.Config); ok && dockerConfig.GGUF != nil {
+	} else if dockerConfig, ok := model.Config.ModelConfig.(*types.Config); ok && dockerConfig.GGUF != nil {
 		if v, ok := dockerConfig.GGUF["llama.context_length"]; ok {
 			if parsed, err := strconv.ParseUint(v, 10, 64); err == nil {
 				contextSize = fmt.Sprintf("%d", parsed)

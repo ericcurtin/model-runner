@@ -103,6 +103,95 @@ type OpenAIModelList struct {
 	Data []*OpenAIModel `json:"data"`
 }
 
+// ModelConfigWrapper wraps the types.ModelConfig interface to handle JSON marshaling/unmarshaling
+type ModelConfigWrapper struct {
+	ModelConfig types.ModelConfig
+}
+
+// UnmarshalJSON implements json.Unmarshaler for ModelConfigWrapper
+func (m *ModelConfigWrapper) UnmarshalJSON(data []byte) error {
+	// Try to unmarshal as the concrete Config type first
+	var config types.Config
+	if err := json.Unmarshal(data, &config); err == nil {
+		m.ModelConfig = &config
+		return nil
+	}
+
+	// If that fails, we could try other possible types that implement ModelConfig
+	// For now, we'll return an error since we expect the types.Config format
+	var raw map[string]interface{}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+
+	// Create a Config from the raw data by marshaling back and unmarshaling as Config
+	jsonData, err := json.Marshal(raw)
+	if err != nil {
+		return err
+	}
+
+	var config2 types.Config // Changed variable name to avoid conflict
+	if err := json.Unmarshal(jsonData, &config2); err != nil {
+		return err
+	}
+
+	m.ModelConfig = &config2
+	return nil
+}
+
+// MarshalJSON implements json.Marshaler for ModelConfigWrapper
+func (m ModelConfigWrapper) MarshalJSON() ([]byte, error) {
+	return json.Marshal(m.ModelConfig)
+}
+
+// GetFormat returns the model format.
+func (m ModelConfigWrapper) GetFormat() types.Format {
+	if m.ModelConfig == nil {
+		return ""
+	}
+	return m.ModelConfig.GetFormat()
+}
+
+// GetContextSize returns the context size configuration.
+func (m ModelConfigWrapper) GetContextSize() *int32 {
+	if m.ModelConfig == nil {
+		return nil
+	}
+	return m.ModelConfig.GetContextSize()
+}
+
+// GetSize returns the parameter size (e.g., "8B").
+func (m ModelConfigWrapper) GetSize() string {
+	if m.ModelConfig == nil {
+		return ""
+	}
+	return m.ModelConfig.GetSize()
+}
+
+// GetArchitecture returns the model architecture.
+func (m ModelConfigWrapper) GetArchitecture() string {
+	if m.ModelConfig == nil {
+		return ""
+	}
+	return m.ModelConfig.GetArchitecture()
+}
+
+// GetParameters returns the parameters description.
+func (m ModelConfigWrapper) GetParameters() string {
+	if m.ModelConfig == nil {
+		return ""
+	}
+	return m.ModelConfig.GetParameters()
+}
+
+// GetQuantization returns the quantization method.
+func (m ModelConfigWrapper) GetQuantization() string {
+	if m.ModelConfig == nil {
+		return ""
+	}
+	return m.ModelConfig.GetQuantization()
+}
+
 type Model struct {
 	// ID is the globally unique model identifier.
 	ID string `json:"id"`
@@ -112,7 +201,7 @@ type Model struct {
 	Created int64 `json:"created"`
 	// Config describes the model. Can be either Docker format (*types.Config)
 	// or ModelPack format (*modelpack.Model).
-	Config types.ModelConfig `json:"config"`
+	Config *ModelConfigWrapper `json:"config"`
 }
 
 // UnmarshalJSON implements custom JSON unmarshaling for Model.
@@ -142,7 +231,9 @@ func (m *Model) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(aux.Config, &cfg); err != nil {
 		return err
 	}
-	m.Config = &cfg
+
+	wrapper := &ModelConfigWrapper{ModelConfig: &cfg}
+	m.Config = wrapper
 
 	return nil
 }
