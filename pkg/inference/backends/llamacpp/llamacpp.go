@@ -16,12 +16,14 @@ import (
 
 	"github.com/docker/model-runner/pkg/diskusage"
 	"github.com/docker/model-runner/pkg/distribution/types"
+	v1 "github.com/docker/model-runner/pkg/go-containerregistry/pkg/v1"
 	"github.com/docker/model-runner/pkg/inference"
 	"github.com/docker/model-runner/pkg/inference/backends"
 	"github.com/docker/model-runner/pkg/inference/config"
 	"github.com/docker/model-runner/pkg/inference/models"
 	"github.com/docker/model-runner/pkg/logging"
 	"github.com/docker/model-runner/pkg/sandbox"
+	parser "github.com/gpustack/gguf-parser-go"
 )
 
 const (
@@ -192,6 +194,143 @@ func (l *llamaCpp) GetDiskUsage() (int64, error) {
 		return 0, fmt.Errorf("error while getting store size: %w", err)
 	}
 	return size, nil
+}
+
+func (l *llamaCpp) GetRequiredMemoryForModel(ctx context.Context, model string, config *inference.BackendConfiguration) (inference.RequiredMemory, error) {
+	mdlGguf, mdlConfig, err := l.parseModel(ctx, model)
+	if err != nil {
+		return inference.RequiredMemory{}, &inference.ErrGGUFParse{Err: err}
+	}
+
+	configuredContextSize := GetContextSize(mdlConfig, config)
+	contextSize := int32(4096) // default context size
+	if configuredContextSize != nil {
+		contextSize = *configuredContextSize
+	}
+
+	var ngl uint64
+	if l.gpuSupported {
+		ngl = 999
+		if runtime.GOOS == "windows" && runtime.GOARCH == "arm64" && mdlConfig.GetQuantization() != "Q4_0" {
+			ngl = 0 // only Q4_0 models can be accelerated on Adreno
+		}
+	}
+
+	memory := l.estimateMemoryFromGGUF(mdlGguf, contextSize, ngl)
+
+	if config != nil && config.Speculative != nil && config.Speculative.DraftModel != "" {
+		draftGguf, _, err := l.parseModel(ctx, config.Speculative.DraftModel)
+		if err != nil {
+			return inference.RequiredMemory{}, fmt.Errorf("estimating draft model memory: %w", &inference.ErrGGUFParse{Err: err})
+		}
+		draftMemory := l.estimateMemoryFromGGUF(draftGguf, contextSize, ngl)
+		memory.RAM += draftMemory.RAM
+		memory.VRAM += draftMemory.VRAM
+	}
+
+	if runtime.GOOS == "windows" && runtime.GOARCH == "arm64" {
+		memory.VRAM = 1
+	}
+
+	return memory, nil
+}
+
+// parseModel parses a model (local or remote) and returns the GGUF file and config.
+func (l *llamaCpp) parseModel(ctx context.Context, model string) (*parser.GGUFFile, types.ModelConfig, error) {
+	inStore, err := l.modelManager.InStore(model)
+	if err != nil {
+		return nil, nil, fmt.Errorf("checking if model is in local store: %w", err)
+	}
+	if inStore {
+		return l.parseLocalModel(model)
+	}
+	return l.parseRemoteModel(ctx, model)
+}
+
+// estimateMemoryFromGGUF estimates memory requirements from a parsed GGUF file.
+func (l *llamaCpp) estimateMemoryFromGGUF(ggufFile *parser.GGUFFile, contextSize int32, ngl uint64) inference.RequiredMemory {
+	estimate := ggufFile.EstimateLLaMACppRun(
+		parser.WithLLaMACppContextSize(contextSize),
+		parser.WithLLaMACppLogicalBatchSize(2048),
+		parser.WithLLaMACppOffloadLayers(ngl),
+	)
+	ram := uint64(estimate.Devices[0].Weight.Sum() + estimate.Devices[0].KVCache.Sum() + estimate.Devices[0].Computation.Sum())
+	var vram uint64
+	if len(estimate.Devices) > 1 {
+		vram = uint64(estimate.Devices[1].Weight.Sum() + estimate.Devices[1].KVCache.Sum() + estimate.Devices[1].Computation.Sum())
+	}
+
+	return inference.RequiredMemory{
+		RAM:  ram,
+		VRAM: vram,
+	}
+}
+
+func (l *llamaCpp) parseLocalModel(model string) (*parser.GGUFFile, types.ModelConfig, error) {
+	bundle, err := l.modelManager.GetBundle(model)
+	if err != nil {
+		return nil, nil, fmt.Errorf("getting model(%s): %w", model, err)
+	}
+	modelGGUF, err := parser.ParseGGUFFile(bundle.GGUFPath())
+	if err != nil {
+		return nil, nil, fmt.Errorf("parsing gguf(%s): %w", bundle.GGUFPath(), err)
+	}
+	return modelGGUF, bundle.RuntimeConfig(), nil
+}
+
+func (l *llamaCpp) parseRemoteModel(ctx context.Context, model string) (*parser.GGUFFile, types.ModelConfig, error) {
+	mdl, err := l.modelManager.GetRemote(ctx, model)
+	if err != nil {
+		return nil, nil, fmt.Errorf("getting remote model(%s): %w", model, err)
+	}
+	layers, err := mdl.Layers()
+	if err != nil {
+		return nil, nil, fmt.Errorf("getting layers of model(%s): %w", model, err)
+	}
+	ggufLayers := getGGUFLayers(layers)
+	if len(ggufLayers) != 1 {
+		return nil, nil, fmt.Errorf(
+			"remote memory estimation only supported for models with single GGUF layer, found %d layers", len(ggufLayers),
+		)
+	}
+	ggufDigest, err := ggufLayers[0].Digest()
+	if err != nil {
+		return nil, nil, fmt.Errorf("getting digest of GGUF layer for model(%s): %w", model, err)
+	}
+	if ggufDigest.String() == "" {
+		return nil, nil, fmt.Errorf("model(%s) has no GGUF layer", model)
+	}
+	blobURL, err := l.modelManager.GetRemoteBlobURL(model, ggufDigest)
+	if err != nil {
+		return nil, nil, fmt.Errorf("getting GGUF blob URL for model(%s): %w", model, err)
+	}
+	tok, err := l.modelManager.BearerTokenForModel(ctx, model)
+	if err != nil {
+		return nil, nil, fmt.Errorf("getting bearer token for model(%s): %w", model, err)
+	}
+	mdlGguf, err := parser.ParseGGUFFileRemote(ctx, blobURL, parser.UseBearerAuth(tok))
+	if err != nil {
+		return nil, nil, fmt.Errorf("parsing GGUF for model(%s): %w", model, err)
+	}
+	config, err := mdl.Config()
+	if err != nil {
+		return nil, nil, fmt.Errorf("getting config for model(%s): %w", model, err)
+	}
+	return mdlGguf, config, nil
+}
+
+func getGGUFLayers(layers []v1.Layer) []v1.Layer {
+	var filtered []v1.Layer
+	for _, layer := range layers {
+		mt, err := layer.MediaType()
+		if err != nil {
+			continue
+		}
+		if mt == types.MediaTypeGGUF {
+			filtered = append(filtered, layer)
+		}
+	}
+	return filtered
 }
 
 func (l *llamaCpp) checkGPUSupport(ctx context.Context) bool {

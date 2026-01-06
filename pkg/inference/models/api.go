@@ -21,11 +21,11 @@ type ModelCreateRequest struct {
 // SimpleModel is a wrapper that allows creating a model with modified configuration
 type SimpleModel struct {
 	types.Model
-	ConfigValue     types.Config
+	ConfigValue     types.ModelConfig
 	DescriptorValue types.Descriptor
 }
 
-func (s *SimpleModel) Config() (types.Config, error) {
+func (s *SimpleModel) Config() (types.ModelConfig, error) {
 	return s.ConfigValue, nil
 }
 
@@ -108,6 +108,7 @@ type Model struct {
 	Tags []string `json:"tags,omitempty"`
 	// Created is the Unix epoch timestamp corresponding to the model creation.
 	Created int64 `json:"created"`
-	// Config describes the model.
-	Config types.Config `json:"config"`
+	// Config describes the model. Can be either Docker format (*types.Config)
+	// or ModelPack format (*modelpack.Model).
+	Config types.ModelConfig `json:"config"`
 }

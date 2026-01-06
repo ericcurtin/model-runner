@@ -89,7 +89,7 @@ func (m *BaseModel) ID() (string, error) {
 	return ID(m)
 }
 
-func (m *BaseModel) Config() (types.Config, error) {
+func (m *BaseModel) Config() (types.ModelConfig, error) {
 	return Config(m)
 }
 

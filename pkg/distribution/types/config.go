@@ -52,6 +52,19 @@ const (
 
 type Format string
 
+// ModelConfig provides a unified interface for accessing model configuration.
+// Both Docker format (*Config) and ModelPack format (*modelpack.Model) implement
+// this interface, allowing schedulers and backends to access config without
+// knowing the underlying format.
+type ModelConfig interface {
+	GetFormat() Format
+	GetContextSize() *int32
+	GetSize() string
+	GetArchitecture() string
+	GetParameters() string
+	GetQuantization() string
+}
+
 type ConfigFile struct {
 	Config     Config     `json:"config"`
 	Descriptor Descriptor `json:"descriptor"`
@@ -73,6 +86,39 @@ type Config struct {
 // Descriptor provides metadata about the provenance of the model.
 type Descriptor struct {
 	Created *time.Time `json:"created,omitempty"`
+}
+
+// Ensure Config implements ModelConfig
+var _ ModelConfig = (*Config)(nil)
+
+// GetFormat returns the model format.
+func (c *Config) GetFormat() Format {
+	return c.Format
+}
+
+// GetContextSize returns the context size configuration.
+func (c *Config) GetContextSize() *int32 {
+	return c.ContextSize
+}
+
+// GetSize returns the parameter size (e.g., "8B").
+func (c *Config) GetSize() string {
+	return c.Size
+}
+
+// GetArchitecture returns the model architecture.
+func (c *Config) GetArchitecture() string {
+	return c.Architecture
+}
+
+// GetParameters returns the parameters description.
+func (c *Config) GetParameters() string {
+	return c.Parameters
+}
+
+// GetQuantization returns the quantization method.
+func (c *Config) GetQuantization() string {
+	return c.Quantization
 }
 
 // FileMetadata represents the metadata of file, which is the value definition of AnnotationFileMetadata.

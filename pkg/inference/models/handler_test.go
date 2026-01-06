@@ -262,7 +262,13 @@ func TestHandleGetModel(t *testing.T) {
 				}
 			} else {
 				// For successful responses, verify we got a valid JSON response
-				var response Model
+				// Use a test struct with json.RawMessage for Config since ModelConfig is an interface
+				var response struct {
+					ID      string          `json:"id"`
+					Tags    []string        `json:"tags,omitempty"`
+					Created int64           `json:"created"`
+					Config  json.RawMessage `json:"config"`
+				}
 				if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
 					t.Errorf("Failed to decode response body: %v", err)
 				}

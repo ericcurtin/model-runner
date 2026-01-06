@@ -137,8 +137,8 @@ func TestWithMultimodalProjectorChaining(t *testing.T) {
 		t.Fatalf("Failed to get config: %v", err)
 	}
 
-	if config.ContextSize == nil || *config.ContextSize != 4096 {
-		t.Errorf("Expected context size 4096, got %v", config.ContextSize)
+	if config.GetContextSize() == nil || *config.GetContextSize() != 4096 {
+		t.Errorf("Expected context size 4096, got %v", config.GetContextSize())
 	}
 
 	// Note: We can't directly test GGUFPath() and MMPROJPath() on ModelArtifact interface
@@ -172,8 +172,8 @@ func TestFromModel(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to get initial config: %v", err)
 	}
-	if initialConfig.ContextSize == nil || *initialConfig.ContextSize != 2048 {
-		t.Fatalf("Expected initial context size 2048, got %v", initialConfig.ContextSize)
+	if initialConfig.GetContextSize() == nil || *initialConfig.GetContextSize() != 2048 {
+		t.Fatalf("Expected initial context size 2048, got %v", initialConfig.GetContextSize())
 	}
 
 	// Step 2: Use FromModel() to create a new builder from the existing model
@@ -197,8 +197,8 @@ func TestFromModel(t *testing.T) {
 		t.Fatalf("Failed to get repackaged config: %v", err)
 	}
 
-	if repackagedConfig.ContextSize == nil || *repackagedConfig.ContextSize != 4096 {
-		t.Errorf("Expected repackaged context size 4096, got %v", repackagedConfig.ContextSize)
+	if repackagedConfig.GetContextSize() == nil || *repackagedConfig.GetContextSize() != 4096 {
+		t.Errorf("Expected repackaged context size 4096, got %v", repackagedConfig.GetContextSize())
 	}
 
 	// Step 6: Verify the original layers are preserved

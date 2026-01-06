@@ -18,27 +18,31 @@ func TestGGUF(t *testing.T) {
 		}
 
 		t.Run("TestConfig", func(t *testing.T) {
-			cfg, err := mdl.Config()
+			cfgInterface, err := mdl.Config()
 			if err != nil {
 				t.Fatalf("Failed to get config: %v", err)
 			}
-			if cfg.Format != types.FormatGGUF {
-				t.Fatalf("Unexpected format: got %s expected %s", cfg.Format, types.FormatGGUF)
+			if cfgInterface.GetFormat() != types.FormatGGUF {
+				t.Fatalf("Unexpected format: got %s expected %s", cfgInterface.GetFormat(), types.FormatGGUF)
 			}
-			if cfg.Parameters != "183" {
-				t.Fatalf("Unexpected parameters: got %s expected %s", cfg.Parameters, "183")
+			if cfgInterface.GetParameters() != "183" {
+				t.Fatalf("Unexpected parameters: got %s expected %s", cfgInterface.GetParameters(), "183")
 			}
-			if cfg.Architecture != "llama" {
-				t.Fatalf("Unexpected architecture: got %s expected %s", cfg.Parameters, "llama")
+			if cfgInterface.GetArchitecture() != "llama" {
+				t.Fatalf("Unexpected architecture: got %s expected %s", cfgInterface.GetArchitecture(), "llama")
 			}
-			if cfg.Quantization != "Unknown" { // todo: testdata with a real value
-				t.Fatalf("Unexpected quantization: got %s expected %s", cfg.Quantization, "Unknown")
+			if cfgInterface.GetQuantization() != "Unknown" { // todo: testdata with a real value
+				t.Fatalf("Unexpected quantization: got %s expected %s", cfgInterface.GetQuantization(), "Unknown")
 			}
-			if cfg.Size != "864B" {
-				t.Fatalf("Unexpected size: got %s expected %s", cfg.Size, "864B")
+			if cfgInterface.GetSize() != "864B" {
+				t.Fatalf("Unexpected size: got %s expected %s", cfgInterface.GetSize(), "864B")
 			}
 
-			// Test GGUF metadata
+			// Test GGUF metadata (Docker format specific)
+			cfg, ok := cfgInterface.(*types.Config)
+			if !ok {
+				t.Fatal("Expected *types.Config for GGUF model")
+			}
 			if cfg.GGUF == nil {
 				t.Fatal("Expected GGUF metadata to be present")
 			}
@@ -169,27 +173,31 @@ func TestGGUFShards(t *testing.T) {
 		}
 
 		t.Run("TestConfig", func(t *testing.T) {
-			cfg, err := mdl.Config()
+			cfgInterface, err := mdl.Config()
 			if err != nil {
 				t.Fatalf("Failed to get config: %v", err)
 			}
-			if cfg.Format != types.FormatGGUF {
-				t.Fatalf("Unexpected format: got %s expected %s", cfg.Format, types.FormatGGUF)
+			if cfgInterface.GetFormat() != types.FormatGGUF {
+				t.Fatalf("Unexpected format: got %s expected %s", cfgInterface.GetFormat(), types.FormatGGUF)
 			}
-			if cfg.Parameters != "183" {
-				t.Fatalf("Unexpected parameters: got %s expected %s", cfg.Parameters, "183")
+			if cfgInterface.GetParameters() != "183" {
+				t.Fatalf("Unexpected parameters: got %s expected %s", cfgInterface.GetParameters(), "183")
 			}
-			if cfg.Architecture != "llama" {
-				t.Fatalf("Unexpected architecture: got %s expected %s", cfg.Parameters, "llama")
+			if cfgInterface.GetArchitecture() != "llama" {
+				t.Fatalf("Unexpected architecture: got %s expected %s", cfgInterface.GetArchitecture(), "llama")
 			}
-			if cfg.Quantization != "Unknown" { // todo: testdata with a real value
-				t.Fatalf("Unexpected quantization: got %s expected %s", cfg.Quantization, "Unknown")
+			if cfgInterface.GetQuantization() != "Unknown" { // todo: testdata with a real value
+				t.Fatalf("Unexpected quantization: got %s expected %s", cfgInterface.GetQuantization(), "Unknown")
 			}
-			if cfg.Size != "864B" {
-				t.Fatalf("Unexpected size: got %s expected %s", cfg.Size, "864B")
+			if cfgInterface.GetSize() != "864B" {
+				t.Fatalf("Unexpected size: got %s expected %s", cfgInterface.GetSize(), "864B")
 			}
 
-			// Test GGUF metadata
+			// Test GGUF metadata (Docker format specific)
+			cfg, ok := cfgInterface.(*types.Config)
+			if !ok {
+				t.Fatal("Expected *types.Config for GGUF model")
+			}
 			if cfg.GGUF == nil {
 				t.Fatal("Expected GGUF metadata to be present")
 			}

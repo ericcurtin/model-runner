@@ -64,6 +64,6 @@ func (c *Config) GetArgs(bundle types.ModelBundle, socket string, mode inference
 // GetMaxTokens returns the max tokens (context size) from model config or backend config.
 // Model config takes precedence over backend config.
 // Returns nil if neither is specified (MLX will use model defaults).
-func GetMaxTokens(modelCfg types.Config, backendCfg *inference.BackendConfiguration) *uint64 {
+func GetMaxTokens(modelCfg types.ModelConfig, backendCfg *inference.BackendConfiguration) *uint64 {
 	return nil
 }

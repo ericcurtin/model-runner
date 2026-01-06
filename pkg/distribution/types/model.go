@@ -10,7 +10,7 @@ type Model interface {
 	SafetensorsPaths() ([]string, error)
 	ConfigArchivePath() (string, error)
 	MMPROJPath() (string, error)
-	Config() (Config, error)
+	Config() (ModelConfig, error)
 	Tags() []string
 	Descriptor() (Descriptor, error)
 	ChatTemplatePath() (string, error)
@@ -18,7 +18,7 @@ type Model interface {
 
 type ModelArtifact interface {
 	ID() (string, error)
-	Config() (Config, error)
+	Config() (ModelConfig, error)
 	Descriptor() (Descriptor, error)
 	v1.Image
 }
@@ -29,5 +29,5 @@ type ModelBundle interface {
 	SafetensorsPath() string
 	ChatTemplatePath() string
 	MMPROJPath() string
-	RuntimeConfig() Config
+	RuntimeConfig() ModelConfig
 }

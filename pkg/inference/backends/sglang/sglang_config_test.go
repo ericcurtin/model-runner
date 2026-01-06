@@ -9,7 +9,7 @@ import (
 
 type mockModelBundle struct {
 	safetensorsPath string
-	runtimeConfig   types.Config
+	runtimeConfig   *types.Config
 }
 
 func (m *mockModelBundle) GGUFPath() string {
@@ -28,7 +28,10 @@ func (m *mockModelBundle) MMPROJPath() string {
 	return ""
 }
 
-func (m *mockModelBundle) RuntimeConfig() types.Config {
+func (m *mockModelBundle) RuntimeConfig() types.ModelConfig {
+	if m.runtimeConfig == nil {
+		return &types.Config{}
+	}
 	return m.runtimeConfig
 }
 
@@ -99,7 +102,7 @@ func TestGetArgs(t *testing.T) {
 			name: "with model context size (takes precedence)",
 			bundle: &mockModelBundle{
 				safetensorsPath: "/path/to/model/model.safetensors",
-				runtimeConfig: types.Config{
+				runtimeConfig: &types.Config{
 					ContextSize: int32ptr(16384),
 				},
 			},
@@ -191,19 +194,19 @@ func TestGetArgs(t *testing.T) {
 func TestGetContextLength(t *testing.T) {
 	tests := []struct {
 		name          string
-		modelCfg      types.Config
+		modelCfg      types.ModelConfig
 		backendCfg    *inference.BackendConfiguration
 		expectedValue *int32
 	}{
 		{
 			name:          "no config",
-			modelCfg:      types.Config{},
+			modelCfg:      &types.Config{},
 			backendCfg:    nil,
 			expectedValue: nil,
 		},
 		{
 			name:     "backend config only",
-			modelCfg: types.Config{},
+			modelCfg: &types.Config{},
 			backendCfg: &inference.BackendConfiguration{
 				ContextSize: int32ptr(4096),
 			},
@@ -211,7 +214,7 @@ func TestGetContextLength(t *testing.T) {
 		},
 		{
 			name: "model config only",
-			modelCfg: types.Config{
+			modelCfg: &types.Config{
 				ContextSize: int32ptr(8192),
 			},
 			backendCfg:    nil,
@@ -219,7 +222,7 @@ func TestGetContextLength(t *testing.T) {
 		},
 		{
 			name: "model config takes precedence",
-			modelCfg: types.Config{
+			modelCfg: &types.Config{
 				ContextSize: int32ptr(16384),
 			},
 			backendCfg: &inference.BackendConfiguration{
@@ -229,7 +232,7 @@ func TestGetContextLength(t *testing.T) {
 		},
 		{
 			name:     "zero context size in backend config returns nil",
-			modelCfg: types.Config{},
+			modelCfg: &types.Config{},
 			backendCfg: &inference.BackendConfiguration{
 				ContextSize: int32ptr(0),
 			},

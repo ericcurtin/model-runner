@@ -519,10 +519,10 @@ func cmdGet(client *distribution.Client, args []string) int {
 		fmt.Fprintf(os.Stderr, "Error reading model config: %v\n", err)
 		return 1
 	}
-	fmt.Printf("Format: %s\n", cfg.Format)
-	fmt.Printf("Architecture: %s\n", cfg.Architecture)
-	fmt.Printf("Parameters: %s\n", cfg.Parameters)
-	fmt.Printf("Quantization: %s\n", cfg.Quantization)
+	fmt.Printf("Format: %s\n", cfg.GetFormat())
+	fmt.Printf("Architecture: %s\n", cfg.GetArchitecture())
+	fmt.Printf("Parameters: %s\n", cfg.GetParameters())
+	fmt.Printf("Quantization: %s\n", cfg.GetQuantization())
 	return 0
 }
 

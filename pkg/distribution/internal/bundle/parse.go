@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/docker/model-runner/pkg/distribution/modelpack"
 	"github.com/docker/model-runner/pkg/distribution/types"
 )
 
@@ -60,17 +61,29 @@ func Parse(rootDir string) (*Bundle, error) {
 	}, nil
 }
 
-func parseRuntimeConfig(rootDir string) (types.Config, error) {
-	f, err := os.Open(filepath.Join(rootDir, "config.json"))
+// parseRuntimeConfig parses the runtime config from the bundle.
+// Natively supports both Docker format and ModelPack format without conversion.
+func parseRuntimeConfig(rootDir string) (types.ModelConfig, error) {
+	raw, err := os.ReadFile(filepath.Join(rootDir, "config.json"))
 	if err != nil {
-		return types.Config{}, fmt.Errorf("open runtime config: %w", err)
+		return nil, fmt.Errorf("read runtime config: %w", err)
 	}
-	defer f.Close()
+
+	// Detect and parse based on format
+	if modelpack.IsModelPackConfig(raw) {
+		var mp modelpack.Model
+		if err := json.Unmarshal(raw, &mp); err != nil {
+			return nil, fmt.Errorf("decode ModelPack runtime config: %w", err)
+		}
+		return &mp, nil
+	}
+
+	// Docker format
 	var cfg types.Config
-	if err := json.NewDecoder(f).Decode(&cfg); err != nil {
-		return types.Config{}, fmt.Errorf("decode runtime config: %w", err)
+	if err := json.Unmarshal(raw, &cfg); err != nil {
+		return nil, fmt.Errorf("decode Docker runtime config: %w", err)
 	}
-	return cfg, nil
+	return &cfg, nil
 }
 
 func findGGUFFile(modelDir string) (string, error) {

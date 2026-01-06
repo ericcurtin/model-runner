@@ -363,7 +363,7 @@ func (c *Client) PullModel(ctx context.Context, reference string, progressWriter
 			return fmt.Errorf("getting cached model config: %w", err)
 		}
 
-		err = progress.WriteSuccess(progressWriter, fmt.Sprintf("Using cached model: %s", cfg.Size))
+		err = progress.WriteSuccess(progressWriter, fmt.Sprintf("Using cached model: %s", cfg.GetSize()))
 		if err != nil {
 			c.log.Warnf("Writing progress: %v", err)
 		}
@@ -636,10 +636,10 @@ func checkCompat(image types.ModelArtifact, log *logrus.Entry, reference string,
 		return fmt.Errorf("reading model config: %w", err)
 	}
 
-	if config.Format == "" {
+	if config.GetFormat() == "" {
 		log.Warnf("Model format field is empty for %s, unable to verify format compatibility",
 			utils.SanitizeForLog(reference))
-	} else if !slices.Contains(GetSupportedFormats(), config.Format) {
+	} else if !slices.Contains(GetSupportedFormats(), config.GetFormat()) {
 		// Write warning but continue with pull
 		log.Warnln(warnUnsupportedFormat)
 		if err := progress.WriteWarning(progressWriter, warnUnsupportedFormat); err != nil {

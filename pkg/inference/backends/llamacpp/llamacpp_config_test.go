@@ -195,7 +195,7 @@ func TestGetArgs(t *testing.T) {
 			mode: inference.BackendModeEmbedding,
 			bundle: &fakeBundle{
 				ggufPath: modelPath,
-				config: types.Config{
+				config: &types.Config{
 					ContextSize: int32ptr(2096),
 				},
 			},
@@ -423,7 +423,7 @@ var _ types.ModelBundle = &fakeBundle{}
 
 type fakeBundle struct {
 	ggufPath     string
-	config       types.Config
+	config       *types.Config
 	templatePath string
 	mmprojPath   string
 }
@@ -448,7 +448,10 @@ func (f *fakeBundle) SafetensorsPath() string {
 	return ""
 }
 
-func (f *fakeBundle) RuntimeConfig() types.Config {
+func (f *fakeBundle) RuntimeConfig() types.ModelConfig {
+	if f.config == nil {
+		return nil
+	}
 	return f.config
 }
 
