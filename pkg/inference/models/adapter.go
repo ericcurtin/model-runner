@@ -1,6 +1,7 @@
 package models
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"github.com/docker/model-runner/pkg/distribution/types"
@@ -27,12 +28,23 @@ func ToModel(m types.Model) (*Model, error) {
 		created = desc.Created.Unix()
 	}
 
-	return &Model{
+	model := &Model{
 		ID:      id,
 		Tags:    m.Tags(),
 		Created: created,
 		Config:  cfg,
-	}, nil
+	}
+
+	// Marshal the config to populate RawConfig
+	if cfg != nil {
+		configData, err := json.Marshal(cfg)
+		if err != nil {
+			return nil, fmt.Errorf("marshal config: %w", err)
+		}
+		model.RawConfig = configData
+	}
+
+	return model, nil
 }
 
 // ToModelFromArtifact converts a types.ModelArtifact (typically from remote registry)
@@ -58,10 +70,21 @@ func ToModelFromArtifact(artifact types.ModelArtifact) (*Model, error) {
 		created = desc.Created.Unix()
 	}
 
-	return &Model{
+	model := &Model{
 		ID:      id,
 		Tags:    nil, // Remote models don't have local tags
 		Created: created,
 		Config:  cfg,
-	}, nil
+	}
+
+	// Marshal the config to populate RawConfig
+	if cfg != nil {
+		configData, err := json.Marshal(cfg)
+		if err != nil {
+			return nil, fmt.Errorf("marshal config: %w", err)
+		}
+		model.RawConfig = configData
+	}
+
+	return model, nil
 }
