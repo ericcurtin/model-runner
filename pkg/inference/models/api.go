@@ -134,6 +134,7 @@ func (m *Model) UnmarshalJSON(data []byte) error {
 	}
 
 	if len(aux.Config) == 0 || bytes.Equal(aux.Config, []byte("null")) {
+		m.Config = nil
 		return nil
 	}
 

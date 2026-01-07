@@ -235,6 +235,47 @@ func TestModelJSONRoundTrip(t *testing.T) {
 	assert.Equal(t, *originalConfig.ContextSize, *unmarshaledConfig.ContextSize)
 }
 
+func TestModelUnmarshalJSONNullAndMissingConfig(t *testing.T) {
+	tests := []struct {
+		name     string
+		jsonData string
+	}{
+		{
+			name: "missing config field",
+			jsonData: `{
+				"id": "sha256:abc123",
+				"tags": ["ai/smollm2:latest"],
+				"created": 1704067200
+			}`,
+		},
+		{
+			name: "explicit null config field",
+			jsonData: `{
+				"id": "sha256:abc123",
+				"tags": ["ai/smollm2:latest"],
+				"created": 1704067200,
+				"config": null
+			}`,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var model Model
+			err := json.Unmarshal([]byte(tc.jsonData), &model)
+			require.NoError(t, err)
+
+			// config should be nil for both missing and null cases
+			assert.Nil(t, model.Config)
+
+			// other fields should still be populated correctly
+			assert.Equal(t, "sha256:abc123", model.ID)
+			assert.Equal(t, []string{"ai/smollm2:latest"}, model.Tags)
+			assert.Equal(t, int64(1704067200), model.Created)
+		})
+	}
+}
+
 func TestModelUnmarshalJSONInvalidData(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -251,6 +292,14 @@ func TestModelUnmarshalJSONInvalidData(t *testing.T) {
 		{
 			name:     "wrong type for tags",
 			jsonData: `{"id": "test", "tags": "not-an-array", "config": {}}`,
+		},
+		{
+			name:     "config is string instead of object",
+			jsonData: `{"id": "test", "config": "not-an-object"}`,
+		},
+		{
+			name:     "config is array instead of object",
+			jsonData: `{"id": "test", "config": [1, 2, 3]}`,
 		},
 	}
 
