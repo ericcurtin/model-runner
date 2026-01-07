@@ -1,6 +1,8 @@
 package models
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 
 	"github.com/docker/model-runner/pkg/distribution/types"
@@ -111,4 +113,36 @@ type Model struct {
 	// Config describes the model. Can be either Docker format (*types.Config)
 	// or ModelPack format (*modelpack.Model).
 	Config types.ModelConfig `json:"config"`
+}
+
+// UnmarshalJSON implements custom JSON unmarshaling for Model.
+// This is necessary because Config is an interface type (types.ModelConfig),
+// and Go's standard JSON decoder cannot unmarshal directly into an interface.
+// We use json.RawMessage to defer parsing of the config field, allowing for
+// future extension to support multiple ModelConfig implementations.
+func (m *Model) UnmarshalJSON(data []byte) error {
+	type Alias Model
+	aux := struct {
+		*Alias
+		Config json.RawMessage `json:"config"`
+	}{
+		Alias: (*Alias)(m),
+	}
+
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+
+	if len(aux.Config) == 0 || bytes.Equal(aux.Config, []byte("null")) {
+		m.Config = nil
+		return nil
+	}
+
+	var cfg types.Config
+	if err := json.Unmarshal(aux.Config, &cfg); err != nil {
+		return err
+	}
+	m.Config = &cfg
+
+	return nil
 }
