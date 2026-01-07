@@ -112,35 +112,7 @@ type Model struct {
 	Created int64 `json:"created"`
 	// Config describes the model. Can be either Docker format (*types.Config)
 	// or ModelPack format (*modelpack.Model).
-	Config types.ModelConfig `json:"-"`
-	// RawConfig is used for JSON marshaling/unmarshaling
-	RawConfig json.RawMessage `json:"config"`
-}
-
-// MarshalJSON implements custom marshaling for Model
-func (m Model) MarshalJSON() ([]byte, error) {
-	// Define a temporary struct to avoid recursion
-	type Alias Model
-	aux := struct {
-		*Alias
-		RawConfig json.RawMessage `json:"config"`
-	}{
-		Alias: (*Alias)(&m),
-	}
-
-	// Marshal the config separately
-	if m.Config != nil {
-		configData, err := json.Marshal(m.Config)
-		if err != nil {
-			return nil, err
-		}
-		aux.RawConfig = configData
-	} else {
-		// If Config is nil, use the RawConfig if available
-		aux.RawConfig = m.RawConfig
-	}
-
-	return json.Marshal(aux)
+	Config types.ModelConfig `json:"config"`
 }
 
 // UnmarshalJSON implements custom JSON unmarshaling for Model.
