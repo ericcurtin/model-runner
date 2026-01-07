@@ -34,15 +34,13 @@ func TestModelUnmarshalJSON(t *testing.T) {
 				ID:      "sha256:abc123",
 				Tags:    []string{"ai/smollm2:latest", "ai/smollm2:1.7B-instruct-q4_K_M"},
 				Created: 1704067200,
-				Config: &ModelConfigWrapper{
-					ModelConfig: &types.Config{
-						Format:       "gguf",
-						Quantization: "Q4_K_M",
-						Parameters:   "1.7B",
-						Architecture: "llama",
-						Size:         "1.7B",
-						ContextSize:  int32Ptr(8192),
-					},
+				Config: &types.Config{
+					Format:       "gguf",
+					Quantization: "Q4_K_M",
+					Parameters:   "1.7B",
+					Architecture: "llama",
+					Size:         "1.7B",
+					ContextSize:  int32Ptr(8192),
 				},
 			},
 		},
@@ -59,10 +57,8 @@ func TestModelUnmarshalJSON(t *testing.T) {
 				ID:      "sha256:def456",
 				Tags:    nil,
 				Created: 1704067200,
-				Config: &ModelConfigWrapper{
-					ModelConfig: &types.Config{
-						Format: "safetensors",
-					},
+				Config: &types.Config{
+					Format: "safetensors",
 				},
 			},
 		},
@@ -77,9 +73,7 @@ func TestModelUnmarshalJSON(t *testing.T) {
 				ID:      "sha256:ghi789",
 				Tags:    nil,
 				Created: 1704067200,
-				Config: &ModelConfigWrapper{
-					ModelConfig: &types.Config{},
-				},
+				Config:  &types.Config{},
 			},
 		},
 		{
@@ -101,14 +95,12 @@ func TestModelUnmarshalJSON(t *testing.T) {
 				ID:      "sha256:jkl012",
 				Tags:    []string{"ai/testmodel:latest"},
 				Created: 1704067200,
-				Config: &ModelConfigWrapper{
-					ModelConfig: &types.Config{
-						Format:       "gguf",
-						Architecture: "llama",
-						GGUF: map[string]string{
-							"llama.context_length":   "4096",
-							"llama.embedding_length": "2048",
-						},
+				Config: &types.Config{
+					Format:       "gguf",
+					Architecture: "llama",
+					GGUF: map[string]string{
+						"llama.context_length":   "4096",
+						"llama.embedding_length": "2048",
 					},
 				},
 			},
@@ -127,8 +119,8 @@ func TestModelUnmarshalJSON(t *testing.T) {
 
 			// Verify config is properly unmarshaled
 			require.NotNil(t, model.Config)
-			expectedConfig := tc.expected.Config.ModelConfig.(*types.Config)
-			actualConfig, ok := model.Config.ModelConfig.(*types.Config)
+			expectedConfig := tc.expected.Config.(*types.Config)
+			actualConfig, ok := model.Config.(*types.Config)
 			require.True(t, ok, "Config should be *types.Config")
 
 			assert.Equal(t, expectedConfig.Format, actualConfig.Format)
@@ -181,7 +173,7 @@ func TestModelUnmarshalJSONArray(t *testing.T) {
 	// Verify first model
 	assert.Equal(t, "sha256:abc123", models[0].ID)
 	assert.Equal(t, []string{"ai/model1:latest"}, models[0].Tags)
-	config0, ok := models[0].Config.ModelConfig.(*types.Config)
+	config0, ok := models[0].Config.(*types.Config)
 	require.True(t, ok)
 	assert.Equal(t, types.FormatGGUF, config0.Format)
 	assert.Equal(t, "Q4_K_M", config0.Quantization)
@@ -190,7 +182,7 @@ func TestModelUnmarshalJSONArray(t *testing.T) {
 	// Verify second model
 	assert.Equal(t, "sha256:def456", models[1].ID)
 	assert.Equal(t, []string{"ai/model2:latest"}, models[1].Tags)
-	config1, ok := models[1].Config.ModelConfig.(*types.Config)
+	config1, ok := models[1].Config.(*types.Config)
 	require.True(t, ok)
 	assert.Equal(t, types.FormatSafetensors, config1.Format)
 	assert.Equal(t, "mistral", config1.Architecture)
@@ -202,17 +194,15 @@ func TestModelJSONRoundTrip(t *testing.T) {
 		ID:      "sha256:roundtrip123",
 		Tags:    []string{"ai/testmodel:v1", "ai/testmodel:latest"},
 		Created: 1704067200,
-		Config: &ModelConfigWrapper{
-			ModelConfig: &types.Config{
-				Format:       "gguf",
-				Quantization: "Q8_0",
-				Parameters:   "7B",
-				Architecture: "llama",
-				Size:         "7B",
-				ContextSize:  int32Ptr(4096),
-				GGUF: map[string]string{
-					"llama.context_length": "4096",
-				},
+		Config: &types.Config{
+			Format:       "gguf",
+			Quantization: "Q8_0",
+			Parameters:   "7B",
+			Architecture: "llama",
+			Size:         "7B",
+			ContextSize:  int32Ptr(4096),
+			GGUF: map[string]string{
+				"llama.context_length": "4096",
 			},
 		},
 	}
@@ -231,8 +221,8 @@ func TestModelJSONRoundTrip(t *testing.T) {
 	assert.Equal(t, original.Tags, unmarshaled.Tags)
 	assert.Equal(t, original.Created, unmarshaled.Created)
 
-	originalConfig := original.Config.ModelConfig.(*types.Config)
-	unmarshaledConfig, ok := unmarshaled.Config.ModelConfig.(*types.Config)
+	originalConfig := original.Config.(*types.Config)
+	unmarshaledConfig, ok := unmarshaled.Config.(*types.Config)
 	require.True(t, ok)
 
 	assert.Equal(t, originalConfig.Format, unmarshaledConfig.Format)
