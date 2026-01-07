@@ -23,6 +23,7 @@ import (
 	"github.com/docker/model-runner/pkg/metrics"
 	"github.com/docker/model-runner/pkg/middleware"
 	"github.com/docker/model-runner/pkg/ollama"
+	"github.com/docker/model-runner/pkg/responses"
 	"github.com/docker/model-runner/pkg/routing"
 	"github.com/sirupsen/logrus"
 )
@@ -165,6 +166,16 @@ func main() {
 	router.Handle(inference.ModelsPrefix, modelHandler)
 	router.Handle(inference.ModelsPrefix+"/", modelHandler)
 	router.Handle(inference.InferencePrefix+"/", schedulerHTTP)
+	// Add OpenAI Responses API compatibility layer
+	responsesHandler := responses.NewHTTPHandler(log, schedulerHTTP, nil)
+	router.Handle(responses.APIPrefix+"/", responsesHandler)
+	router.Handle(responses.APIPrefix, responsesHandler) // Also register for exact match without trailing slash
+	router.Handle("/v1"+responses.APIPrefix+"/", responsesHandler)
+	router.Handle("/v1"+responses.APIPrefix, responsesHandler)
+	// Also register Responses API under inference prefix to support all inference engines
+	router.Handle(inference.InferencePrefix+responses.APIPrefix+"/", responsesHandler)
+	router.Handle(inference.InferencePrefix+responses.APIPrefix, responsesHandler)
+
 	// Add path aliases: /v1 -> /engines/v1, /rerank -> /engines/rerank, /score -> /engines/score.
 	aliasHandler := &middleware.AliasHandler{Handler: schedulerHTTP}
 	router.Handle("/v1/", aliasHandler)
