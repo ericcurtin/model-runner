@@ -30,6 +30,9 @@ ifeq ($(DETECTED_OS),macOS)
 		-DGGML_NATIVE=OFF \
 		-DGGML_OPENMP=OFF \
 		-DLLAMA_CURL=OFF \
+		-DLLAMA_BUILD_COMMON=ON \
+		-DLLAMA_BUILD_SERVER=ON \
+		-DLLAMA_BUILD_TOOLS=ON \
 		-GNinja \
 		-S $(NATIVE_DIR)
 	@echo "Building..."
@@ -43,6 +46,9 @@ ifeq ($(DETECTED_OS),macOS)
 	rm -rf $(INSTALL_DIR)/lib/cmake
 	rm -rf $(INSTALL_DIR)/lib/pkgconfig
 	rm -rf $(INSTALL_DIR)/include
+	@echo "Fixing rpath..."
+	install_name_tool -delete_rpath "$(CURDIR)/$(BUILD_DIR)/bin" $(INSTALL_DIR)/bin/com.docker.llama-server
+	install_name_tool -add_rpath "@executable_path/../lib" $(INSTALL_DIR)/bin/com.docker.llama-server
 	@echo "Build complete! Binaries are in $(INSTALL_DIR)"
 else ifeq ($(DETECTED_OS),Linux)
 	@echo "Linux build not implemented yet"
@@ -80,16 +86,16 @@ clean:
 	rm -rf $(INSTALL_DIR)
 
 build-dir:
-	@echo "$(shell pwd)/$(BUILD_DIR)"
+	@echo "$(CURDIR)/$(BUILD_DIR)"
 
 install-dir:
-	@echo "$(shell pwd)/$(INSTALL_DIR)"
+	@echo "$(CURDIR)/$(INSTALL_DIR)"
 
 help:
 	@echo "Available targets:"
-	@echo "  build      	- Build llama.cpp (macOS only for now)"
-	@echo "  install-deps	- Install build dependencies"
-	@echo "  build-dir		- Print build directory path"
-	@echo "  install-dir	- Print install directory path"
-	@echo "  clean       	- Clean build artifacts"
-	@echo "  help        	- Show this help"
+	@echo "  build        - Build llama.cpp (macOS only for now)"
+	@echo "  install-deps - Install build dependencies"
+	@echo "  build-dir    - Print build directory path"
+	@echo "  install-dir  - Print install directory path"
+	@echo "  clean        - Clean build artifacts"
+	@echo "  help         - Show this help"
