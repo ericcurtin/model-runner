@@ -222,8 +222,9 @@ func (r *runner) wait(ctx context.Context) error {
 			return r.err
 		default:
 		}
-		// Create and execute a request targeting a known-valid endpoint.
-		readyRequest, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://localhost/v1/models", http.NoBody)
+		// Create and execute a request targeting the health endpoint.
+		// Note: /health returns 503 during model loading, 200 when ready.
+		readyRequest, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://localhost/health", http.NoBody)
 		if err != nil {
 			return fmt.Errorf("readiness request creation failed: %w", err)
 		}
