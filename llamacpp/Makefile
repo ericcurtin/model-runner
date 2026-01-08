@@ -90,9 +90,9 @@ install-dir:
 
 help:
 	@echo "Available targets:"
-	@echo "  build      	- Build llama.cpp (macOS only for now)"
-	@echo "  install-deps	- Install build dependencies"
-	@echo "  build-dir		- Print build directory path"
-	@echo "  install-dir	- Print install directory path"
-	@echo "  clean       	- Clean build artifacts"
-	@echo "  help        	- Show this help"
+	@echo "  build        - Build llama.cpp (macOS only for now)"
+	@echo "  install-deps - Install build dependencies"
+	@echo "  build-dir    - Print build directory path"
+	@echo "  install-dir  - Print install directory path"
+	@echo "  clean        - Clean build artifacts"
+	@echo "  help         - Show this help"
