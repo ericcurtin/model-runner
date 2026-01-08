@@ -47,7 +47,7 @@ ifeq ($(DETECTED_OS),macOS)
 	rm -rf $(INSTALL_DIR)/lib/pkgconfig
 	rm -rf $(INSTALL_DIR)/include
 	@echo "Fixing rpath..."
-	install_name_tool -delete_rpath "$(shell pwd)/$(BUILD_DIR)/bin" $(INSTALL_DIR)/bin/com.docker.llama-server
+	install_name_tool -delete_rpath "$(CURDIR)/$(BUILD_DIR)/bin" $(INSTALL_DIR)/bin/com.docker.llama-server
 	install_name_tool -add_rpath "@executable_path/../lib" $(INSTALL_DIR)/bin/com.docker.llama-server
 	@echo "Build complete! Binaries are in $(INSTALL_DIR)"
 else ifeq ($(DETECTED_OS),Linux)
@@ -86,10 +86,10 @@ clean:
 	rm -rf $(INSTALL_DIR)
 
 build-dir:
-	@echo "$(shell pwd)/$(BUILD_DIR)"
+	@echo "$(CURDIR)/$(BUILD_DIR)"
 
 install-dir:
-	@echo "$(shell pwd)/$(INSTALL_DIR)"
+	@echo "$(CURDIR)/$(INSTALL_DIR)"
 
 help:
 	@echo "Available targets:"
