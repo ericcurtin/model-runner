@@ -41,10 +41,8 @@ if (DDLLAMA_BUILD_SERVER)
 
     add_custom_target(com.docker.llama-server ALL DEPENDS "${LLAMA_SERVER_DST}")
 
-    # Install the renamed binary using TARGETS instead of PROGRAMS for better cross-platform support
-    install(TARGETS llama-server
-        RUNTIME DESTINATION bin
-        RENAME "com.docker.llama-server${CMAKE_EXECUTABLE_SUFFIX}")
+    # Install the renamed binary
+    install(PROGRAMS "${LLAMA_SERVER_DST}" DESTINATION bin)
 endif()
 
 if (WIN32 AND DDLLAMA_BUILD_UTILS)
