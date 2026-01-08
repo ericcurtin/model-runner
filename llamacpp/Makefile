@@ -46,6 +46,9 @@ ifeq ($(DETECTED_OS),macOS)
 	rm -rf $(INSTALL_DIR)/lib/cmake
 	rm -rf $(INSTALL_DIR)/lib/pkgconfig
 	rm -rf $(INSTALL_DIR)/include
+	@echo "Fixing rpath..."
+	install_name_tool -delete_rpath "$(shell pwd)/$(BUILD_DIR)/bin" $(INSTALL_DIR)/bin/com.docker.llama-server
+	install_name_tool -add_rpath "@executable_path/../lib" $(INSTALL_DIR)/bin/com.docker.llama-server
 	@echo "Build complete! Binaries are in $(INSTALL_DIR)"
 else ifeq ($(DETECTED_OS),Linux)
 	@echo "Linux build not implemented yet"
