@@ -72,6 +72,11 @@ func main() {
 		llamaServerPath = "/Applications/Docker.app/Contents/Resources/model-runner/bin"
 	}
 
+	// Get optional custom paths for other backends
+	vllmServerPath := os.Getenv("VLLM_SERVER_PATH")
+	sglangServerPath := os.Getenv("SGLANG_SERVER_PATH")
+	mlxServerPath := os.Getenv("MLX_SERVER_PATH")
+
 	// Create a proxy-aware HTTP transport
 	// Use a safe type assertion with fallback, and explicitly set Proxy to http.ProxyFromEnvironment
 	var baseTransport *http.Transport
@@ -94,6 +99,15 @@ func main() {
 		nil,
 	)
 	log.Infof("LLAMA_SERVER_PATH: %s", llamaServerPath)
+	if vllmServerPath != "" {
+		log.Infof("VLLM_SERVER_PATH: %s", vllmServerPath)
+	}
+	if sglangServerPath != "" {
+		log.Infof("SGLANG_SERVER_PATH: %s", sglangServerPath)
+	}
+	if mlxServerPath != "" {
+		log.Infof("MLX_SERVER_PATH: %s", mlxServerPath)
+	}
 
 	// Create llama.cpp configuration from environment variables
 	llamaCppConfig := createLlamaCppConfigFromEnv()
@@ -115,7 +129,7 @@ func main() {
 		log.Fatalf("unable to initialize %s backend: %v", llamacpp.Name, err)
 	}
 
-	vllmBackend, err := initVLLMBackend(log, modelManager)
+	vllmBackend, err := initVLLMBackend(log, modelManager, vllmServerPath)
 	if err != nil {
 		log.Fatalf("unable to initialize %s backend: %v", vllm.Name, err)
 	}
@@ -125,6 +139,7 @@ func main() {
 		modelManager,
 		log.WithFields(logrus.Fields{"component": mlx.Name}),
 		nil,
+		mlxServerPath,
 	)
 	if err != nil {
 		log.Fatalf("unable to initialize %s backend: %v", mlx.Name, err)
@@ -135,6 +150,7 @@ func main() {
 		modelManager,
 		log.WithFields(logrus.Fields{"component": sglang.Name}),
 		nil,
+		sglangServerPath,
 	)
 	if err != nil {
 		log.Fatalf("unable to initialize %s backend: %v", sglang.Name, err)

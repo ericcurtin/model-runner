@@ -8,7 +8,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-func initVLLMBackend(log *logrus.Logger, modelManager *models.Manager) (inference.Backend, error) {
+func initVLLMBackend(log *logrus.Logger, modelManager *models.Manager, customBinaryPath string) (inference.Backend, error) {
 	return nil, nil
 }
 

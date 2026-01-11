@@ -44,21 +44,25 @@ type sglang struct {
 	status string
 	// pythonPath is the path to the python3 binary.
 	pythonPath string
+	// customPythonPath is an optional custom path to the python3 binary.
+	customPythonPath string
 }
 
 // New creates a new SGLang-based backend.
-func New(log logging.Logger, modelManager *models.Manager, serverLog logging.Logger, conf *Config) (inference.Backend, error) {
+// customPythonPath is an optional path to a custom python3 binary; if empty, the default path is used.
+func New(log logging.Logger, modelManager *models.Manager, serverLog logging.Logger, conf *Config, customPythonPath string) (inference.Backend, error) {
 	// If no config is provided, use the default configuration
 	if conf == nil {
 		conf = NewDefaultSGLangConfig()
 	}
 
 	return &sglang{
-		log:          log,
-		modelManager: modelManager,
-		serverLog:    serverLog,
-		config:       conf,
-		status:       "not installed",
+		log:              log,
+		modelManager:     modelManager,
+		serverLog:        serverLog,
+		config:           conf,
+		status:           "not installed",
+		customPythonPath: customPythonPath,
 	}, nil
 }
 
@@ -82,17 +86,24 @@ func (s *sglang) Install(_ context.Context, _ *http.Client) error {
 		return ErrNotImplemented
 	}
 
-	venvPython := filepath.Join(sglangDir, "bin", "python3")
-	pythonPath := venvPython
+	var pythonPath string
 
-	if _, err := os.Stat(venvPython); err != nil {
-		// Fall back to system Python
-		systemPython, err := exec.LookPath("python3")
-		if err != nil {
-			s.status = ErrPythonNotFound.Error()
-			return ErrPythonNotFound
+	// Use custom python path if specified
+	if s.customPythonPath != "" {
+		pythonPath = s.customPythonPath
+	} else {
+		venvPython := filepath.Join(sglangDir, "bin", "python3")
+		pythonPath = venvPython
+
+		if _, err := os.Stat(venvPython); err != nil {
+			// Fall back to system Python
+			systemPython, err := exec.LookPath("python3")
+			if err != nil {
+				s.status = ErrPythonNotFound.Error()
+				return ErrPythonNotFound
+			}
+			pythonPath = systemPython
 		}
-		pythonPath = systemPython
 	}
 
 	s.pythonPath = pythonPath

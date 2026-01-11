@@ -40,21 +40,25 @@ type vLLM struct {
 	config *Config
 	// status is the state in which the vLLM backend is in.
 	status string
+	// customBinaryPath is an optional custom path to the vllm binary.
+	customBinaryPath string
 }
 
 // New creates a new vLLM-based backend.
-func New(log logging.Logger, modelManager *models.Manager, serverLog logging.Logger, conf *Config) (inference.Backend, error) {
+// customBinaryPath is an optional path to a custom vllm binary; if empty, the default path is used.
+func New(log logging.Logger, modelManager *models.Manager, serverLog logging.Logger, conf *Config, customBinaryPath string) (inference.Backend, error) {
 	// If no config is provided, use the default configuration
 	if conf == nil {
 		conf = NewDefaultVLLMConfig()
 	}
 
 	return &vLLM{
-		log:          log,
-		modelManager: modelManager,
-		serverLog:    serverLog,
-		config:       conf,
-		status:       "not installed",
+		log:              log,
+		modelManager:     modelManager,
+		serverLog:        serverLog,
+		config:           conf,
+		status:           "not installed",
+		customBinaryPath: customBinaryPath,
 	}, nil
 }
 
@@ -171,5 +175,8 @@ func (v *vLLM) GetDiskUsage() (int64, error) {
 }
 
 func (v *vLLM) binaryPath() string {
+	if v.customBinaryPath != "" {
+		return v.customBinaryPath
+	}
 	return filepath.Join(vllmDir, "vllm")
 }
