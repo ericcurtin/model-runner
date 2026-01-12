@@ -25,6 +25,7 @@ import (
 	"github.com/docker/model-runner/pkg/ollama"
 	"github.com/docker/model-runner/pkg/responses"
 	"github.com/docker/model-runner/pkg/routing"
+	"github.com/docker/model-runner/pkg/swagger"
 	"github.com/sirupsen/logrus"
 )
 
@@ -196,15 +197,15 @@ func main() {
 	anthropicHandler := anthropic.NewHandler(log, schedulerHTTP, nil, modelManager)
 	router.Handle(anthropic.APIPrefix+"/", anthropicHandler)
 
-	// Register root handler LAST - it will only catch exact "/" requests that don't match other patterns
+	// Register Swagger UI handler for API documentation at the homepage
+	swaggerHandler := swagger.NewHandler()
 	router.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		// Only respond to exact root path
-		if r.URL.Path != "/" {
-			http.NotFound(w, r)
+		// Only respond to root path and OpenAPI spec
+		if r.URL.Path == "/" || r.URL.Path == "/index.html" || r.URL.Path == "/openapi.yaml" {
+			swaggerHandler.ServeHTTP(w, r)
 			return
 		}
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("Docker Model Runner is running"))
+		http.NotFound(w, r)
 	})
 
 	// Add metrics endpoint if enabled
