@@ -12,6 +12,7 @@ import (
 	"github.com/docker/docker/pkg/jsonmessage"
 	"github.com/docker/go-units"
 	"github.com/docker/model-runner/cmd/cli/pkg/standalone"
+	"github.com/docker/model-runner/pkg/distribution/oci"
 )
 
 // DisplayProgress displays progress messages from a model pull/push operation
@@ -155,6 +156,9 @@ func writeDockerProgress(w io.Writer, msg *ProgressMessage, layerStatus map[stri
 		return nil
 	}
 
+	// Detect if this is a push operation based on the sentinel layer ID
+	isPush := layerID == oci.UploadingLayerID
+
 	// Determine status based on progress
 	var status string
 	var progressDetail *jsonmessage.JSONProgress
@@ -162,13 +166,21 @@ func writeDockerProgress(w io.Writer, msg *ProgressMessage, layerStatus map[stri
 	if msg.Layer.Current == 0 {
 		status = "Waiting"
 	} else if msg.Layer.Current < msg.Layer.Size {
-		status = "Downloading"
+		if isPush {
+			status = "Uploading"
+		} else {
+			status = "Downloading"
+		}
 		progressDetail = &jsonmessage.JSONProgress{
 			Current: int64(msg.Layer.Current),
 			Total:   int64(msg.Layer.Size),
 		}
 	} else if msg.Layer.Current >= msg.Layer.Size && msg.Layer.Size > 0 {
-		status = "Pull complete"
+		if isPush {
+			status = "Push complete"
+		} else {
+			status = "Pull complete"
+		}
 		progressDetail = &jsonmessage.JSONProgress{
 			Current: int64(msg.Layer.Current),
 			Total:   int64(msg.Layer.Size),
