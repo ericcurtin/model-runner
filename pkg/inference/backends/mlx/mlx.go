@@ -36,21 +36,25 @@ type mlx struct {
 	status string
 	// pythonPath is the path to the python3 binary.
 	pythonPath string
+	// customPythonPath is an optional custom path to the python3 binary.
+	customPythonPath string
 }
 
 // New creates a new MLX-based backend.
-func New(log logging.Logger, modelManager *models.Manager, serverLog logging.Logger, conf *Config) (inference.Backend, error) {
+// customPythonPath is an optional path to a custom python3 binary; if empty, the default path is used.
+func New(log logging.Logger, modelManager *models.Manager, serverLog logging.Logger, conf *Config, customPythonPath string) (inference.Backend, error) {
 	// If no config is provided, use the default configuration
 	if conf == nil {
 		conf = NewDefaultMLXConfig()
 	}
 
 	return &mlx{
-		log:          log,
-		modelManager: modelManager,
-		serverLog:    serverLog,
-		config:       conf,
-		status:       "not installed",
+		log:              log,
+		modelManager:     modelManager,
+		serverLog:        serverLog,
+		config:           conf,
+		status:           "not installed",
+		customPythonPath: customPythonPath,
 	}, nil
 }
 
@@ -76,11 +80,19 @@ func (m *mlx) Install(ctx context.Context, httpClient *http.Client) error {
 		return errors.New("MLX is only available on macOS ARM64")
 	}
 
-	// Check if Python 3 is available
-	pythonPath, err := exec.LookPath("python3")
-	if err != nil {
-		m.status = ErrStatusNotFound.Error()
-		return ErrStatusNotFound
+	var pythonPath string
+
+	// Use custom python path if specified
+	if m.customPythonPath != "" {
+		pythonPath = m.customPythonPath
+	} else {
+		// Check if Python 3 is available
+		var err error
+		pythonPath, err = exec.LookPath("python3")
+		if err != nil {
+			m.status = ErrStatusNotFound.Error()
+			return ErrStatusNotFound
+		}
 	}
 
 	// Store the python path for later use
