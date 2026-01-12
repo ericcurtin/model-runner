@@ -2,6 +2,8 @@ name: Integration Tests
 
 on:
   workflow_dispatch:  # Manual trigger only
+  pull_request:
+    branches: [ main ]
   push:
 
 jobs:
