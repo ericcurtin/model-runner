@@ -4,7 +4,6 @@ package reference
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/distribution/reference"
@@ -304,78 +303,5 @@ func NewTag(s string, opts ...Option) (*Tag, error) {
 	return nil, fmt.Errorf("reference %q is not a tag", s)
 }
 
-// NewDigest creates a new digest reference.
-func NewDigest(s string, opts ...Option) (*Digest, error) {
-	ref, err := ParseReference(s, opts...)
-	if err != nil {
-		return nil, err
-	}
-	if digest, ok := ref.(*Digest); ok {
-		return digest, nil
-	}
-	return nil, fmt.Errorf("reference %q is not a digest", s)
-}
-
 // DefaultOrg is the default organization when none is specified.
 const DefaultOrg = "ai"
-
-// GetDefaultRegistryOptions returns options based on environment variables.
-func GetDefaultRegistryOptions() []Option {
-	var opts []Option
-	if defaultReg := os.Getenv("DEFAULT_REGISTRY"); defaultReg != "" {
-		opts = append(opts, WithDefaultRegistry(defaultReg))
-	}
-	if os.Getenv("INSECURE_REGISTRY") == "true" {
-		opts = append(opts, Insecure)
-	}
-	// Always use the default org for consistency with model-runner's normalization
-	opts = append(opts, WithDefaultOrg(DefaultOrg))
-	return opts
-}
-
-// Domain returns the domain part of a reference.
-func Domain(ref Reference) string {
-	return ref.Context().Registry.Name()
-}
-
-// Path returns the path part of a reference (repository without registry).
-func Path(ref Reference) string {
-	return ref.Context().Repository
-}
-
-// IsDockerHub checks if the reference points to Docker Hub.
-func IsDockerHub(ref Reference) bool {
-	domain := ref.Context().Registry.Name()
-	return domain == "docker.io" || domain == "index.docker.io" || domain == "registry-1.docker.io"
-}
-
-// Normalize normalizes a reference string to include registry and tag if missing.
-func Normalize(s string) string {
-	ref, err := ParseReference(s)
-	if err != nil {
-		return s
-	}
-	return ref.String()
-}
-
-// SplitReference splits a reference string into registry, repository, and tag/digest.
-func SplitReference(s string) (registry, repository, identifier string) {
-	ref, err := ParseReference(s)
-	if err != nil {
-		return "", "", ""
-	}
-	return ref.Context().Registry.Name(), ref.Context().Repository, ref.Identifier()
-}
-
-// FixDockerHubLibrary adds "library/" prefix for official Docker Hub images.
-func FixDockerHubLibrary(ref Reference) string {
-	if !IsDockerHub(ref) {
-		return ref.String()
-	}
-	repo := ref.Context().Repository
-	if !strings.Contains(repo, "/") {
-		// Official image, add library prefix
-		repo = "library/" + repo
-	}
-	return fmt.Sprintf("%s/%s:%s", ref.Context().Registry.Name(), repo, ref.Identifier())
-}

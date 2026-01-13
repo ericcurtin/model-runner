@@ -55,15 +55,6 @@ func ParseManifest(r io.Reader) (*Manifest, error) {
 	return &m, nil
 }
 
-// ParseIndexManifest parses the io.Reader's contents into an IndexManifest.
-func ParseIndexManifest(r io.Reader) (*IndexManifest, error) {
-	im := IndexManifest{}
-	if err := json.NewDecoder(r).Decode(&im); err != nil {
-		return nil, err
-	}
-	return &im, nil
-}
-
 // RawManifest returns the serialized bytes of the Manifest.
 func (m *Manifest) RawManifest() ([]byte, error) {
 	return json.Marshal(m)

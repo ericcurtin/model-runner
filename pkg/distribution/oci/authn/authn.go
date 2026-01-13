@@ -298,32 +298,3 @@ func NewResource(ref reference.Reference) Resource {
 		registry: ref.Context().Registry.RegistryStr(),
 	}
 }
-
-// FromConfig creates an Authenticator from an AuthConfig.
-func FromConfig(cfg AuthConfig) Authenticator {
-	if cfg.RegistryToken != "" {
-		return &Bearer{Token: cfg.RegistryToken}
-	}
-	if cfg.IdentityToken != "" {
-		return &Bearer{Token: cfg.IdentityToken}
-	}
-	if cfg.Username != "" || cfg.Password != "" {
-		return &Basic{
-			Username: cfg.Username,
-			Password: cfg.Password,
-		}
-	}
-	if cfg.Auth != "" {
-		creds, err := base64.StdEncoding.DecodeString(cfg.Auth)
-		if err == nil {
-			parts := strings.SplitN(string(creds), ":", 2)
-			if len(parts) == 2 {
-				return &Basic{
-					Username: parts[0],
-					Password: parts[1],
-				}
-			}
-		}
-	}
-	return &Anonymous{}
-}

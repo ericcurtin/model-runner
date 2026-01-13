@@ -1,8 +1,6 @@
 package oci
 
 import (
-	"encoding/json"
-	"io"
 	"time"
 )
 
@@ -85,13 +83,4 @@ type ContainerConfig struct {
 	MacAddress      string              `json:"MacAddress,omitempty"`
 	StopSignal      string              `json:"StopSignal,omitempty"`
 	Shell           []string            `json:"Shell,omitempty"`
-}
-
-// ParseConfigFile parses the io.Reader's contents into a ConfigFile.
-func ParseConfigFile(r io.Reader) (*ConfigFile, error) {
-	cf := ConfigFile{}
-	if err := json.NewDecoder(r).Decode(&cf); err != nil {
-		return nil, err
-	}
-	return &cf, nil
 }
