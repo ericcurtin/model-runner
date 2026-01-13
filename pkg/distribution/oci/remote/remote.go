@@ -13,7 +13,6 @@ import (
 	"sync"
 
 	"github.com/containerd/containerd/v2/core/content"
-	"github.com/containerd/containerd/v2/core/images"
 	"github.com/containerd/containerd/v2/core/remotes"
 	"github.com/containerd/containerd/v2/core/remotes/docker"
 	"github.com/containerd/containerd/v2/plugins/content/local"
@@ -927,32 +926,4 @@ func (i *remoteImage) Close() error {
 	// The local content store doesn't expose its root path, so cleanup
 	// of temp directories should be handled by the caller.
 	return nil
-}
-
-// Helper to configure the resolver for operations
-func configureResolver(o *options, ref reference.Reference) remotes.Resolver {
-	// Use the same logic as createResolver for consistency
-	return createResolver(o, ref).resolver
-}
-
-// Descriptor returns a descriptor for a remote reference without fetching the full manifest.
-func Descriptor(ref reference.Reference, opts ...Option) (*oci.Descriptor, error) {
-	o := makeOptions(opts...)
-	resolver := configureResolver(o, ref)
-
-	_, desc, err := resolver.Resolve(o.ctx, ref.String())
-	if err != nil {
-		return nil, fmt.Errorf("resolving %s: %w", ref.String(), err)
-	}
-
-	return &oci.Descriptor{
-		MediaType: oci.MediaType(desc.MediaType),
-		Size:      desc.Size,
-		Digest:    oci.FromDigest(desc.Digest),
-	}, nil
-}
-
-// FetchHandler wraps containerd's FetchHandler for custom progress tracking.
-func FetchHandler(store content.Store, fetcher remotes.Fetcher) images.Handler {
-	return remotes.FetchHandler(store, fetcher)
 }

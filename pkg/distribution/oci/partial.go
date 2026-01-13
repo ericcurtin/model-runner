@@ -3,8 +3,6 @@ package oci
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
-	"io"
 )
 
 // Helpers for computing image metadata from partial information.
@@ -93,83 +91,4 @@ func RawManifest(i WithManifest) ([]byte, error) {
 		return nil, err
 	}
 	return json.Marshal(m)
-}
-
-// ConfigLayer returns a layer representing the config blob.
-func ConfigLayer(i WithRawConfigFile) (Layer, error) {
-	raw, err := i.RawConfigFile()
-	if err != nil {
-		return nil, err
-	}
-	h, _, err := SHA256(bytes.NewReader(raw))
-	if err != nil {
-		return nil, err
-	}
-	return &configLayer{
-		content: raw,
-		hash:    h,
-	}, nil
-}
-
-// configLayer is a Layer implementation for config blobs.
-type configLayer struct {
-	content []byte
-	hash    Hash
-}
-
-func (c *configLayer) Digest() (Hash, error) {
-	return c.hash, nil
-}
-
-func (c *configLayer) DiffID() (Hash, error) {
-	return c.hash, nil
-}
-
-func (c *configLayer) Compressed() (io.ReadCloser, error) {
-	return &bytesReadCloser{bytes.NewReader(c.content)}, nil
-}
-
-func (c *configLayer) Uncompressed() (io.ReadCloser, error) {
-	return c.Compressed()
-}
-
-func (c *configLayer) Size() (int64, error) {
-	return int64(len(c.content)), nil
-}
-
-func (c *configLayer) MediaType() (MediaType, error) {
-	return OCIConfigJSON, nil
-}
-
-// bytesReadCloser wraps a bytes.Reader with a Close method.
-type bytesReadCloser struct {
-	*bytes.Reader
-}
-
-func (b *bytesReadCloser) Close() error {
-	return nil
-}
-
-// LayerDescriptor computes a descriptor from a layer.
-func LayerDescriptor(l Layer) (*Descriptor, error) {
-	mt, err := l.MediaType()
-	if err != nil {
-		return nil, fmt.Errorf("getting media type: %w", err)
-	}
-
-	size, err := l.Size()
-	if err != nil {
-		return nil, fmt.Errorf("getting size: %w", err)
-	}
-
-	digest, err := l.Digest()
-	if err != nil {
-		return nil, fmt.Errorf("getting digest: %w", err)
-	}
-
-	return &Descriptor{
-		MediaType: mt,
-		Size:      size,
-		Digest:    digest,
-	}, nil
 }
