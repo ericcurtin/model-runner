@@ -1,5 +1,5 @@
 name: Release model-runner images for CE
-run-name: Release model-runner images for CE, version ${{ inputs.releaseTag }}
+run-name: Release model-runner images for CE, version ${{ inputs.releaseTag }}${{ inputs.pushLatest && ' and latest' || '' }}
 
 on:
   workflow_dispatch:
