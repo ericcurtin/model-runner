@@ -2,6 +2,7 @@ package commands
 
 import (
 	"bytes"
+	"fmt"
 
 	"github.com/docker/go-units"
 	"github.com/docker/model-runner/cmd/cli/commands/completion"
@@ -14,6 +15,9 @@ func newDFCmd() *cobra.Command {
 		Use:   "df",
 		Short: "Show Docker Model Runner disk usage",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if _, err := ensureStandaloneRunnerAvailable(cmd.Context(), cmd); err != nil {
+				return fmt.Errorf("unable to initialize standalone model runner: %w", err)
+			}
 			df, err := desktopClient.DF()
 			if err != nil {
 				return handleClientError(err, "Failed to list running models")
