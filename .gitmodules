@@ -4,3 +4,6 @@
 [submodule "llamacpp/native/vendor/nvapi"]
 	path = llamacpp/native/vendor/nvapi
 	url = https://github.com/NVIDIA/nvapi.git
+[submodule "third_party/go-containerregistry"]
+	path = third_party/go-containerregistry
+	url = https://github.com/google/go-containerregistry.git
