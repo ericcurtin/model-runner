@@ -3,7 +3,6 @@ package distribution
 import (
 	"bufio"
 	"bytes"
-	"context"
 	"crypto/rand"
 	"encoding/json"
 	"errors"
@@ -50,12 +49,7 @@ func TestClientPullModel(t *testing.T) {
 	}
 	registryHost := registryURL.Host
 
-	// Create temp directory for store
-	tempDir, err := os.MkdirTemp("", "model-distribution-test-*")
-	if err != nil {
-		t.Fatalf("Failed to create temp directory: %v", err)
-	}
-	defer os.RemoveAll(tempDir)
+	tempDir := t.TempDir()
 
 	// Create client with plainHTTP for test registry
 	client, err := newTestClient(tempDir)
@@ -84,7 +78,7 @@ func TestClientPullModel(t *testing.T) {
 
 	t.Run("pull without progress writer", func(t *testing.T) {
 		// Pull model from registry without progress writer
-		err := client.PullModel(context.Background(), tag, nil)
+		err := client.PullModel(t.Context(), tag, nil)
 		if err != nil {
 			t.Fatalf("Failed to pull model: %v", err)
 		}
@@ -117,7 +111,7 @@ func TestClientPullModel(t *testing.T) {
 		var progressBuffer bytes.Buffer
 
 		// Pull model from registry with progress writer
-		if err := client.PullModel(context.Background(), tag, &progressBuffer); err != nil {
+		if err := client.PullModel(t.Context(), tag, &progressBuffer); err != nil {
 			t.Fatalf("Failed to pull model: %v", err)
 		}
 
@@ -152,12 +146,7 @@ func TestClientPullModel(t *testing.T) {
 	})
 
 	t.Run("pull non-existent model", func(t *testing.T) {
-		// Create temp directory for store
-		tempDir, err := os.MkdirTemp("", "model-distribution-test-*")
-		if err != nil {
-			t.Fatalf("Failed to create temp directory: %v", err)
-		}
-		defer os.RemoveAll(tempDir)
+		tempDir := t.TempDir()
 
 		// Create client with plainHTTP for test registry
 		testClient, err := newTestClient(tempDir)
@@ -170,7 +159,7 @@ func TestClientPullModel(t *testing.T) {
 
 		// Test with non-existent repository
 		nonExistentRef := registryHost + "/nonexistent/model:v1.0.0"
-		err = testClient.PullModel(context.Background(), nonExistentRef, &progressBuffer)
+		err = testClient.PullModel(t.Context(), nonExistentRef, &progressBuffer)
 		if err == nil {
 			t.Fatal("Expected error for non-existent model, got nil")
 		}
@@ -205,12 +194,7 @@ func TestClientPullModel(t *testing.T) {
 	})
 
 	t.Run("pull with incomplete files", func(t *testing.T) {
-		// Create temp directory for store
-		tempDir, err := os.MkdirTemp("", "model-distribution-incomplete-test-*")
-		if err != nil {
-			t.Fatalf("Failed to create temp directory: %v", err)
-		}
-		defer os.RemoveAll(tempDir)
+		tempDir := t.TempDir()
 
 		// Create client with plainHTTP for test registry
 		testClient, err := newTestClient(tempDir)
@@ -231,7 +215,7 @@ func TestClientPullModel(t *testing.T) {
 		}
 
 		// Push model to registry
-		if err := testClient.PushModel(context.Background(), testTag, nil); err != nil {
+		if err := testClient.PushModel(t.Context(), testTag, nil); err != nil {
 			t.Fatalf("Failed to pull model: %v", err)
 		}
 
@@ -277,7 +261,7 @@ func TestClientPullModel(t *testing.T) {
 		var progressBuffer bytes.Buffer
 
 		// Pull the model again - this should detect the incomplete file and pull again
-		if err := testClient.PullModel(context.Background(), testTag, &progressBuffer); err != nil {
+		if err := testClient.PullModel(t.Context(), testTag, &progressBuffer); err != nil {
 			t.Fatalf("Failed to pull model: %v", err)
 		}
 
@@ -309,12 +293,7 @@ func TestClientPullModel(t *testing.T) {
 	})
 
 	t.Run("pull updated model with same tag", func(t *testing.T) {
-		// Create temp directory for store
-		tempDir, err := os.MkdirTemp("", "model-distribution-update-test-*")
-		if err != nil {
-			t.Fatalf("Failed to create temp directory: %v", err)
-		}
-		defer os.RemoveAll(tempDir)
+		tempDir := t.TempDir()
 
 		// Create client with plainHTTP for test registry
 		testClient, err := newTestClient(tempDir)
@@ -335,7 +314,7 @@ func TestClientPullModel(t *testing.T) {
 		}
 
 		// Pull first version of model
-		if err := testClient.PullModel(context.Background(), testTag, nil); err != nil {
+		if err := testClient.PullModel(t.Context(), testTag, nil); err != nil {
 			t.Fatalf("Failed to pull first version of model: %v", err)
 		}
 
@@ -379,7 +358,7 @@ func TestClientPullModel(t *testing.T) {
 		var progressBuffer bytes.Buffer
 
 		// Pull model again - should get the updated version
-		if err := testClient.PullModel(context.Background(), testTag, &progressBuffer); err != nil {
+		if err := testClient.PullModel(t.Context(), testTag, &progressBuffer); err != nil {
 			t.Fatalf("Failed to pull updated model: %v", err)
 		}
 
@@ -425,21 +404,16 @@ func TestClientPullModel(t *testing.T) {
 		if err := remote.Write(ref, newMdl, remote.WithPlainHTTP(true)); err != nil {
 			t.Fatalf("Failed to push model: %v", err)
 		}
-		if err := client.PullModel(context.Background(), testTag, nil); err == nil || !errors.Is(err, ErrUnsupportedMediaType) {
+		if err := client.PullModel(t.Context(), testTag, nil); err == nil || !errors.Is(err, ErrUnsupportedMediaType) {
 			t.Fatalf("Expected artifact version error, got %v", err)
 		}
 	})
 
 	t.Run("pull safetensors model returns error on unsupported platforms", func(t *testing.T) {
-		// Create temp directory for the safetensors file
-		tempDir, err := os.MkdirTemp("", "safetensors-test-*")
-		if err != nil {
-			t.Fatalf("Failed to create temp directory: %v", err)
-		}
-		defer os.RemoveAll(tempDir)
+		safetensorsTempDir := t.TempDir()
 
 		// Create a minimal safetensors file (just needs to exist for this test)
-		safetensorsPath := filepath.Join(tempDir, "model.safetensors")
+		safetensorsPath := filepath.Join(safetensorsTempDir, "model.safetensors")
 		safetensorsContent := []byte("fake safetensors content for testing")
 		if err := os.WriteFile(safetensorsPath, safetensorsContent, 0644); err != nil {
 			t.Fatalf("Failed to create safetensors file: %v", err)
@@ -462,11 +436,7 @@ func TestClientPullModel(t *testing.T) {
 		}
 
 		// Create a new client with a separate temp store
-		clientTempDir, err := os.MkdirTemp("", "client-safetensors-test-*")
-		if err != nil {
-			t.Fatalf("Failed to create client temp directory: %v", err)
-		}
-		defer os.RemoveAll(clientTempDir)
+		clientTempDir := t.TempDir()
 
 		testClient, err := newTestClient(clientTempDir)
 		if err != nil {
@@ -475,7 +445,7 @@ func TestClientPullModel(t *testing.T) {
 
 		// Try to pull the safetensors model with a progress writer to capture warnings
 		var progressBuf bytes.Buffer
-		err = testClient.PullModel(context.Background(), testTag, &progressBuf)
+		err = testClient.PullModel(t.Context(), testTag, &progressBuf)
 
 		// Pull should succeed on all platforms now (with a warning on non-Linux)
 		if err != nil {
@@ -495,12 +465,7 @@ func TestClientPullModel(t *testing.T) {
 	})
 
 	t.Run("pull with JSON progress messages", func(t *testing.T) {
-		// Create temp directory for store
-		tempDir, err := os.MkdirTemp("", "model-distribution-json-test-*")
-		if err != nil {
-			t.Fatalf("Failed to create temp directory: %v", err)
-		}
-		defer os.RemoveAll(tempDir)
+		tempDir := t.TempDir()
 
 		// Create client with plainHTTP for test registry
 		testClient, err := newTestClient(tempDir)
@@ -512,7 +477,7 @@ func TestClientPullModel(t *testing.T) {
 		var progressBuffer bytes.Buffer
 
 		// Pull model from registry with progress writer
-		if err := testClient.PullModel(context.Background(), tag, &progressBuffer); err != nil {
+		if err := testClient.PullModel(t.Context(), tag, &progressBuffer); err != nil {
 			t.Fatalf("Failed to pull model: %v", err)
 		}
 
@@ -569,12 +534,7 @@ func TestClientPullModel(t *testing.T) {
 	})
 
 	t.Run("pull with error and JSON progress messages", func(t *testing.T) {
-		// Create temp directory for store
-		tempDir, err := os.MkdirTemp("", "model-distribution-json-error-test-*")
-		if err != nil {
-			t.Fatalf("Failed to create temp directory: %v", err)
-		}
-		defer os.RemoveAll(tempDir)
+		tempDir := t.TempDir()
 
 		// Create client with plainHTTP for test registry
 		testClient, err := newTestClient(tempDir)
@@ -587,7 +547,7 @@ func TestClientPullModel(t *testing.T) {
 
 		// Test with non-existent model
 		nonExistentRef := registryHost + "/nonexistent/model:v1.0.0"
-		err = testClient.PullModel(context.Background(), nonExistentRef, &progressBuffer)
+		err = testClient.PullModel(t.Context(), nonExistentRef, &progressBuffer)
 
 		// Expect an error
 		if err == nil {
@@ -605,12 +565,7 @@ func TestClientPullModel(t *testing.T) {
 }
 
 func TestClientGetModel(t *testing.T) {
-	// Create temp directory for store
-	tempDir, err := os.MkdirTemp("", "model-distribution-test-*")
-	if err != nil {
-		t.Fatalf("Failed to create temp directory: %v", err)
-	}
-	defer os.RemoveAll(tempDir)
+	tempDir := t.TempDir()
 
 	// Create client with plainHTTP for test registry
 	client, err := newTestClient(tempDir)
@@ -644,12 +599,7 @@ func TestClientGetModel(t *testing.T) {
 }
 
 func TestClientGetModelNotFound(t *testing.T) {
-	// Create temp directory for store
-	tempDir, err := os.MkdirTemp("", "model-distribution-test-*")
-	if err != nil {
-		t.Fatalf("Failed to create temp directory: %v", err)
-	}
-	defer os.RemoveAll(tempDir)
+	tempDir := t.TempDir()
 
 	// Create client with plainHTTP for test registry
 	client, err := newTestClient(tempDir)
@@ -665,12 +615,7 @@ func TestClientGetModelNotFound(t *testing.T) {
 }
 
 func TestClientListModels(t *testing.T) {
-	// Create temp directory for store
-	tempDir, err := os.MkdirTemp("", "model-distribution-test-*")
-	if err != nil {
-		t.Fatalf("Failed to create temp directory: %v", err)
-	}
-	defer os.RemoveAll(tempDir)
+	tempDir := t.TempDir()
 
 	// Create client with plainHTTP for test registry
 	client, err := newTestClient(tempDir)
@@ -746,12 +691,7 @@ func TestClientListModels(t *testing.T) {
 }
 
 func TestClientGetStorePath(t *testing.T) {
-	// Create temp directory for store
-	tempDir, err := os.MkdirTemp("", "model-distribution-test-*")
-	if err != nil {
-		t.Fatalf("Failed to create temp directory: %v", err)
-	}
-	defer os.RemoveAll(tempDir)
+	tempDir := t.TempDir()
 
 	// Create client with plainHTTP for test registry
 	client, err := newTestClient(tempDir)
@@ -774,12 +714,7 @@ func TestClientGetStorePath(t *testing.T) {
 }
 
 func TestClientDefaultLogger(t *testing.T) {
-	// Create temp directory for store
-	tempDir, err := os.MkdirTemp("", "model-distribution-test-*")
-	if err != nil {
-		t.Fatalf("Failed to create temp directory: %v", err)
-	}
-	defer os.RemoveAll(tempDir)
+	tempDir := t.TempDir()
 
 	// Create client without specifying logger
 	client, err := NewClient(WithStoreRootPath(tempDir))
@@ -809,12 +744,7 @@ func TestClientDefaultLogger(t *testing.T) {
 }
 
 func TestWithFunctionsNilChecks(t *testing.T) {
-	// Create temp directory for store
-	tempDir, err := os.MkdirTemp("", "model-distribution-test-*")
-	if err != nil {
-		t.Fatalf("Failed to create temp directory: %v", err)
-	}
-	defer os.RemoveAll(tempDir)
+	tempDir := t.TempDir()
 
 	// Test WithStoreRootPath with empty string
 	t.Run("WithStoreRootPath empty string", func(t *testing.T) {
@@ -865,12 +795,7 @@ func TestWithFunctionsNilChecks(t *testing.T) {
 }
 
 func TestNewReferenceError(t *testing.T) {
-	// Create temp directory for store
-	tempDir, err := os.MkdirTemp("", "model-distribution-test-*")
-	if err != nil {
-		t.Fatalf("Failed to create temp directory: %v", err)
-	}
-	defer os.RemoveAll(tempDir)
+	tempDir := t.TempDir()
 
 	// Create client with plainHTTP for test registry
 	client, err := newTestClient(tempDir)
@@ -880,7 +805,7 @@ func TestNewReferenceError(t *testing.T) {
 
 	// Test with invalid reference
 	invalidRef := "invalid:reference:format"
-	err = client.PullModel(context.Background(), invalidRef, nil)
+	err = client.PullModel(t.Context(), invalidRef, nil)
 	if err == nil {
 		t.Fatal("Expected error for invalid reference, got nil")
 	}
@@ -891,12 +816,7 @@ func TestNewReferenceError(t *testing.T) {
 }
 
 func TestPush(t *testing.T) {
-	// Create temp directory for store
-	tempDir, err := os.MkdirTemp("", "model-distribution-test-*")
-	if err != nil {
-		t.Fatalf("Failed to create temp directory: %v", err)
-	}
-	defer os.RemoveAll(tempDir)
+	tempDir := t.TempDir()
 
 	// Create client with plainHTTP for test registry
 	client, err := newTestClient(tempDir)
@@ -930,7 +850,7 @@ func TestPush(t *testing.T) {
 	}
 
 	// Push the model to the registry
-	if err := client.PushModel(context.Background(), tag, nil); err != nil {
+	if err := client.PushModel(t.Context(), tag, nil); err != nil {
 		t.Fatalf("Failed to push model: %v", err)
 	}
 
@@ -940,7 +860,7 @@ func TestPush(t *testing.T) {
 	}
 
 	// Test that model can be pulled successfully
-	if err := client.PullModel(context.Background(), tag, nil); err != nil {
+	if err := client.PullModel(t.Context(), tag, nil); err != nil {
 		t.Fatalf("Failed to pull model: %v", err)
 	}
 
@@ -959,12 +879,7 @@ func TestPush(t *testing.T) {
 }
 
 func TestPushProgress(t *testing.T) {
-	// Create temp directory for store
-	tempDir, err := os.MkdirTemp("", "model-distribution-test-*")
-	if err != nil {
-		t.Fatalf("Failed to create temp directory: %v", err)
-	}
-	defer os.RemoveAll(tempDir)
+	tempDir := t.TempDir()
 
 	// Create client with plainHTTP for test registry
 	client, err := newTestClient(tempDir)
@@ -1049,12 +964,7 @@ func TestPushProgress(t *testing.T) {
 }
 
 func TestTag(t *testing.T) {
-	// Create temp directory for store
-	tempDir, err := os.MkdirTemp("", "model-distribution-test-*")
-	if err != nil {
-		t.Fatalf("Failed to create temp directory: %v", err)
-	}
-	defer os.RemoveAll(tempDir)
+	tempDir := t.TempDir()
 
 	// Create client with plainHTTP for test registry
 	client, err := newTestClient(tempDir)
@@ -1110,12 +1020,7 @@ func TestTag(t *testing.T) {
 }
 
 func TestTagNotFound(t *testing.T) {
-	// Create temp directory for store
-	tempDir, err := os.MkdirTemp("", "model-distribution-test-*")
-	if err != nil {
-		t.Fatalf("Failed to create temp directory: %v", err)
-	}
-	defer os.RemoveAll(tempDir)
+	tempDir := t.TempDir()
 
 	// Create client with plainHTTP for test registry
 	client, err := newTestClient(tempDir)
@@ -1130,12 +1035,7 @@ func TestTagNotFound(t *testing.T) {
 }
 
 func TestClientPushModelNotFound(t *testing.T) {
-	// Create temp directory for store
-	tempDir, err := os.MkdirTemp("", "model-distribution-test-*")
-	if err != nil {
-		t.Fatalf("Failed to create temp directory: %v", err)
-	}
-	defer os.RemoveAll(tempDir)
+	tempDir := t.TempDir()
 
 	// Create client with plainHTTP for test registry
 	client, err := newTestClient(tempDir)
@@ -1149,12 +1049,7 @@ func TestClientPushModelNotFound(t *testing.T) {
 }
 
 func TestIsModelInStoreNotFound(t *testing.T) {
-	// Create temp directory for store
-	tempDir, err := os.MkdirTemp("", "model-distribution-test-*")
-	if err != nil {
-		t.Fatalf("Failed to create temp directory: %v", err)
-	}
-	defer os.RemoveAll(tempDir)
+	tempDir := t.TempDir()
 
 	// Create client with plainHTTP for test registry
 	client, err := newTestClient(tempDir)
@@ -1170,12 +1065,7 @@ func TestIsModelInStoreNotFound(t *testing.T) {
 }
 
 func TestIsModelInStoreFound(t *testing.T) {
-	// Create temp directory for store
-	tempDir, err := os.MkdirTemp("", "model-distribution-test-*")
-	if err != nil {
-		t.Fatalf("Failed to create temp directory: %v", err)
-	}
-	defer os.RemoveAll(tempDir)
+	tempDir := t.TempDir()
 
 	// Create client with plainHTTP for test registry
 	client, err := newTestClient(tempDir)
