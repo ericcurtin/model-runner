@@ -72,7 +72,7 @@ func TestClientPullModel(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to parse reference: %v", err)
 	}
-	if err := remote.Write(ref, model, remote.WithPlainHTTP(true)); err != nil {
+	if err := remote.Write(ref, model, nil, remote.WithPlainHTTP(true)); err != nil {
 		t.Fatalf("Failed to push model: %v", err)
 	}
 
@@ -401,7 +401,7 @@ func TestClientPullModel(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to parse reference: %v", err)
 		}
-		if err := remote.Write(ref, newMdl, remote.WithPlainHTTP(true)); err != nil {
+		if err := remote.Write(ref, newMdl, nil, remote.WithPlainHTTP(true)); err != nil {
 			t.Fatalf("Failed to push model: %v", err)
 		}
 		if err := client.PullModel(t.Context(), testTag, nil); err == nil || !errors.Is(err, ErrUnsupportedMediaType) {
@@ -431,7 +431,7 @@ func TestClientPullModel(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to parse reference: %v", err)
 		}
-		if err := remote.Write(ref, safetensorsModel, remote.WithPlainHTTP(true)); err != nil {
+		if err := remote.Write(ref, safetensorsModel, nil, remote.WithPlainHTTP(true)); err != nil {
 			t.Fatalf("Failed to push safetensors model to registry: %v", err)
 		}
 
@@ -1110,7 +1110,7 @@ func writeToRegistry(source, refStr string, opts ...remote.Option) error {
 	}
 
 	// Push the image
-	if err := remote.Write(ref, mdl, opts...); err != nil {
+	if err := remote.Write(ref, mdl, nil, opts...); err != nil {
 		return fmt.Errorf("write: %w", err)
 	}
 

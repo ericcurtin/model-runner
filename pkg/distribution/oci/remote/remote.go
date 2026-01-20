@@ -693,8 +693,21 @@ func (l *remoteLayer) MediaType() (oci.MediaType, error) {
 	return l.desc.MediaType, nil
 }
 
+// syncWriter is a thread-safe wrapper around io.Writer for concurrent writes
+type syncWriter struct {
+	w  io.Writer
+	mu sync.Mutex
+}
+
+// Write implements io.Writer interface with mutex protection
+func (sw *syncWriter) Write(p []byte) (n int, err error) {
+	sw.mu.Lock()
+	defer sw.mu.Unlock()
+	return sw.w.Write(p)
+}
+
 // Write pushes an image to a registry.
-func Write(ref reference.Reference, img oci.Image, opts ...Option) error {
+func Write(ref reference.Reference, img oci.Image, w io.Writer, opts ...Option) error {
 	o := makeOptions(opts...)
 
 	// Pre-authorize with push scope to ensure we have the right permissions
@@ -715,17 +728,14 @@ func Write(ref reference.Reference, img oci.Image, opts ...Option) error {
 		return fmt.Errorf("getting layers: %w", err)
 	}
 
-	var totalSize int64
-	for _, layer := range layers {
-		size, err := layer.Size()
-		if err != nil {
-			return fmt.Errorf("getting layer size: %w", err)
-		}
-		totalSize += size
+	// Create a thread-safe writer wrapper for concurrent progress reporting
+	var safeWriter io.Writer
+	if w != nil {
+		safeWriter = &syncWriter{w: w}
 	}
 
-	var completed int64
 	for _, layer := range layers {
+		var completed int64
 		digest, err := layer.Digest()
 		if err != nil {
 			return fmt.Errorf("getting layer digest: %w", err)
@@ -747,6 +757,13 @@ func Write(ref reference.Reference, img oci.Image, opts ...Option) error {
 			Size:      size,
 		}
 
+		var pr *progress.Reporter
+		var progressChan chan<- oci.Update
+		if safeWriter != nil {
+			pr = progress.NewProgressReporter(safeWriter, progress.PushMsg, size, layer, "push")
+			progressChan = pr.Updates()
+		}
+
 		rc, err := layer.Compressed()
 		if err != nil {
 			return fmt.Errorf("getting layer content: %w", err)
@@ -759,29 +776,33 @@ func Write(ref reference.Reference, img oci.Image, opts ...Option) error {
 			// If already exists, continue
 			if errdefs.IsAlreadyExists(err) || strings.Contains(err.Error(), "already exists") {
 				completed += size
-				if o.progress != nil {
-					o.progress <- oci.Update{
+				if progressChan != nil {
+					progressChan <- oci.Update{
 						Complete: completed,
-						Total:    totalSize,
+						Total:    size,
 					}
+					closeProgress(progressChan)
+					closeReporter(pr)
 				}
 				continue
 			}
-			closeProgress(o.progress)
+			closeProgress(progressChan)
+			closeReporter(pr)
 			return fmt.Errorf("pushing layer: %w", err)
 		}
 
 		// Wrap the reader with progress tracking to report incremental upload progress
 		// Uses the shared progress.Reader from internal/progress package
 		var reader io.Reader = rc
-		if o.progress != nil {
-			reader = progress.NewReaderWithOffset(rc, o.progress, completed)
+		if progressChan != nil {
+			reader = progress.NewReaderWithOffset(rc, progressChan, completed)
 		}
 
 		if _, err := io.Copy(cw, reader); err != nil {
 			cw.Close()
 			rc.Close()
-			closeProgress(o.progress)
+			closeProgress(progressChan)
+			closeReporter(pr)
 			return fmt.Errorf("writing layer: %w", err)
 		}
 
@@ -789,27 +810,30 @@ func Write(ref reference.Reference, img oci.Image, opts ...Option) error {
 			cw.Close()
 			rc.Close()
 			if !errdefs.IsAlreadyExists(err) && !strings.Contains(err.Error(), "already exists") {
-				closeProgress(o.progress)
+				closeProgress(progressChan)
+				closeReporter(pr)
 				return fmt.Errorf("committing layer: %w", err)
 			}
 			// If it already exists, we still want to update progress
 			completed += size
-			if o.progress != nil {
-				o.progress <- oci.Update{
+			if progressChan != nil {
+				progressChan <- oci.Update{
 					Complete: completed,
-					Total:    totalSize,
+					Total:    size,
 				}
 			}
 		} else {
 			// Successfully committed, update progress
 			completed += size
-			if o.progress != nil {
-				o.progress <- oci.Update{
+			if progressChan != nil {
+				progressChan <- oci.Update{
 					Complete: completed,
-					Total:    totalSize,
+					Total:    size,
 				}
 			}
 		}
+		closeProgress(progressChan)
+		closeReporter(pr)
 		cw.Close()
 		rc.Close()
 	}
@@ -834,20 +858,17 @@ func Write(ref reference.Reference, img oci.Image, opts ...Option) error {
 	cw, err := pusher.Push(o.ctx, configDesc)
 	if err != nil {
 		if !errdefs.IsAlreadyExists(err) && !strings.Contains(err.Error(), "already exists") {
-			closeProgress(o.progress)
 			return fmt.Errorf("pushing config: %w", err)
 		}
 		// If it already exists, we don't have a writer to close, just continue
 	} else {
 		if _, err := cw.Write(rawConfig); err != nil {
 			cw.Close()
-			closeProgress(o.progress)
 			return fmt.Errorf("writing config: %w", err)
 		}
 		if err := cw.Commit(o.ctx, int64(len(rawConfig)), configDesc.Digest); err != nil {
 			cw.Close()
 			if !errdefs.IsAlreadyExists(err) && !strings.Contains(err.Error(), "already exists") {
-				closeProgress(o.progress)
 				return fmt.Errorf("committing config: %w", err)
 			}
 		}
@@ -857,19 +878,16 @@ func Write(ref reference.Reference, img oci.Image, opts ...Option) error {
 	// Push manifest
 	rawManifest, err := img.RawManifest()
 	if err != nil {
-		closeProgress(o.progress)
 		return fmt.Errorf("getting manifest: %w", err)
 	}
 
 	manifest, err := img.Manifest()
 	if err != nil {
-		closeProgress(o.progress)
 		return fmt.Errorf("getting manifest object: %w", err)
 	}
 
 	manifestDigest, err := img.Digest()
 	if err != nil {
-		closeProgress(o.progress)
 		return fmt.Errorf("getting manifest digest: %w", err)
 	}
 
@@ -882,24 +900,18 @@ func Write(ref reference.Reference, img oci.Image, opts ...Option) error {
 	cw, err = pusher.Push(o.ctx, manifestDesc)
 	if err != nil {
 		if !errdefs.IsAlreadyExists(err) && !strings.Contains(err.Error(), "already exists") {
-			closeProgress(o.progress)
 			return fmt.Errorf("pushing manifest: %w", err)
 		}
-		// If it already exists, we don't have a writer to close, just continue
-		// If it already exists, we still want to close progress and return success
-		closeProgress(o.progress)
 		return nil
 	}
 
 	if _, err := cw.Write(rawManifest); err != nil {
 		cw.Close()
-		closeProgress(o.progress)
 		return fmt.Errorf("writing manifest: %w", err)
 	}
 
 	if err := cw.Commit(o.ctx, int64(len(rawManifest)), manifestDesc.Digest); err != nil {
 		cw.Close()
-		closeProgress(o.progress)
 		if !errdefs.IsAlreadyExists(err) && !strings.Contains(err.Error(), "already exists") {
 			return fmt.Errorf("committing manifest: %w", err)
 		}
@@ -908,9 +920,6 @@ func Write(ref reference.Reference, img oci.Image, opts ...Option) error {
 	}
 	cw.Close()
 
-	// Close progress channel to signal completion
-	closeProgress(o.progress)
-
 	return nil
 }
 
@@ -918,6 +927,15 @@ func Write(ref reference.Reference, img oci.Image, opts ...Option) error {
 func closeProgress(ch chan<- oci.Update) {
 	if ch != nil {
 		close(ch)
+	}
+}
+
+// closeReporter safely closes the progress reporter if not nil
+func closeReporter(pr *progress.Reporter) {
+	if pr != nil {
+		if waitErr := pr.Wait(); waitErr != nil {
+			fmt.Printf("reporter finished with non-fatal error: %v\n", waitErr)
+		}
 	}
 }
 
