@@ -16,22 +16,6 @@ const UpdateInterval = 100 * time.Millisecond
 // before sending a progress update
 const MinBytesForUpdate = 1024 * 1024 // 1MB
 
-type Layer struct {
-	ID      string // Layer ID
-	Size    uint64 // Layer size
-	Current uint64 // Current bytes transferred
-}
-
-// Message represents a structured message for progress reporting
-type Message struct {
-	Type    string `json:"type"`    // "progress", "success", "warning", or "error"
-	Message string `json:"message"` // Deprecated: the message should be defined by clients based on Message.Total and Message.Layer
-	Total   uint64 `json:"total"`
-	Pulled  uint64 `json:"pulled"` // Deprecated: use Layer.Current
-	Layer   Layer  `json:"layer"`  // Current layer information
-	Mode    string `json:"mode"`   // "push", "pull"
-}
-
 type Reporter struct {
 	progress  chan oci.Update
 	done      chan struct{}
@@ -40,7 +24,7 @@ type Reporter struct {
 	format    progressF
 	layer     oci.Layer
 	imageSize uint64
-	mode      string
+	mode      oci.Mode
 }
 
 type progressF func(update oci.Update) string
@@ -53,7 +37,7 @@ func PushMsg(update oci.Update) string {
 	return fmt.Sprintf("Uploaded: %.2f MB", float64(update.Complete)/1024/1024)
 }
 
-func NewProgressReporter(w io.Writer, msgF progressF, imageSize int64, layer oci.Layer, mode string) *Reporter {
+func NewProgressReporter(w io.Writer, msgF progressF, imageSize int64, layer oci.Layer, mode oci.Mode) *Reporter {
 	return &Reporter{
 		out:       w,
 		progress:  make(chan oci.Update, 1),
@@ -126,13 +110,12 @@ func (r *Reporter) Wait() error {
 }
 
 // WriteProgress writes a progress update message
-func WriteProgress(w io.Writer, msg string, imageSize, layerSize, current uint64, layerID string, mode string) error {
-	return write(w, Message{
-		Type:    "progress",
+func WriteProgress(w io.Writer, msg string, imageSize, layerSize, current uint64, layerID string, mode oci.Mode) error {
+	return write(w, oci.ProgressMessage{
+		Type:    oci.TypeProgress,
 		Message: msg,
 		Total:   imageSize,
-		Pulled:  current,
-		Layer: Layer{
+		Layer: oci.ProgressLayer{
 			ID:      layerID,
 			Size:    layerSize,
 			Current: current,
@@ -142,31 +125,34 @@ func WriteProgress(w io.Writer, msg string, imageSize, layerSize, current uint64
 }
 
 // WriteSuccess writes a success message
-func WriteSuccess(w io.Writer, message string) error {
-	return write(w, Message{
-		Type:    "success",
+func WriteSuccess(w io.Writer, message string, mode oci.Mode) error {
+	return write(w, oci.ProgressMessage{
+		Type:    oci.TypeSuccess,
 		Message: message,
+		Mode:    mode,
 	})
 }
 
 // WriteError writes an error message
-func WriteError(w io.Writer, message string) error {
-	return write(w, Message{
-		Type:    "error",
+func WriteError(w io.Writer, message string, mode oci.Mode) error {
+	return write(w, oci.ProgressMessage{
+		Type:    oci.TypeError,
 		Message: message,
+		Mode:    mode,
 	})
 }
 
 // WriteWarning writes a warning message
-func WriteWarning(w io.Writer, message string) error {
-	return write(w, Message{
-		Type:    "warning",
+func WriteWarning(w io.Writer, message string, mode oci.Mode) error {
+	return write(w, oci.ProgressMessage{
+		Type:    oci.TypeWarning,
 		Message: message,
+		Mode:    mode,
 	})
 }
 
 // write writes a JSON-formatted progress message to the writer
-func write(w io.Writer, msg Message) error {
+func write(w io.Writer, msg oci.ProgressMessage) error {
 	if w == nil {
 		return nil
 	}

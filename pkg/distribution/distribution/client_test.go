@@ -19,6 +19,7 @@ import (
 	"github.com/docker/model-runner/pkg/distribution/internal/mutate"
 	"github.com/docker/model-runner/pkg/distribution/internal/progress"
 	"github.com/docker/model-runner/pkg/distribution/internal/safetensors"
+	"github.com/docker/model-runner/pkg/distribution/oci"
 	"github.com/docker/model-runner/pkg/distribution/oci/reference"
 	"github.com/docker/model-runner/pkg/distribution/oci/remote"
 	mdregistry "github.com/docker/model-runner/pkg/distribution/registry"
@@ -482,11 +483,11 @@ func TestClientPullModel(t *testing.T) {
 		}
 
 		// Parse progress output as JSON
-		var messages []progress.Message
+		var messages []oci.ProgressMessage
 		scanner := bufio.NewScanner(&progressBuffer)
 		for scanner.Scan() {
 			line := scanner.Text()
-			var msg progress.Message
+			var msg oci.ProgressMessage
 			if err := json.Unmarshal([]byte(line), &msg); err != nil {
 				t.Fatalf("Failed to parse JSON progress message: %v, line: %s", err, line)
 			}
@@ -502,10 +503,17 @@ func TestClientPullModel(t *testing.T) {
 			t.Fatal("No progress messages received")
 		}
 
+		// Verify all messages have the correct mode
+		for i, msg := range messages {
+			if msg.Mode != oci.ModePull {
+				t.Errorf("message %d: expected mode %q, got %q", i, oci.ModePull, msg.Mode)
+			}
+		}
+
 		// Check the last message is a success message
 		lastMsg := messages[len(messages)-1]
-		if lastMsg.Type != "success" {
-			t.Errorf("Expected last message to be success, got type: %s, message: %s", lastMsg.Type, lastMsg.Message)
+		if lastMsg.Type != oci.TypeSuccess {
+			t.Errorf("Expected last message to be success, got type: %q, message: %s", lastMsg.Type, lastMsg.Message)
 		}
 
 		// Verify model was pulled correctly
