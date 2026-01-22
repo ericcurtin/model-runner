@@ -5,6 +5,7 @@ package remote
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -28,6 +29,12 @@ import (
 var (
 	// DefaultTransport is the default HTTP transport used for registry operations.
 	DefaultTransport = http.DefaultTransport
+)
+
+const (
+	// maxConcurrentLayerPushes limits the number of layers that can be pushed in parallel
+	// to avoid overwhelming the registry or exhausting client resources.
+	maxConcurrentLayerPushes = 5
 )
 
 // Option configures remote operations.
@@ -734,87 +741,110 @@ func Write(ref reference.Reference, img oci.Image, w io.Writer, opts ...Option) 
 		safeWriter = &syncWriter{w: w}
 	}
 
-	for _, layer := range layers {
-		var completed int64
-		digest, err := layer.Digest()
-		if err != nil {
-			return fmt.Errorf("getting layer digest: %w", err)
-		}
+	// Push layers in parallel with bounded concurrency
+	results := make([]error, len(layers))
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, maxConcurrentLayerPushes)
 
-		size, err := layer.Size()
-		if err != nil {
-			return fmt.Errorf("getting layer size: %w", err)
-		}
+	for i, layer := range layers {
+		wg.Add(1)
+		sem <- struct{}{}
 
-		mt, err := layer.MediaType()
-		if err != nil {
-			return fmt.Errorf("getting layer media type: %w", err)
-		}
+		go func(idx int, l oci.Layer) {
+			defer wg.Done()
+			defer func() { <-sem }()
 
-		desc := v1.Descriptor{
-			MediaType: string(mt),
-			Digest:    godigest.Digest(digest.String()),
-			Size:      size,
-		}
+			var completed int64
+			digest, err := l.Digest()
+			if err != nil {
+				results[idx] = fmt.Errorf("getting layer digest: %w", err)
+				return
+			}
 
-		var pr *progress.Reporter
-		var progressChan chan<- oci.Update
-		if safeWriter != nil {
-			pr = progress.NewProgressReporter(safeWriter, progress.PushMsg, size, layer, "push")
-			progressChan = pr.Updates()
-		}
+			// Use digest string for error messages to make them more identifiable
+			digestStr := digest.String()
 
-		rc, err := layer.Compressed()
-		if err != nil {
-			return fmt.Errorf("getting layer content: %w", err)
-		}
+			size, err := l.Size()
+			if err != nil {
+				results[idx] = fmt.Errorf("layer %s: getting size: %w", digestStr, err)
+				return
+			}
 
-		// Create content writer for push
-		cw, err := pusher.Push(o.ctx, desc)
-		if err != nil {
-			rc.Close()
-			// If already exists, continue
-			if errdefs.IsAlreadyExists(err) || strings.Contains(err.Error(), "already exists") {
-				completed += size
-				if progressChan != nil {
-					progressChan <- oci.Update{
-						Complete: completed,
-						Total:    size,
+			mt, err := l.MediaType()
+			if err != nil {
+				results[idx] = fmt.Errorf("layer %s: getting media type: %w", digestStr, err)
+				return
+			}
+
+			desc := v1.Descriptor{
+				MediaType: string(mt),
+				Digest:    godigest.Digest(digestStr),
+				Size:      size,
+			}
+
+			var pr *progress.Reporter
+			var progressChan chan<- oci.Update
+			if safeWriter != nil {
+				pr = progress.NewProgressReporter(safeWriter, progress.PushMsg, size, l, "push")
+				progressChan = pr.Updates()
+			}
+
+			rc, err := l.Compressed()
+			if err != nil {
+				closeProgress(progressChan)
+				closeReporter(pr)
+				results[idx] = fmt.Errorf("layer %s: getting content: %w", digestStr, err)
+				return
+			}
+			defer rc.Close()
+
+			// Create content writer for push
+			cw, err := pusher.Push(o.ctx, desc)
+			if err != nil {
+				// If already exists, mark as success
+				if errdefs.IsAlreadyExists(err) || strings.Contains(err.Error(), "already exists") {
+					completed += size
+					if progressChan != nil {
+						progressChan <- oci.Update{
+							Complete: completed,
+							Total:    size,
+						}
 					}
 					closeProgress(progressChan)
 					closeReporter(pr)
+					return
 				}
-				continue
-			}
-			closeProgress(progressChan)
-			closeReporter(pr)
-			return fmt.Errorf("pushing layer: %w", err)
-		}
-
-		// Wrap the reader with progress tracking to report incremental upload progress
-		// Uses the shared progress.Reader from internal/progress package
-		var reader io.Reader = rc
-		if progressChan != nil {
-			reader = progress.NewReaderWithOffset(rc, progressChan, completed)
-		}
-
-		if _, err := io.Copy(cw, reader); err != nil {
-			cw.Close()
-			rc.Close()
-			closeProgress(progressChan)
-			closeReporter(pr)
-			return fmt.Errorf("writing layer: %w", err)
-		}
-
-		if err := cw.Commit(o.ctx, size, desc.Digest); err != nil {
-			cw.Close()
-			rc.Close()
-			if !errdefs.IsAlreadyExists(err) && !strings.Contains(err.Error(), "already exists") {
 				closeProgress(progressChan)
 				closeReporter(pr)
-				return fmt.Errorf("committing layer: %w", err)
+				results[idx] = fmt.Errorf("layer %s: pushing: %w", digestStr, err)
+				return
 			}
-			// If it already exists, we still want to update progress
+			defer cw.Close()
+
+			// Wrap the reader with progress tracking to report incremental upload progress
+			// Uses the shared progress.Reader from internal/progress package
+			var reader io.Reader = rc
+			if progressChan != nil {
+				reader = progress.NewReaderWithOffset(rc, progressChan, completed)
+			}
+
+			if _, err := io.Copy(cw, reader); err != nil {
+				closeProgress(progressChan)
+				closeReporter(pr)
+				results[idx] = fmt.Errorf("layer %s: writing: %w", digestStr, err)
+				return
+			}
+
+			if err := cw.Commit(o.ctx, size, desc.Digest); err != nil {
+				if !errdefs.IsAlreadyExists(err) && !strings.Contains(err.Error(), "already exists") {
+					closeProgress(progressChan)
+					closeReporter(pr)
+					results[idx] = fmt.Errorf("layer %s: committing: %w", digestStr, err)
+					return
+				}
+			}
+
+			// On success or "already exists", update progress to 100%
 			completed += size
 			if progressChan != nil {
 				progressChan <- oci.Update{
@@ -822,20 +852,21 @@ func Write(ref reference.Reference, img oci.Image, w io.Writer, opts ...Option) 
 					Total:    size,
 				}
 			}
-		} else {
-			// Successfully committed, update progress
-			completed += size
-			if progressChan != nil {
-				progressChan <- oci.Update{
-					Complete: completed,
-					Total:    size,
-				}
-			}
+			closeProgress(progressChan)
+			closeReporter(pr)
+		}(i, layer)
+	}
+
+	wg.Wait()
+
+	var allErrors []error
+	for i, result := range results {
+		if result != nil {
+			allErrors = append(allErrors, fmt.Errorf("pushing layer %d: %w", i, result))
 		}
-		closeProgress(progressChan)
-		closeReporter(pr)
-		cw.Close()
-		rc.Close()
+	}
+	if err := errors.Join(allErrors...); err != nil {
+		return err
 	}
 
 	// Push config
