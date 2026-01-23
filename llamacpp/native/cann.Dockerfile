@@ -30,7 +30,7 @@ RUN echo "-B build \
     -DGGML_NATIVE=OFF \
     -DGGML_OPENMP=OFF \
     -DGGML_CANN=ON \
-    -DLLAMA_CURL=OFF \
+    -DLLAMA_OPENSSL=OFF \
     -DSOC_TYPE=${ASCEND_SOC_TYPE} \
     -GNinja \
     -S ." > cmake-flags

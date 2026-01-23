@@ -32,7 +32,7 @@ RUN cmake -B build \
     -DGGML_OPENMP=OFF \
     -DGGML_HIP=ON \
     -DAMDGPU_TARGETS="gfx908;gfx90a;gfx942;gfx1010;gfx1030;gfx1100;gfx1200;gfx1201;gfx1151" \
-    -DLLAMA_CURL=OFF \
+    -DLLAMA_OPENSSL=OFF \
     -GNinja \
     -S .
 RUN cmake --build build --config Release

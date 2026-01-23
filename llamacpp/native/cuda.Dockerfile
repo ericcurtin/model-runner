@@ -33,7 +33,7 @@ RUN echo "-B build \
     -DGGML_OPENMP=OFF \
     -DGGML_CUDA=ON \
     -DCMAKE_CUDA_COMPILER=/usr/local/cuda/bin/nvcc \
-    -DLLAMA_CURL=OFF \
+    -DLLAMA_OPENSSL=OFF \
     -GNinja \
     -S ." > cmake-flags
 RUN cmake $(cat cmake-flags)

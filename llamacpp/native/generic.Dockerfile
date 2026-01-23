@@ -32,7 +32,7 @@ RUN echo "-B build \
           -DCMAKE_BUILD_TYPE=Release \
           -DGGML_NATIVE=OFF \
           -DGGML_OPENMP=OFF \
-          -DLLAMA_CURL=OFF \
+          -DLLAMA_OPENSSL=OFF \
           -DGGML_VULKAN=ON \
           -GNinja \
     -S ." > cmake-flags
