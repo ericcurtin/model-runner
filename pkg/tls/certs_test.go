@@ -109,12 +109,7 @@ func TestGenerateServerCert(t *testing.T) {
 }
 
 func TestGenerateCertificates(t *testing.T) {
-	// Create a temporary directory
-	tmpDir, err := os.MkdirTemp("", "certs-test-*")
-	if err != nil {
-		t.Fatalf("Failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tmpDir)
+	tmpDir := t.TempDir()
 
 	paths := &CertPaths{
 		CACert:     filepath.Join(tmpDir, CACertFile),
@@ -123,7 +118,7 @@ func TestGenerateCertificates(t *testing.T) {
 		ServerKey:  filepath.Join(tmpDir, ServerKeyFile),
 	}
 
-	err = GenerateCertificates(paths)
+	err := GenerateCertificates(paths)
 	if err != nil {
 		t.Fatalf("GenerateCertificates() error = %v", err)
 	}
@@ -150,12 +145,7 @@ func TestGenerateCertificates(t *testing.T) {
 }
 
 func TestLoadTLSConfig(t *testing.T) {
-	// Create a temporary directory
-	tmpDir, err := os.MkdirTemp("", "certs-test-*")
-	if err != nil {
-		t.Fatalf("Failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tmpDir)
+	tmpDir := t.TempDir()
 
 	paths := &CertPaths{
 		CACert:     filepath.Join(tmpDir, CACertFile),
@@ -164,7 +154,7 @@ func TestLoadTLSConfig(t *testing.T) {
 		ServerKey:  filepath.Join(tmpDir, ServerKeyFile),
 	}
 
-	err = GenerateCertificates(paths)
+	err := GenerateCertificates(paths)
 	if err != nil {
 		t.Fatalf("GenerateCertificates() error = %v", err)
 	}
@@ -190,12 +180,7 @@ func TestLoadTLSConfig(t *testing.T) {
 }
 
 func TestLoadClientTLSConfig(t *testing.T) {
-	// Create a temporary directory
-	tmpDir, err := os.MkdirTemp("", "certs-test-*")
-	if err != nil {
-		t.Fatalf("Failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tmpDir)
+	tmpDir := t.TempDir()
 
 	paths := &CertPaths{
 		CACert:     filepath.Join(tmpDir, CACertFile),
@@ -204,7 +189,7 @@ func TestLoadClientTLSConfig(t *testing.T) {
 		ServerKey:  filepath.Join(tmpDir, ServerKeyFile),
 	}
 
-	err = GenerateCertificates(paths)
+	err := GenerateCertificates(paths)
 	if err != nil {
 		t.Fatalf("GenerateCertificates() error = %v", err)
 	}
@@ -273,12 +258,7 @@ func TestLoadClientTLSConfig_CAErrors(t *testing.T) {
 }
 
 func TestEnsureCertificates_CustomPaths(t *testing.T) {
-	// Create a temporary directory with existing certs
-	tmpDir, err := os.MkdirTemp("", "certs-test-*")
-	if err != nil {
-		t.Fatalf("Failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tmpDir)
+	tmpDir := t.TempDir()
 
 	// Generate certs first
 	paths := &CertPaths{
@@ -287,7 +267,7 @@ func TestEnsureCertificates_CustomPaths(t *testing.T) {
 		ServerCert: filepath.Join(tmpDir, ServerCertFile),
 		ServerKey:  filepath.Join(tmpDir, ServerKeyFile),
 	}
-	err = GenerateCertificates(paths)
+	err := GenerateCertificates(paths)
 	if err != nil {
 		t.Fatalf("GenerateCertificates() error = %v", err)
 	}
@@ -315,12 +295,7 @@ func TestEnsureCertificates_MissingFile(t *testing.T) {
 }
 
 func TestCertsExistAndValid(t *testing.T) {
-	// Create a temporary directory
-	tmpDir, err := os.MkdirTemp("", "certs-test-*")
-	if err != nil {
-		t.Fatalf("Failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tmpDir)
+	tmpDir := t.TempDir()
 
 	paths := &CertPaths{
 		CACert:     filepath.Join(tmpDir, CACertFile),
@@ -335,7 +310,7 @@ func TestCertsExistAndValid(t *testing.T) {
 	}
 
 	// Generate certs
-	err = GenerateCertificates(paths)
+	err := GenerateCertificates(paths)
 	if err != nil {
 		t.Fatalf("GenerateCertificates() error = %v", err)
 	}
@@ -426,12 +401,7 @@ func TestCertsExistAndValid(t *testing.T) {
 }
 
 func TestTLSServerIntegration(t *testing.T) {
-	// Create a temporary directory
-	tmpDir, err := os.MkdirTemp("", "certs-test-*")
-	if err != nil {
-		t.Fatalf("Failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tmpDir)
+	tmpDir := t.TempDir()
 
 	paths := &CertPaths{
 		CACert:     filepath.Join(tmpDir, CACertFile),
@@ -440,7 +410,7 @@ func TestTLSServerIntegration(t *testing.T) {
 		ServerKey:  filepath.Join(tmpDir, ServerKeyFile),
 	}
 
-	err = GenerateCertificates(paths)
+	err := GenerateCertificates(paths)
 	if err != nil {
 		t.Fatalf("GenerateCertificates() error = %v", err)
 	}
@@ -486,12 +456,7 @@ func TestTLSServerIntegration(t *testing.T) {
 }
 
 func TestCertificatePEMEncoding(t *testing.T) {
-	// Create a temporary directory
-	tmpDir, err := os.MkdirTemp("", "certs-test-*")
-	if err != nil {
-		t.Fatalf("Failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tmpDir)
+	tmpDir := t.TempDir()
 
 	paths := &CertPaths{
 		CACert:     filepath.Join(tmpDir, CACertFile),
@@ -500,7 +465,7 @@ func TestCertificatePEMEncoding(t *testing.T) {
 		ServerKey:  filepath.Join(tmpDir, ServerKeyFile),
 	}
 
-	err = GenerateCertificates(paths)
+	err := GenerateCertificates(paths)
 	if err != nil {
 		t.Fatalf("GenerateCertificates() error = %v", err)
 	}
