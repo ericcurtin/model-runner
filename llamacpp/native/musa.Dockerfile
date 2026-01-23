@@ -29,7 +29,7 @@ RUN echo "-B build \
     -DGGML_NATIVE=OFF \
     -DGGML_OPENMP=OFF \
     -DGGML_MUSA=ON \
-    -DLLAMA_CURL=OFF \
+    -DLLAMA_OPENSSL=OFF \
     -GNinja \
     -S ." > cmake-flags
 RUN cmake $(cat cmake-flags)
