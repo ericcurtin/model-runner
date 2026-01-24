@@ -114,6 +114,7 @@ func NewRootCmd(cli *command.DockerCli) *cobra.Command {
 		newRequestsCmd(),
 		newPurgeCmd(),
 		newBenchCmd(),
+		newLaunchCmd(),
 	} {
 		rootCmd.AddCommand(withStandaloneRunner(cmd))
 	}
