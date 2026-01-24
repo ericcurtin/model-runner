@@ -17,6 +17,18 @@ import (
 	"golang.org/x/term"
 )
 
+// Constants for launch integrations
+const (
+	// openAIPathSuffix is the path suffix for the OpenAI-compatible API endpoint
+	openAIPathSuffix = "/engines/llama.cpp/v1"
+	// defaultModelRunnerURL is the default Model Runner API endpoint
+	defaultModelRunnerURL = "http://localhost:12434"
+	// openWebUIPort is the default port for Open WebUI
+	openWebUIPort = "3000"
+	// maxRecentModels is the maximum number of recent models to store in OpenCode state
+	maxRecentModels = 10
+)
+
 // Runner executes the launching of an integration with a model
 type Runner interface {
 	Run(model string) error
@@ -535,9 +547,9 @@ Examples:
 // getModelRunnerURL returns the Model Runner OpenAI-compatible API endpoint URL
 func getModelRunnerURL() string {
 	if url := os.Getenv("MODEL_RUNNER_HOST"); url != "" {
-		return strings.TrimSuffix(url, "/") + "/engines/llama.cpp/v1"
+		return strings.TrimSuffix(url, "/") + openAIPathSuffix
 	}
-	return "http://localhost:12434/engines/llama.cpp/v1"
+	return defaultModelRunnerURL + openAIPathSuffix
 }
 
 // =============================================================================
@@ -835,7 +847,6 @@ func (o *OpenCode) Edit(modelList []string) error {
 		}}, newRecent...)
 	}
 
-	const maxRecentModels = 10
 	if len(newRecent) > maxRecentModels {
 		newRecent = newRecent[:maxRecentModels]
 	}
@@ -891,33 +902,35 @@ func (o *OpenWebUI) Run(model string) error {
 		return fmt.Errorf("docker is not installed. Open WebUI runs as a Docker container")
 	}
 
+	openWebUIURL := "http://localhost:" + openWebUIPort
+
 	fmt.Fprintf(os.Stderr, `
 To use Open WebUI with Docker Model Runner:
 
 1. Start Open WebUI container:
-   docker run -d -p 3000:8080 \
+   docker run -d -p %s:8080 \
      --add-host=host.docker.internal:host-gateway \
-     -e OPENAI_API_BASE_URL=http://host.docker.internal:12434/engines/llama.cpp/v1 \
+     -e OPENAI_API_BASE_URL=http://host.docker.internal:12434%s \
      -e OPENAI_API_KEY=docker-model-runner \
      -v open-webui:/app/backend/data \
      --name open-webui \
      ghcr.io/open-webui/open-webui:main
 
-2. Open http://localhost:3000 in your browser
+2. Open %s in your browser
 
 3. Create an account and select model: %s
 
 Note: Use 'host.docker.internal' to connect to Docker Model Runner from within the container.
-`, model)
+`, openWebUIPort, openAIPathSuffix, openWebUIURL, model)
 
 	// Try to open the browser
 	switch runtime.GOOS {
 	case "darwin":
-		_ = exec.Command("open", "http://localhost:3000").Start()
+		_ = exec.Command("open", openWebUIURL).Start()
 	case "linux":
-		_ = exec.Command("xdg-open", "http://localhost:3000").Start()
+		_ = exec.Command("xdg-open", openWebUIURL).Start()
 	case "windows":
-		_ = exec.Command("rundll32", "url.dll,FileProtocolHandler", "http://localhost:3000").Start()
+		_ = exec.Command("rundll32", "url.dll,FileProtocolHandler", openWebUIURL).Start()
 	}
 
 	return nil
