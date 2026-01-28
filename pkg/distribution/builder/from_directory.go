@@ -190,7 +190,7 @@ func FromDirectory(dirPath string, opts ...DirectoryOption) (*Builder, error) {
 	// TODO: Extract additional metadata from weight files if needed
 	// For safetensors, we might want to read config.json from the directory
 
-	// Build the model
+	// Build the model with V0.2 config (layer-per-file with annotations)
 	created := time.Now()
 	mdl := &partial.BaseModel{
 		ModelConfigFile: types.ConfigFile{
@@ -203,7 +203,8 @@ func FromDirectory(dirPath string, opts ...DirectoryOption) (*Builder, error) {
 				DiffIDs: diffIDs,
 			},
 		},
-		LayerList: layers,
+		LayerList:       layers,
+		ConfigMediaType: types.MediaTypeModelConfigV02, // V0.2: layer-per-file with filepath annotations
 	}
 
 	return &Builder{

@@ -14,7 +14,33 @@ import (
 )
 
 // Unpack creates and return a Bundle by unpacking files and config from model into dir.
+// It auto-detects the packaging version:
+//   - V0.2 (layer-per-file with annotations): Uses UnpackFromLayers for full path preservation
+//   - V0.1 (legacy): Uses the original unpacking logic based on GGUFPaths(), SafetensorsPaths(), etc.
 func Unpack(dir string, model types.Model) (*Bundle, error) {
+	// Check if the model uses V0.2 packaging (layer-per-file with annotations)
+	if artifact, ok := model.(types.ModelArtifact); ok {
+		if isV02Model(artifact) {
+			return UnpackFromLayers(dir, artifact)
+		}
+	}
+
+	// V0.1 legacy unpacking
+	return unpackLegacy(dir, model)
+}
+
+// isV02Model checks if the model was packaged using V0.2 format (layer-per-file with annotations).
+// It does this by checking the config media type in the manifest.
+func isV02Model(model types.ModelArtifact) bool {
+	manifest, err := model.Manifest()
+	if err != nil {
+		return false
+	}
+	return manifest.Config.MediaType == types.MediaTypeModelConfigV02
+}
+
+// unpackLegacy is the original V0.1 unpacking logic that uses model.GGUFPaths(), model.SafetensorsPaths(), etc.
+func unpackLegacy(dir string, model types.Model) (*Bundle, error) {
 	bundle := &Bundle{
 		dir: dir,
 	}
