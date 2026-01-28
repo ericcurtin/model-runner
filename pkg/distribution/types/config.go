@@ -37,6 +37,10 @@ const (
 	// MediaTypeChatTemplate indicates a Jinja chat template
 	MediaTypeChatTemplate MediaType = "application/vnd.docker.ai.chat.template.jinja"
 
+	// MediaTypeModelFile indicates a generic model-related file (config, tokenizer, etc.)
+	// The actual file path is stored in the AnnotationFilePath annotation.
+	MediaTypeModelFile MediaType = "application/vnd.docker.ai.model.file"
+
 	FormatGGUF        = Format("gguf")
 	FormatSafetensors = Format("safetensors")
 	FormatDiffusers   = Format("diffusers")
