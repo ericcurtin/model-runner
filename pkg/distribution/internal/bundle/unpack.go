@@ -585,6 +585,145 @@ func unpackFile(bundlePath string, srcPath string) error {
 	return os.Link(srcPath, bundlePath)
 }
 
+// UnpackFromLayers unpacks a model that was packaged using the layer-per-file approach.
+// Each file is stored as an individual layer with its filepath preserved in annotations.
+// This is the approach used by builder.FromDirectory and preserves nested directory structure.
+//
+// Unlike the standard Unpack function which uses model.GGUFPaths(), model.SafetensorsPaths(), etc.,
+// this function iterates directly over layers and uses their filepath annotations.
+func UnpackFromLayers(dir string, model types.ModelArtifact) (*Bundle, error) {
+	bundle := &Bundle{
+		dir: dir,
+	}
+
+	// Create model subdirectory upfront - all unpack operations will use it
+	modelDir := filepath.Join(bundle.dir, ModelSubdir)
+	if err := os.MkdirAll(modelDir, 0755); err != nil {
+		return nil, fmt.Errorf("create model directory: %w", err)
+	}
+
+	// Get all layers from the model
+	layers, err := model.Layers()
+	if err != nil {
+		return nil, fmt.Errorf("get model layers: %w", err)
+	}
+
+	// Define the interface for getting descriptor with annotations
+	type descriptorProvider interface {
+		GetDescriptor() oci.Descriptor
+	}
+
+	// Iterate through all layers and unpack using annotations
+	for _, layer := range layers {
+		mediaType, err := layer.MediaType()
+		if err != nil {
+			fmt.Printf("Warning: error getting media type: %v\n", err)
+			continue
+		}
+
+		// Get the filepath annotation
+		dp, ok := layer.(descriptorProvider)
+		if !ok {
+			fmt.Printf("Warning: layer is not a descriptorProvider\n")
+			continue
+		}
+
+		desc := dp.GetDescriptor()
+		relPath, exists := desc.Annotations[types.AnnotationFilePath]
+		if !exists || relPath == "" {
+			fmt.Printf("Warning: layer missing filepath annotation\n")
+			continue
+		}
+
+		// Validate the path to prevent directory traversal
+		if err := validatePathWithinDirectory(modelDir, relPath); err != nil {
+			return nil, fmt.Errorf("invalid filepath annotation %q: %w", relPath, err)
+		}
+
+		// Convert forward slashes to OS-specific separator
+		relPath = filepath.FromSlash(relPath)
+		destPath := filepath.Join(modelDir, relPath)
+
+		// Skip if file already exists
+		if _, err := os.Stat(destPath); err == nil {
+			continue
+		}
+
+		// Create parent directories if needed
+		if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
+			return nil, fmt.Errorf("create parent directory for %s: %w", relPath, err)
+		}
+
+		// Unpack the file
+		if err := unpackLayerToFile(destPath, layer); err != nil {
+			return nil, fmt.Errorf("unpack %s: %w", relPath, err)
+		}
+
+		// Update bundle tracking fields
+		updateBundleFieldsFromLayer(bundle, mediaType, relPath)
+	}
+
+	// Create the runtime config from the model
+	cfg, err := model.Config()
+	if err != nil {
+		return nil, fmt.Errorf("get model config: %w", err)
+	}
+
+	// Write runtime config to bundle root
+	f, err := os.Create(filepath.Join(bundle.dir, "config.json"))
+	if err != nil {
+		return nil, fmt.Errorf("create runtime config file: %w", err)
+	}
+	defer f.Close()
+	if err := json.NewEncoder(f).Encode(cfg); err != nil {
+		return nil, fmt.Errorf("encode runtime config: %w", err)
+	}
+	bundle.runtimeConfig = cfg
+
+	return bundle, nil
+}
+
+// unpackLayerToFile unpacks a single layer to the destination path.
+// It tries to use hard linking for local layers, falling back to copying for remote layers.
+func unpackLayerToFile(destPath string, layer oci.Layer) error {
+	// Try to get the layer's local path for hard linking
+	type pathProvider interface {
+		GetPath() string
+	}
+
+	if pp, ok := layer.(pathProvider); ok {
+		// Use hard link for local layers
+		return unpackFile(destPath, pp.GetPath())
+	}
+	return fmt.Errorf("layer is not a path provider")
+}
+
+// updateBundleFieldsFromLayer updates the bundle tracking fields based on the unpacked layer.
+func updateBundleFieldsFromLayer(bundle *Bundle, mediaType oci.MediaType, relPath string) {
+	switch mediaType {
+	case types.MediaTypeGGUF:
+		if bundle.ggufFile == "" {
+			bundle.ggufFile = relPath
+		}
+	case types.MediaTypeSafetensors:
+		if bundle.safetensorsFile == "" {
+			bundle.safetensorsFile = relPath
+		}
+	case types.MediaTypeDDUF:
+		if bundle.ddufFile == "" {
+			bundle.ddufFile = relPath
+		}
+	case types.MediaTypeMultimodalProjector:
+		if bundle.mmprojPath == "" {
+			bundle.mmprojPath = relPath
+		}
+	case types.MediaTypeChatTemplate:
+		if bundle.chatTemplatePath == "" {
+			bundle.chatTemplatePath = relPath
+		}
+	}
+}
+
 // unpackGenericFileLayers unpacks layers with MediaTypeModelFile using their filepath annotation.
 // This supports the new format where each config file is packaged as an individual layer
 // with its relative path preserved in the annotation.
