@@ -14,6 +14,35 @@ import (
 	"github.com/docker/model-runner/pkg/distribution/types"
 )
 
+// DirectoryOptions configures the behavior of FromDirectory.
+type DirectoryOptions struct {
+	// Exclusions is a list of patterns to exclude from packaging.
+	// Patterns can be:
+	//   - Directory names (e.g., ".git", "__pycache__") - excludes the entire directory
+	//   - File names (e.g., "README.md") - excludes files with this exact name
+	//   - Glob patterns (e.g., "*.log", "*.tmp") - excludes files matching the pattern
+	//   - Paths with slashes (e.g., "logs/debug.log") - excludes specific paths
+	Exclusions []string
+}
+
+// DirectoryOption is a functional option for configuring FromDirectory.
+type DirectoryOption func(*DirectoryOptions)
+
+// WithExclusions specifies patterns to exclude from packaging.
+// Patterns can be directory names, file names, glob patterns, or specific paths.
+//
+// Examples:
+//
+//	WithExclusions(".git", "__pycache__")           // Exclude directories
+//	WithExclusions("README.md", "CHANGELOG.md")     // Exclude specific files
+//	WithExclusions("*.log", "*.tmp")                // Exclude by pattern
+//	WithExclusions("logs/", "cache/")               // Exclude directories (trailing slash)
+func WithExclusions(patterns ...string) DirectoryOption {
+	return func(opts *DirectoryOptions) {
+		opts.Exclusions = append(opts.Exclusions, patterns...)
+	}
+}
+
 // FromDirectory creates a Builder from a directory containing model files.
 // It recursively scans the directory and adds each non-hidden file as a separate layer.
 // Each layer's filepath annotation preserves the relative path from the directory root.
@@ -29,7 +58,17 @@ import (
 //	  text_encoder/
 //	    config.json             -> layer with annotation "text_encoder/config.json"
 //	    model.safetensors       -> layer with annotation "text_encoder/model.safetensors"
-func FromDirectory(dirPath string) (*Builder, error) {
+//
+// Example with exclusions:
+//
+//	builder.FromDirectory(dirPath, builder.WithExclusions(".git", "__pycache__", "*.log"))
+func FromDirectory(dirPath string, opts ...DirectoryOption) (*Builder, error) {
+	// Apply options
+	options := &DirectoryOptions{}
+	for _, opt := range opts {
+		opt(options)
+	}
+
 	// Verify directory exists
 	info, err := os.Stat(dirPath)
 	if err != nil {
@@ -63,6 +102,20 @@ func FromDirectory(dirPath string) (*Builder, error) {
 			return nil
 		}
 
+		// Calculate relative path from the directory root
+		relPath, err := filepath.Rel(dirPath, path)
+		if err != nil {
+			return fmt.Errorf("compute relative path: %w", err)
+		}
+
+		// Check exclusions
+		if shouldExclude(info, relPath, options.Exclusions) {
+			if info.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+
 		// Skip directories (but continue walking into them)
 		if info.IsDir() {
 			return nil
@@ -71,12 +124,6 @@ func FromDirectory(dirPath string) (*Builder, error) {
 		// Skip symlinks for security
 		if info.Mode()&os.ModeSymlink != 0 {
 			return nil
-		}
-
-		// Calculate relative path from the directory root
-		relPath, err := filepath.Rel(dirPath, path)
-		if err != nil {
-			return fmt.Errorf("compute relative path: %w", err)
 		}
 
 		// Classify the file to determine media type
@@ -100,6 +147,10 @@ func FromDirectory(dirPath string) (*Builder, error) {
 				detectedFormat = types.FormatDiffusers
 			}
 			weightFiles = append(weightFiles, path)
+		case files.FileTypeUnknown:
+		case files.FileTypeConfig:
+		case files.FileTypeLicense:
+		case files.FileTypeChatTemplate:
 		}
 
 		// Create layer with relative path annotation
@@ -158,6 +209,71 @@ func FromDirectory(dirPath string) (*Builder, error) {
 	return &Builder{
 		model: mdl,
 	}, nil
+}
+
+// shouldExclude checks if a file or directory should be excluded based on the exclusion patterns.
+func shouldExclude(info os.FileInfo, relPath string, exclusions []string) bool {
+	if len(exclusions) == 0 {
+		return false
+	}
+
+	name := info.Name()
+	// Normalize path separators for cross-platform matching
+	normalizedRelPath := filepath.ToSlash(relPath)
+
+	for _, pattern := range exclusions {
+		// Normalize the pattern
+		pattern = filepath.ToSlash(pattern)
+
+		// Pattern ends with "/" - match directories only
+		if strings.HasSuffix(pattern, "/") {
+			if info.IsDir() {
+				dirPattern := strings.TrimSuffix(pattern, "/")
+				// Match directory name
+				if name == dirPattern {
+					return true
+				}
+				// Match full path
+				if normalizedRelPath == dirPattern || strings.HasPrefix(normalizedRelPath, dirPattern+"/") {
+					return true
+				}
+			}
+			continue
+		}
+
+		// Pattern contains "/" - treat as path match
+		if strings.Contains(pattern, "/") {
+			// Exact path match
+			if normalizedRelPath == pattern {
+				return true
+			}
+			// Directory path prefix match
+			if info.IsDir() && strings.HasPrefix(normalizedRelPath+"/", pattern+"/") {
+				return true
+			}
+			// File inside excluded directory
+			if strings.HasPrefix(normalizedRelPath, pattern+"/") {
+				return true
+			}
+			continue
+		}
+
+		// Pattern contains glob characters - use glob matching
+		if strings.ContainsAny(pattern, "*?[]") {
+			matched, err := filepath.Match(pattern, name)
+			if err == nil && matched {
+				return true
+			}
+			continue
+		}
+
+		// Simple name match (works for both files and directories)
+		if name == pattern {
+			return true
+		}
+	}
+
+	return false
 }
 
 // fileTypeToMediaType converts a FileType to the corresponding OCI MediaType
