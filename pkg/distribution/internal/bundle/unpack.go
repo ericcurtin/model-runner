@@ -18,11 +18,9 @@ import (
 //   - V0.2 (layer-per-file with annotations): Uses UnpackFromLayers for full path preservation
 //   - V0.1 (legacy): Uses the original unpacking logic based on GGUFPaths(), SafetensorsPaths(), etc.
 func Unpack(dir string, model types.Model) (*Bundle, error) {
-	// Check if the model uses V0.2 packaging (layer-per-file with annotations)
-	if artifact, ok := model.(types.ModelArtifact); ok {
-		if isV02Model(artifact) {
-			return UnpackFromLayers(dir, artifact)
-		}
+	artifact, isArtifact := model.(types.ModelArtifact)
+	if isArtifact && isV02Model(artifact) {
+		return UnpackFromLayers(dir, artifact)
 	}
 
 	// V0.1 legacy unpacking
