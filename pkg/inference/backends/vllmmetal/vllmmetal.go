@@ -113,6 +113,7 @@ func (v *vllmMetal) Install(ctx context.Context, httpClient *http.Client) error 
 		}
 	}
 
+	v.status = "installing"
 	if err := v.downloadAndExtract(ctx, httpClient); err != nil {
 		return fmt.Errorf("failed to install vllm-metal: %w", err)
 	}
