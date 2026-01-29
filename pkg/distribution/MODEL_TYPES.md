@@ -172,6 +172,8 @@ type Layer struct {
 | Format | Constant | Description |
 |--------|----------|-------------|
 | GGUF | `FormatGGUF` | llama.cpp quantized models |
+| Safetensors | `FormatSafetensors` | Hugging Face weights |
+| Diffusers | `FormatDiffusers` | Image generation models |
 | Safetensors | `FormatSafetensors` | HuggingFace weights |
 | Diffusers | `FormatDiffusers` | Image generation models |
 
