@@ -14,9 +14,12 @@
 set -e
 
 VLLM_METAL_RELEASE="${1:?Usage: $0 <VLLM_METAL_RELEASE> <TARBALL>}"
-TARBALL="${2:?Usage: $0 <VLLM_METAL_RELEASE> <TARBALL>}"
+TARBALL_ARG="${2:?Usage: $0 <VLLM_METAL_RELEASE> <TARBALL>}"
 WORK_DIR=$(mktemp -d)
 VENV_DIR="$WORK_DIR/venv"
+
+# Convert tarball path to absolute before we cd elsewhere
+TARBALL="$(cd "$(dirname "$TARBALL_ARG")" && pwd)/$(basename "$TARBALL_ARG")"
 
 VLLM_VERSION="0.13.0"
 # Extract wheel version from release tag (e.g., v0.1.0-20260126-121650 -> 0.1.0)
