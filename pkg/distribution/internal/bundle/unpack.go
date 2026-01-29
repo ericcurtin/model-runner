@@ -175,7 +175,13 @@ func hasLayerWithMediaType(model types.Model, targetMediaType oci.MediaType) boo
 	}
 }
 
-func unpackRuntimeConfig(bundle *Bundle, mdl types.Model) error {
+// configProvider is an interface for types that provide a Config() method.
+// Both types.Model and types.ModelArtifact satisfy this interface.
+type configProvider interface {
+	Config() (types.ModelConfig, error)
+}
+
+func unpackRuntimeConfig(bundle *Bundle, mdl configProvider) error {
 	cfg, err := mdl.Config()
 	if err != nil {
 		return err
@@ -317,11 +323,8 @@ func unpackSafetensorsWithAnnotations(bundle *Bundle, modelDir string, safetenso
 		digestHex := filepath.Base(srcPath)
 
 		var destRelPath string
-		if annotatedPath, ok := blobToFilepath[digestHex]; ok && strings.Contains(annotatedPath, "/") {
-			// Use the annotated path (contains subdirectory)
-			destRelPath = annotatedPath
-		} else if annotatedPath, ok := blobToFilepath[digestHex]; ok {
-			// Annotation exists but is just a filename - use it
+		if annotatedPath, ok := blobToFilepath[digestHex]; ok {
+			// Use the annotated path
 			destRelPath = annotatedPath
 		} else {
 			// No annotation found - use legacy naming
@@ -422,7 +425,6 @@ func unpackDirTarArchives(bundle *Bundle, mdl types.Model) error {
 	for _, layer := range layers {
 		mediaType, err := layer.MediaType()
 		if err != nil {
-			fmt.Printf("Warning: failed to get media type for layer: %v", err)
 			continue
 		}
 
@@ -641,21 +643,18 @@ func UnpackFromLayers(dir string, model types.ModelArtifact) (*Bundle, error) {
 	for _, layer := range layers {
 		mediaType, err := layer.MediaType()
 		if err != nil {
-			fmt.Printf("Warning: error getting media type: %v\n", err)
 			continue
 		}
 
 		// Get the filepath annotation
 		dp, ok := layer.(descriptorProvider)
 		if !ok {
-			fmt.Printf("Warning: layer is not a descriptorProvider\n")
 			continue
 		}
 
 		desc := dp.GetDescriptor()
 		relPath, exists := desc.Annotations[types.AnnotationFilePath]
 		if !exists || relPath == "" {
-			fmt.Printf("Warning: layer missing filepath annotation\n")
 			continue
 		}
 
@@ -687,28 +686,16 @@ func UnpackFromLayers(dir string, model types.ModelArtifact) (*Bundle, error) {
 		updateBundleFieldsFromLayer(bundle, mediaType, relPath)
 	}
 
-	// Create the runtime config from the model
-	cfg, err := model.Config()
-	if err != nil {
-		return nil, fmt.Errorf("get model config: %w", err)
+	// Create the runtime config
+	if err := unpackRuntimeConfig(bundle, model); err != nil {
+		return nil, fmt.Errorf("add config.json to runtime bundle: %w", err)
 	}
-
-	// Write runtime config to bundle root
-	f, err := os.Create(filepath.Join(bundle.dir, "config.json"))
-	if err != nil {
-		return nil, fmt.Errorf("create runtime config file: %w", err)
-	}
-	defer f.Close()
-	if err := json.NewEncoder(f).Encode(cfg); err != nil {
-		return nil, fmt.Errorf("encode runtime config: %w", err)
-	}
-	bundle.runtimeConfig = cfg
 
 	return bundle, nil
 }
 
-// unpackLayerToFile unpacks a single layer to the destination path.
-// It tries to use hard linking for local layers, falling back to copying for remote layers.
+// unpackLayerToFile unpacks a single layer to the destination path using hard linking.
+// It requires the layer to be a local layer with a file path (pathProvider interface).
 func unpackLayerToFile(destPath string, layer oci.Layer) error {
 	// Try to get the layer's local path for hard linking
 	type pathProvider interface {
@@ -724,6 +711,7 @@ func unpackLayerToFile(destPath string, layer oci.Layer) error {
 
 // updateBundleFieldsFromLayer updates the bundle tracking fields based on the unpacked layer.
 func updateBundleFieldsFromLayer(bundle *Bundle, mediaType oci.MediaType, relPath string) {
+	//nolint:exhaustive // only tracking specific model-related media types
 	switch mediaType {
 	case types.MediaTypeGGUF:
 		if bundle.ggufFile == "" {

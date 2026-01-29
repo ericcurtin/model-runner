@@ -8,11 +8,7 @@ import (
 
 func TestValidatePathWithinDirectory(t *testing.T) {
 	// Create a temporary directory for testing
-	baseDir, err := os.MkdirTemp("", "unpack-test-*")
-	if err != nil {
-		t.Fatalf("Failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(baseDir)
+	baseDir := t.TempDir()
 
 	tests := []struct {
 		name        string
@@ -98,7 +94,7 @@ func TestValidatePathWithinDirectory(t *testing.T) {
 
 		// Tricky paths that might bypass naive checks
 		{
-			name:        "dot dot in middle",
+			name:        ".. in middle",
 			targetPath:  "foo/../bar/model.safetensors",
 			expectError: false,
 			description: "Path with .. that stays within directory should be valid",
@@ -127,11 +123,7 @@ func TestValidatePathWithinDirectory(t *testing.T) {
 
 func TestValidatePathWithinDirectory_RealFilesystem(t *testing.T) {
 	// Create a temporary directory structure
-	baseDir, err := os.MkdirTemp("", "unpack-realfs-test-*")
-	if err != nil {
-		t.Fatalf("Failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(baseDir)
+	baseDir := t.TempDir()
 
 	// Create a sibling directory that attacker might try to access
 	siblingDir := filepath.Join(filepath.Dir(baseDir), "sibling-secret")
@@ -148,7 +140,7 @@ func TestValidatePathWithinDirectory_RealFilesystem(t *testing.T) {
 
 	// Try to escape to the sibling directory
 	escapePath := "../sibling-secret/secret.txt"
-	err = validatePathWithinDirectory(baseDir, escapePath)
+	err := validatePathWithinDirectory(baseDir, escapePath)
 	if err == nil {
 		t.Errorf("Expected error when attempting to escape to sibling directory, but validation passed")
 	}

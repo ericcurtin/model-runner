@@ -14,6 +14,8 @@ import (
 	"github.com/docker/model-runner/pkg/distribution/types"
 )
 
+const rootFSType = "rootfs"
+
 // DirectoryOptions configures the behavior of FromDirectory.
 type DirectoryOptions struct {
 	// Exclusions is a list of patterns to exclude from packaging.
@@ -130,7 +132,7 @@ func FromDirectory(dirPath string, opts ...DirectoryOption) (*Builder, error) {
 		fileType := files.Classify(path)
 		mediaType := fileTypeToMediaType(fileType)
 
-		// Track format from weight files
+		// Track format from weight files (only weight file types affect format detection)
 		switch fileType {
 		case files.FileTypeSafetensors:
 			if detectedFormat == "" {
@@ -147,10 +149,8 @@ func FromDirectory(dirPath string, opts ...DirectoryOption) (*Builder, error) {
 				detectedFormat = types.FormatDiffusers
 			}
 			weightFiles = append(weightFiles, path)
-		case files.FileTypeUnknown:
-		case files.FileTypeConfig:
-		case files.FileTypeLicense:
-		case files.FileTypeChatTemplate:
+		case files.FileTypeUnknown, files.FileTypeConfig, files.FileTypeLicense, files.FileTypeChatTemplate:
+			// Non-weight files don't affect format detection
 		}
 
 		// Create layer with relative path annotation
@@ -182,7 +182,7 @@ func FromDirectory(dirPath string, opts ...DirectoryOption) (*Builder, error) {
 		return nil, fmt.Errorf("no weight files (safetensors, GGUF, or DDUF) found in directory: %s", dirPath)
 	}
 
-	// Build config - use the first weight file for metadata extraction
+	// Build config
 	config := types.Config{
 		Format: detectedFormat,
 	}
@@ -199,12 +199,12 @@ func FromDirectory(dirPath string, opts ...DirectoryOption) (*Builder, error) {
 				Created: &created,
 			},
 			RootFS: oci.RootFS{
-				Type:    "rootfs",
+				Type:    rootFSType,
 				DiffIDs: diffIDs,
 			},
 		},
 		LayerList:       layers,
-		ConfigMediaType: types.MediaTypeModelConfigV02, // V0.2: layer-per-file with filepath annotations
+		ConfigMediaType: types.MediaTypeModelConfigV02,
 	}
 
 	return &Builder{
@@ -290,10 +290,11 @@ func fileTypeToMediaType(ft files.FileType) oci.MediaType {
 		return types.MediaTypeLicense
 	case files.FileTypeChatTemplate:
 		return types.MediaTypeChatTemplate
+	case files.FileTypeUnknown:
+		return types.MediaTypeModelFile
 	case files.FileTypeConfig:
 		return types.MediaTypeModelFile
 	default:
-		// For unknown files, use the generic model file type
 		return types.MediaTypeModelFile
 	}
 }
