@@ -150,17 +150,26 @@ VLLM_METAL_INSTALL_DIR := $(HOME)/.docker/model-runner/vllm-metal
 VLLM_METAL_TARBALL := vllm-metal-macos-arm64-$(VLLM_METAL_RELEASE).tar.gz
 
 vllm-metal-build:
-	@echo "Building vllm-metal tarball..."
-	@scripts/build-vllm-metal-tarball.sh $(VLLM_METAL_RELEASE) .
-	@echo "Tarball created: $(VLLM_METAL_TARBALL)"
+	@if [ -f "$(VLLM_METAL_TARBALL)" ]; then \
+		echo "Tarball already exists: $(VLLM_METAL_TARBALL)"; \
+	else \
+		echo "Building vllm-metal tarball..."; \
+		scripts/build-vllm-metal-tarball.sh $(VLLM_METAL_RELEASE) $(VLLM_METAL_TARBALL); \
+		echo "Tarball created: $(VLLM_METAL_TARBALL)"; \
+	fi
 
 vllm-metal-install:
-	@if [ ! -f "$(VLLM_METAL_TARBALL)" ]; then \
+	@VERSION_FILE="$(VLLM_METAL_INSTALL_DIR)/.vllm-metal-version"; \
+	if [ -f "$$VERSION_FILE" ] && [ "$$(cat "$$VERSION_FILE")" = "$(VLLM_METAL_RELEASE)" ]; then \
+		echo "vllm-metal $(VLLM_METAL_RELEASE) already installed"; \
+		exit 0; \
+	fi; \
+	if [ ! -f "$(VLLM_METAL_TARBALL)" ]; then \
 		echo "Error: $(VLLM_METAL_TARBALL) not found. Run 'make vllm-metal-build' first."; \
 		exit 1; \
-	fi
-	@echo "Installing vllm-metal to $(VLLM_METAL_INSTALL_DIR)..."
-	@PYTHON_BIN=""; \
+	fi; \
+	echo "Installing vllm-metal to $(VLLM_METAL_INSTALL_DIR)..."; \
+	PYTHON_BIN=""; \
 	if command -v python3.12 >/dev/null 2>&1; then \
 		PYTHON_BIN="python3.12"; \
 	elif command -v python3 >/dev/null 2>&1; then \
@@ -180,8 +189,8 @@ vllm-metal-install:
 	SITE_PACKAGES="$(VLLM_METAL_INSTALL_DIR)/lib/python3.12/site-packages"; \
 	mkdir -p "$$SITE_PACKAGES"; \
 	tar -xzf "$(VLLM_METAL_TARBALL)" -C "$$SITE_PACKAGES"; \
-	echo "vllm-metal installed successfully!"
-	@echo "Test with: $(VLLM_METAL_INSTALL_DIR)/bin/python3 -c 'import vllm_metal; print(vllm_metal.__version__)'"
+	echo "$(VLLM_METAL_RELEASE)" > "$$VERSION_FILE"; \
+	echo "vllm-metal $(VLLM_METAL_RELEASE) installed successfully!"
 
 vllm-metal-clean:
 	@echo "Removing vllm-metal installation and build artifacts..."

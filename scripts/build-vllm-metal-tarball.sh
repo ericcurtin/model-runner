@@ -2,9 +2,9 @@
 # Build script for vllm-metal macOS tarball distribution
 # Creates a tarball containing Python site-packages for vllm-metal and dependencies
 #
-# Usage: ./scripts/build-vllm-metal-tarball.sh <VLLM_METAL_RELEASE> [OUTPUT_DIR]
+# Usage: ./scripts/build-vllm-metal-tarball.sh <VLLM_METAL_RELEASE> <TARBALL>
 #   VLLM_METAL_RELEASE - vllm-metal release tag (required)
-#   OUTPUT_DIR - Directory to output the tarball (default: current directory)
+#   TARBALL - Output tarball path (required)
 #
 # Requirements:
 #   - macOS with Apple Silicon (ARM64)
@@ -13,12 +13,10 @@
 
 set -e
 
-VLLM_METAL_RELEASE="${1:?Usage: $0 <VLLM_METAL_RELEASE> [OUTPUT_DIR]}"
-OUTPUT_DIR="${2:-.}"
+VLLM_METAL_RELEASE="${1:?Usage: $0 <VLLM_METAL_RELEASE> <TARBALL>}"
+TARBALL="${2:?Usage: $0 <VLLM_METAL_RELEASE> <TARBALL>}"
 WORK_DIR=$(mktemp -d)
 VENV_DIR="$WORK_DIR/venv"
-
-OUTPUT_DIR="$(cd "$OUTPUT_DIR" && pwd)"
 
 VLLM_VERSION="0.13.0"
 # Extract wheel version from release tag (e.g., v0.1.0-20260126-121650 -> 0.1.0)
@@ -78,7 +76,6 @@ if [ ! -d "$SITE_PACKAGES_DIR" ]; then
     exit 1
 fi
 
-TARBALL="$OUTPUT_DIR/vllm-metal-macos-arm64-$VLLM_METAL_RELEASE.tar.gz"
 tar -czf "$TARBALL" -C "$SITE_PACKAGES_DIR" .
 
 SIZE=$(du -h "$TARBALL" | cut -f1)
