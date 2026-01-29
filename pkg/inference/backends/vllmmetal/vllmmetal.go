@@ -50,8 +50,6 @@ type vllmMetal struct {
 	installDir string
 	// status is the state in which the backend is in.
 	status string
-	// version is the installed vllm-metal version.
-	version string
 }
 
 // New creates a new vllm-metal backend.
@@ -272,15 +270,19 @@ func copyDir(src, dst string) error {
 }
 
 func (v *vllmMetal) verifyInstallation(ctx context.Context) error {
-	cmd := exec.CommandContext(ctx, v.pythonPath, "-c", "import vllm_metal; print(vllm_metal.__version__)")
-	output, err := cmd.Output()
-	if err != nil {
+	cmd := exec.CommandContext(ctx, v.pythonPath, "-c", "import vllm_metal")
+	if err := cmd.Run(); err != nil {
 		v.status = "import failed"
 		return fmt.Errorf("vllm_metal import failed: %w", err)
 	}
 
-	v.version = strings.TrimSpace(string(output))
-	v.status = fmt.Sprintf("running vllm-metal version: %s", v.version)
+	versionFile := filepath.Join(v.installDir, ".vllm-metal-version")
+	versionBytes, err := os.ReadFile(versionFile)
+	if err != nil {
+		v.status = "running vllm-metal"
+		return nil
+	}
+	v.status = fmt.Sprintf("running vllm-metal %s", strings.TrimSpace(string(versionBytes)))
 	return nil
 }
 
