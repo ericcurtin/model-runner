@@ -106,11 +106,12 @@ func (v *vllmMetal) Install(ctx context.Context, httpClient *http.Client) error 
 	// Check if already installed with correct version
 	if _, err := os.Stat(pythonPath); err == nil {
 		if installedVersion, err := os.ReadFile(versionFile); err == nil {
-			if strings.TrimSpace(string(installedVersion)) == vllmMetalVersion {
+			installed := strings.TrimSpace(string(installedVersion))
+			if installed == vllmMetalVersion || installed == "dev" {
 				v.pythonPath = pythonPath
 				return v.verifyInstallation(ctx)
 			}
-			v.log.Infof("vllm-metal version mismatch: installed %s, want %s", strings.TrimSpace(string(installedVersion)), vllmMetalVersion)
+			v.log.Infof("vllm-metal version mismatch: installed %s, want %s", installed, vllmMetalVersion)
 		}
 	}
 
