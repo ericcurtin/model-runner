@@ -123,6 +123,12 @@ func (c *Client) normalizeModelName(model string) string {
 		return model
 	}
 
+	// Normalize HuggingFace short URL (hf.co) to canonical form (huggingface.co)
+	// This ensures that hf.co/org/model and huggingface.co/org/model are treated as the same model
+	if rest, found := strings.CutPrefix(model, "hf.co/"); found {
+		model = "huggingface.co/" + rest
+	}
+
 	// If it looks like an ID or digest, try to resolve it to full ID
 	if c.looksLikeID(model) || c.looksLikeDigest(model) {
 		if fullID := c.resolveID(model); fullID != "" {
