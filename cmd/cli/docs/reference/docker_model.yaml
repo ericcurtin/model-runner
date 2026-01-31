@@ -23,6 +23,7 @@ cname:
     - docker model rm
     - docker model run
     - docker model search
+    - docker model show
     - docker model start-runner
     - docker model status
     - docker model stop-runner
@@ -48,6 +49,7 @@ clink:
     - docker_model_rm.yaml
     - docker_model_run.yaml
     - docker_model_search.yaml
+    - docker_model_show.yaml
     - docker_model_start-runner.yaml
     - docker_model_status.yaml
     - docker_model_stop-runner.yaml
