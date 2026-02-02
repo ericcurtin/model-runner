@@ -94,6 +94,7 @@ func NewRootCmd(cli *command.DockerCli) *cobra.Command {
 		newRestartRunner(),
 		newReinstallRunner(),
 		newSearchCmd(),
+		newSkillsCmd(),
 	)
 
 	// Commands that require a running model runner. These are wrapped to ensure the standalone runner is available.

@@ -25,6 +25,7 @@ Docker Model Runner
 | [`run`](model_run.md)                           | Run a model and interact with it using a submitted prompt or chat mode                                     |
 | [`search`](model_search.md)                     | Search for models on Docker Hub and HuggingFace                                                            |
 | [`show`](model_show.md)                         | Show information for a model                                                                               |
+| [`skills`](model_skills.md)                     | Install Docker Model Runner skills for AI coding assistants                                                |
 | [`start-runner`](model_start-runner.md)         | Start Docker Model Runner (Docker Engine only)                                                             |
 | [`status`](model_status.md)                     | Check if the Docker Model Runner is running                                                                |
 | [`stop-runner`](model_stop-runner.md)           | Stop Docker Model Runner (Docker Engine only)                                                              |
