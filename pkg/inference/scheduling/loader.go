@@ -441,11 +441,11 @@ func (l *loader) load(ctx context.Context, backendName, modelID, modelRef string
 	if runnerConfig == nil {
 		defaultConfig := inference.BackendConfiguration{}
 		if l.modelManager != nil {
-			if bundle, err := l.modelManager.GetBundle(modelID); err == nil {
-				if runtimeConfig := bundle.RuntimeConfig(); runtimeConfig != nil {
-					if ctxSize := runtimeConfig.GetContextSize(); ctxSize != nil {
-						defaultConfig.ContextSize = ctxSize
-					}
+			if bundle, err := l.modelManager.GetBundle(modelID); err != nil {
+				l.log.Warnf("Failed to get bundle for model %s to determine default context size: %v", modelID, err)
+			} else if runtimeConfig := bundle.RuntimeConfig(); runtimeConfig != nil {
+				if ctxSize := runtimeConfig.GetContextSize(); ctxSize != nil {
+					defaultConfig.ContextSize = ctxSize
 				}
 			}
 		}
