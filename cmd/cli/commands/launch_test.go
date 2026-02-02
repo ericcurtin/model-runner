@@ -230,7 +230,7 @@ func TestLaunchHostAppDryRunOpenai(t *testing.T) {
 
 	cli := hostApp{envFn: openaiEnv(openaiPathSuffix)}
 	// Use "ls" as a bin that exists in PATH
-	err := launchHostApp(cmd, "ls", testBaseURL, cli, true)
+	err := launchHostApp(cmd, "ls", testBaseURL, cli, nil, true)
 	require.NoError(t, err)
 
 	output := buf.String()
@@ -245,7 +245,7 @@ func TestLaunchHostAppDryRunCodex(t *testing.T) {
 	cmd := newTestCmd(buf)
 
 	cli := hostApp{envFn: openaiEnv("/v1")}
-	err := launchHostApp(cmd, "ls", testBaseURL, cli, true)
+	err := launchHostApp(cmd, "ls", testBaseURL, cli, nil, true)
 	require.NoError(t, err)
 
 	output := buf.String()
@@ -255,12 +255,24 @@ func TestLaunchHostAppDryRunCodex(t *testing.T) {
 	require.NotContains(t, output, "/engines/v1")
 }
 
+func TestLaunchHostAppDryRunWithArgs(t *testing.T) {
+	buf := new(bytes.Buffer)
+	cmd := newTestCmd(buf)
+
+	cli := hostApp{envFn: openaiEnv(openaiPathSuffix)}
+	err := launchHostApp(cmd, "ls", testBaseURL, cli, []string{"-m", "ai/qwen3"}, true)
+	require.NoError(t, err)
+
+	output := buf.String()
+	require.Contains(t, output, "Would run: ls -m ai/qwen3")
+}
+
 func TestLaunchHostAppDryRunAnthropic(t *testing.T) {
 	buf := new(bytes.Buffer)
 	cmd := newTestCmd(buf)
 
 	cli := hostApp{envFn: anthropicEnv}
-	err := launchHostApp(cmd, "ls", testBaseURL, cli, true)
+	err := launchHostApp(cmd, "ls", testBaseURL, cli, nil, true)
 	require.NoError(t, err)
 
 	output := buf.String()
@@ -275,7 +287,7 @@ func TestLaunchHostAppNotFound(t *testing.T) {
 	cmd := newTestCmd(buf)
 
 	cli := hostApp{envFn: openaiEnv(openaiPathSuffix)}
-	err := launchHostApp(cmd, "nonexistent-binary-xyz", testBaseURL, cli, false)
+	err := launchHostApp(cmd, "nonexistent-binary-xyz", testBaseURL, cli, nil, false)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "not found")
 
@@ -289,7 +301,7 @@ func TestLaunchHostAppNotFoundNilEnvFn(t *testing.T) {
 	cmd := newTestCmd(buf)
 
 	cli := hostApp{envFn: nil}
-	err := launchHostApp(cmd, "nonexistent-binary-xyz", testBaseURL, cli, false)
+	err := launchHostApp(cmd, "nonexistent-binary-xyz", testBaseURL, cli, nil, false)
 	require.Error(t, err)
 
 	output := buf.String()
@@ -326,13 +338,13 @@ func TestNewLaunchCmdValidArgs(t *testing.T) {
 	require.Equal(t, supportedApps, cmd.ValidArgs)
 }
 
-func TestNewLaunchCmdRequiresExactlyOneArg(t *testing.T) {
+func TestNewLaunchCmdRequiresAtLeastOneArg(t *testing.T) {
 	cmd := newLaunchCmd()
 	cmd.SetArgs([]string{})
 	err := cmd.Execute()
 
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "requires 1 argument")
+	require.Contains(t, err.Error(), "requires at least 1 arg")
 }
 
 func TestNewLaunchCmdDispatchContainerApp(t *testing.T) {

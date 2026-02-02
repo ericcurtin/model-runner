@@ -76,12 +76,13 @@ func newLaunchCmd() *cobra.Command {
 		dryRun bool
 	)
 	c := &cobra.Command{
-		Use:       "launch APP",
+		Use:       "launch APP [-- APP_ARGS...]",
 		Short:     "Launch an app configured to use Docker Model Runner",
-		Args:      requireExactArgs(1, "launch", "APP"),
+		Args:      cobra.MinimumNArgs(1),
 		ValidArgs: supportedApps,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			app := strings.ToLower(args[0])
+			appArgs := args[1:]
 
 			runner, err := getStandaloneRunner(cmd.Context())
 			if err != nil {
@@ -97,7 +98,7 @@ func newLaunchCmd() *cobra.Command {
 				return launchContainerApp(cmd, ca, ep.container, image, port, detach, dryRun)
 			}
 			if cli, ok := hostApps[app]; ok {
-				return launchHostApp(cmd, app, ep.host, cli, dryRun)
+				return launchHostApp(cmd, app, ep.host, cli, appArgs, dryRun)
 			}
 			return fmt.Errorf("unsupported app %q (supported: %s)", app, strings.Join(supportedApps, ", "))
 		},
@@ -180,7 +181,7 @@ func launchContainerApp(cmd *cobra.Command, ca containerApp, baseURL string, ima
 }
 
 // launchHostApp launches a native host app executable.
-func launchHostApp(cmd *cobra.Command, bin string, baseURL string, cli hostApp, dryRun bool) error {
+func launchHostApp(cmd *cobra.Command, bin string, baseURL string, cli hostApp, appArgs []string, dryRun bool) error {
 	if _, err := exec.LookPath(bin); err != nil {
 		cmd.Printf("%q executable not found in PATH.\n", bin)
 		if cli.envFn != nil {
@@ -198,13 +199,13 @@ func launchHostApp(cmd *cobra.Command, bin string, baseURL string, cli hostApp, 
 
 	env := cli.envFn(baseURL)
 	if dryRun {
-		cmd.Printf("Would run: %s\n", bin)
+		cmd.Printf("Would run: %s %s\n", bin, strings.Join(appArgs, " "))
 		for _, e := range env {
 			cmd.Printf("  %s\n", e)
 		}
 		return nil
 	}
-	return runExternal(cmd, withEnv(env...), bin)
+	return runExternal(cmd, withEnv(env...), bin, appArgs...)
 }
 
 // launchUnconfigurableHostApp handles host apps that need manual config rather than env vars.
