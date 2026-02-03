@@ -54,7 +54,8 @@ var containerApps = map[string]containerApp{
 
 // hostApp describes a native CLI app launched on the host.
 type hostApp struct {
-	envFn func(baseURL string) []string
+	envFn              func(baseURL string) []string
+	configInstructions func(baseURL string) []string // for apps that need manual config
 }
 
 // hostApps are launched as native executables on the host.
@@ -62,7 +63,7 @@ var hostApps = map[string]hostApp{
 	"opencode": {envFn: openaiEnv(openaiPathSuffix)},
 	"codex":    {envFn: openaiEnv("/v1")},
 	"claude":   {envFn: anthropicEnv},
-	"clawdbot": {envFn: nil},
+	"clawdbot": {configInstructions: clawdbotConfigInstructions},
 }
 
 // supportedApps is derived from the registries above.
@@ -198,18 +199,18 @@ func launchContainerApp(cmd *cobra.Command, ca containerApp, baseURL string, ima
 // launchHostApp launches a native host app executable.
 func launchHostApp(cmd *cobra.Command, bin string, baseURL string, cli hostApp, appArgs []string, dryRun bool) error {
 	if _, err := exec.LookPath(bin); err != nil {
-		cmd.Printf("%q executable not found in PATH.\n", bin)
+		cmd.PrintErrf("%q executable not found in PATH.\n", bin)
 		if cli.envFn != nil {
-			cmd.Printf("Configure your app to use:\n")
+			cmd.PrintErrf("Configure your app to use:\n")
 			for _, e := range cli.envFn(baseURL) {
-				cmd.Printf("  %s\n", e)
+				cmd.PrintErrf("  %s\n", e)
 			}
 		}
 		return fmt.Errorf("%s not found; please install it and re-run", bin)
 	}
 
 	if cli.envFn == nil {
-		return launchUnconfigurableHostApp(cmd, bin, baseURL, dryRun)
+		return launchUnconfigurableHostApp(cmd, bin, baseURL, cli, dryRun)
 	}
 
 	env := cli.envFn(baseURL)
@@ -224,22 +225,33 @@ func launchHostApp(cmd *cobra.Command, bin string, baseURL string, cli hostApp, 
 }
 
 // launchUnconfigurableHostApp handles host apps that need manual config rather than env vars.
-func launchUnconfigurableHostApp(cmd *cobra.Command, bin string, baseURL string, dryRun bool) error {
+func launchUnconfigurableHostApp(cmd *cobra.Command, bin string, baseURL string, cli hostApp, dryRun bool) error {
 	enginesEP := baseURL + openaiPathSuffix
 	cmd.Printf("Configure %s to use Docker Model Runner:\n", bin)
 	cmd.Printf("  Base URL: %s\n", enginesEP)
 	cmd.Printf("  API type: openai-completions\n")
-	cmd.Printf("  API key:  docker-model-runner\n")
-	if bin == "clawdbot" {
+	cmd.Printf("  API key:  %s\n", dummyAPIKey)
+
+	if cli.configInstructions != nil {
 		cmd.Printf("\nExample:\n")
-		cmd.Printf("  clawdbot config set models.providers.docker-model-runner.baseUrl %q\n", enginesEP)
-		cmd.Printf("  clawdbot config set models.providers.docker-model-runner.api openai-completions\n")
-		cmd.Printf("  clawdbot config set models.providers.docker-model-runner.apiKey docker-model-runner\n")
+		for _, line := range cli.configInstructions(baseURL) {
+			cmd.Printf("  %s\n", line)
+		}
 	}
 	if dryRun {
 		return nil
 	}
 	return runExternal(cmd, nil, bin)
+}
+
+// clawdbotConfigInstructions returns configuration commands for clawdbot.
+func clawdbotConfigInstructions(baseURL string) []string {
+	ep := baseURL + openaiPathSuffix
+	return []string{
+		fmt.Sprintf("clawdbot config set models.providers.docker-model-runner.baseUrl %q", ep),
+		"clawdbot config set models.providers.docker-model-runner.api openai-completions",
+		fmt.Sprintf("clawdbot config set models.providers.docker-model-runner.apiKey %s", dummyAPIKey),
+	}
 }
 
 // openaiEnv returns an env builder that sets OpenAI-compatible
@@ -280,6 +292,8 @@ func withEnv(extra ...string) []string {
 }
 
 // runExternal executes a program inheriting stdio.
+// Security: prog and progArgs are either hardcoded values or user-provided
+// arguments that the user explicitly intends to pass to the launched app.
 func runExternal(cmd *cobra.Command, env []string, prog string, progArgs ...string) error {
 	c := exec.Command(prog, progArgs...)
 	c.Stdout = cmd.OutOrStdout()

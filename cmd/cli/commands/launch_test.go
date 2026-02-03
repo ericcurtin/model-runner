@@ -283,44 +283,51 @@ func TestLaunchHostAppDryRunAnthropic(t *testing.T) {
 }
 
 func TestLaunchHostAppNotFound(t *testing.T) {
-	buf := new(bytes.Buffer)
-	cmd := newTestCmd(buf)
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	cmd := &cobra.Command{}
+	cmd.SetOut(stdout)
+	cmd.SetErr(stderr)
 
 	cli := hostApp{envFn: openaiEnv(openaiPathSuffix)}
 	err := launchHostApp(cmd, "nonexistent-binary-xyz", testBaseURL, cli, nil, false)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "not found")
 
-	output := buf.String()
-	require.Contains(t, output, "not found in PATH")
-	require.Contains(t, output, "Configure your app to use:")
+	errOutput := stderr.String()
+	require.Contains(t, errOutput, "not found in PATH")
+	require.Contains(t, errOutput, "Configure your app to use:")
 }
 
 func TestLaunchHostAppNotFoundNilEnvFn(t *testing.T) {
-	buf := new(bytes.Buffer)
-	cmd := newTestCmd(buf)
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	cmd := &cobra.Command{}
+	cmd.SetOut(stdout)
+	cmd.SetErr(stderr)
 
 	cli := hostApp{envFn: nil}
 	err := launchHostApp(cmd, "nonexistent-binary-xyz", testBaseURL, cli, nil, false)
 	require.Error(t, err)
 
-	output := buf.String()
-	require.Contains(t, output, "not found in PATH")
-	require.NotContains(t, output, "Configure your app to use:")
+	errOutput := stderr.String()
+	require.Contains(t, errOutput, "not found in PATH")
+	require.NotContains(t, errOutput, "Configure your app to use:")
 }
 
 func TestLaunchUnconfigurableHostAppDryRun(t *testing.T) {
 	buf := new(bytes.Buffer)
 	cmd := newTestCmd(buf)
 
-	err := launchUnconfigurableHostApp(cmd, "clawdbot", testBaseURL, true)
+	cli := hostApp{configInstructions: clawdbotConfigInstructions}
+	err := launchUnconfigurableHostApp(cmd, "clawdbot", testBaseURL, cli, true)
 	require.NoError(t, err)
 
 	output := buf.String()
 	require.Contains(t, output, "Configure clawdbot to use Docker Model Runner:")
 	require.Contains(t, output, "Base URL: "+testBaseURL+"/engines/v1")
 	require.Contains(t, output, "API type: openai-completions")
-	require.Contains(t, output, "API key:  docker-model-runner")
+	require.Contains(t, output, "API key:  "+dummyAPIKey)
 	require.Contains(t, output, "clawdbot config set models.providers.docker-model-runner.baseUrl")
 }
 
