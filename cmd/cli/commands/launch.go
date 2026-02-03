@@ -118,7 +118,6 @@ func newLaunchCmd() *cobra.Command {
 	c.Flags().StringVar(&image, "image", "", "Override container image for containerized apps")
 	c.Flags().BoolVar(&detach, "detach", false, "Run containerized app in background")
 	c.Flags().BoolVar(&dryRun, "dry-run", false, "Print what would be executed without running it")
-	c.ValidArgsFunction = completion.NoComplete
 	return c
 }
 
