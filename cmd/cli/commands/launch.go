@@ -87,7 +87,11 @@ func newLaunchCmd() *cobra.Command {
 		dryRun bool
 	)
 	c := &cobra.Command{
-		Use:       "launch APP [-- APP_ARGS...]",
+		Use:   "launch APP [-- APP_ARGS...]",
+		Short: "Launch an app configured to use Docker Model Runner",
+		Long: fmt.Sprintf(`Launch an app configured to use Docker Model Runner.                                                                                                                              
+                                                                                                                                                                                                           
+Supported apps: %s`, strings.Join(supportedApps, ", ")),
 		Short:     "Launch an app configured to use Docker Model Runner",
 		Args:      cobra.MinimumNArgs(1),
 		ValidArgs: supportedApps,
