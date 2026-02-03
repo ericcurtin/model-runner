@@ -20,7 +20,7 @@ impl HealthChecker {
         let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(timeout_secs))
             .build()
-            .expect("Failed to create HTTP client");
+            .expect("Failed to create HTTP client: this may indicate TLS configuration issues or system resource exhaustion");
 
         Self {
             client,
