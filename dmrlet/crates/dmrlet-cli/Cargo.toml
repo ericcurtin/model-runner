@@ -1,0 +1,23 @@
+[package]
+name = "dmrlet-cli"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "dmrlet CLI"
+
+[[bin]]
+name = "dmrlet"
+path = "src/main.rs"
+
+[dependencies]
+dmrlet-core = { workspace = true }
+tokio = { workspace = true }
+clap = { workspace = true }
+reqwest = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+anyhow = { workspace = true }
+uuid = { workspace = true }

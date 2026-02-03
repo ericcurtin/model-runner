@@ -12,3 +12,7 @@ llamacpp/build
 llamacpp/install
 
 .DS_Store
+
+# Rust build artifacts
+dmrlet/target/
+*.rs.bk
