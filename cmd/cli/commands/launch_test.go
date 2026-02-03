@@ -61,9 +61,9 @@ func TestResolveBaseEndpointsDesktop(t *testing.T) {
 }
 
 func TestResolveBaseEndpointsMobyManual(t *testing.T) {
-	expectedHost := "http://localhost:8080"
+	hostURL := "http://localhost:8080"
 	ctx, err := desktop.NewContextForTest(
-		expectedHost,
+		hostURL,
 		nil,
 		types.ModelRunnerEngineKindMobyManual,
 	)
@@ -72,8 +72,8 @@ func TestResolveBaseEndpointsMobyManual(t *testing.T) {
 
 	ep, err := resolveBaseEndpoints(nil)
 	require.NoError(t, err)
-	require.Equal(t, expectedHost, ep.container)
-	require.Equal(t, expectedHost, ep.host)
+	require.Equal(t, "http://host.docker.internal:8080", ep.container)
+	require.Equal(t, hostURL, ep.host)
 }
 
 func TestResolveBaseEndpointsCloud(t *testing.T) {
@@ -237,7 +237,7 @@ func TestLaunchHostAppDryRunOpenai(t *testing.T) {
 	require.Contains(t, output, "Would run: ls")
 	require.Contains(t, output, "OPENAI_API_BASE="+testBaseURL+"/engines/v1")
 	require.Contains(t, output, "OPENAI_BASE_URL="+testBaseURL+"/engines/v1")
-	require.Contains(t, output, "OPENAI_API_KEY=docker-model-runner")
+	require.Contains(t, output, "OPENAI_API_KEY="+dummyAPIKey)
 }
 
 func TestLaunchHostAppDryRunCodex(t *testing.T) {
@@ -251,7 +251,7 @@ func TestLaunchHostAppDryRunCodex(t *testing.T) {
 	output := buf.String()
 	require.Contains(t, output, "Would run: ls")
 	require.Contains(t, output, "OPENAI_BASE_URL="+testBaseURL+"/v1")
-	require.Contains(t, output, "OPENAI_API_KEY=docker-model-runner")
+	require.Contains(t, output, "OPENAI_API_KEY="+dummyAPIKey)
 	require.NotContains(t, output, "/engines/v1")
 }
 
@@ -278,7 +278,7 @@ func TestLaunchHostAppDryRunAnthropic(t *testing.T) {
 	output := buf.String()
 	require.Contains(t, output, "Would run: ls")
 	require.Contains(t, output, "ANTHROPIC_BASE_URL="+testBaseURL+"/anthropic")
-	require.Contains(t, output, "ANTHROPIC_API_KEY=docker-model-runner")
+	require.Contains(t, output, "ANTHROPIC_API_KEY="+dummyAPIKey)
 	require.NotContains(t, output, "OPENAI_")
 }
 

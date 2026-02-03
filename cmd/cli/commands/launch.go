@@ -17,6 +17,9 @@ import (
 // openaiPathSuffix is the path appended to the base URL for OpenAI-compatible endpoints.
 const openaiPathSuffix = "/engines/v1"
 
+// dummyAPIKey is a placeholder API key for Docker Model Runner (which doesn't require auth).
+const dummyAPIKey = "sk-docker-model-runner"
+
 // engineEndpoints holds the resolved base URLs (without path) for both
 // client locations.
 type engineEndpoints struct {
@@ -34,12 +37,19 @@ type containerApp struct {
 	defaultHostPort int
 	containerPort   int
 	envFn           func(baseURL string) []string
+	extraDockerArgs []string // additional docker run args (e.g., volume mounts)
 }
 
 // containerApps are launched via "docker run --rm".
 var containerApps = map[string]containerApp{
-	"anythingllm": {defaultImage: "mintplexlabs/anythingllm:latest", defaultHostPort: 3001, containerPort: 3001, envFn: openaiEnv(openaiPathSuffix)},
-	"openwebui":   {defaultImage: "ghcr.io/open-webui/open-webui:latest", defaultHostPort: 3000, containerPort: 8080, envFn: openaiEnv(openaiPathSuffix)},
+	"anythingllm": {
+		defaultImage:    "mintplexlabs/anythingllm:latest",
+		defaultHostPort: 3001,
+		containerPort:   3001,
+		envFn:           anythingllmEnv,
+		extraDockerArgs: []string{"-v", "anythingllm_storage:/app/server/storage"},
+	},
+	"openwebui": {defaultImage: "ghcr.io/open-webui/open-webui:latest", defaultHostPort: 3000, containerPort: 8080, envFn: openaiEnv(openaiPathSuffix)},
 }
 
 // hostApp describes a native CLI app launched on the host.
@@ -123,7 +133,11 @@ func resolveBaseEndpoints(runner *standaloneRunner) (engineEndpoints, error) {
 		}, nil
 	case types.ModelRunnerEngineKindMobyManual:
 		ep := strings.TrimRight(modelRunner.URL(""), "/")
-		return engineEndpoints{container: ep, host: ep}, nil
+		containerEP := strings.NewReplacer(
+			"localhost", "host.docker.internal",
+			"127.0.0.1", "host.docker.internal",
+		).Replace(ep)
+		return engineEndpoints{container: containerEP, host: ep}, nil
 	case types.ModelRunnerEngineKindCloud, types.ModelRunnerEngineKindMoby:
 		if runner == nil {
 			return engineEndpoints{}, errors.New("unable to determine standalone runner endpoint")
@@ -164,6 +178,7 @@ func launchContainerApp(cmd *cobra.Command, ca containerApp, baseURL string, ima
 	dockerArgs = append(dockerArgs,
 		"-p", fmt.Sprintf("%d:%d", hostPort, ca.containerPort),
 	)
+	dockerArgs = append(dockerArgs, ca.extraDockerArgs...)
 	if ca.envFn == nil {
 		return fmt.Errorf("container app requires envFn to be set")
 	}
@@ -235,8 +250,19 @@ func openaiEnv(suffix string) func(string) []string {
 		return []string{
 			"OPENAI_API_BASE=" + ep,
 			"OPENAI_BASE_URL=" + ep,
-			"OPENAI_API_KEY=docker-model-runner",
+			"OPENAI_API_BASE_URL=" + ep,
+			"OPENAI_API_KEY=" + dummyAPIKey,
+			"OPEN_AI_KEY=" + dummyAPIKey, // AnythingLLM uses this
 		}
+	}
+}
+
+// anythingllmEnv returns environment variables for AnythingLLM with Docker Model Runner provider.
+func anythingllmEnv(baseURL string) []string {
+	return []string{
+		"STORAGE_DIR=/app/server/storage",
+		"LLM_PROVIDER=docker-model-runner",
+		"DOCKER_MODEL_RUNNER_BASE_PATH=" + baseURL,
 	}
 }
 
@@ -244,7 +270,7 @@ func openaiEnv(suffix string) func(string) []string {
 func anthropicEnv(baseURL string) []string {
 	return []string{
 		"ANTHROPIC_BASE_URL=" + baseURL + "/anthropic",
-		"ANTHROPIC_API_KEY=docker-model-runner",
+		"ANTHROPIC_API_KEY=" + dummyAPIKey,
 	}
 }
 
