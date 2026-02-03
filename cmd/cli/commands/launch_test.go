@@ -150,7 +150,7 @@ func TestResolveBaseEndpointsHostPortFallback(t *testing.T) {
 	runner := &standaloneRunner{hostPort: 12434}
 	ep, err := resolveBaseEndpoints(runner)
 	require.NoError(t, err)
-	require.Equal(t, "", ep.container)
+	require.Equal(t, "http://host.docker.internal:12434", ep.container)
 	require.Equal(t, "http://127.0.0.1:12434", ep.host)
 }
 
@@ -159,7 +159,7 @@ func TestLaunchContainerAppDryRun(t *testing.T) {
 	buf := new(bytes.Buffer)
 	cmd := newTestCmd(buf)
 
-	err := launchContainerApp(cmd, ca, testBaseURL, "", 0, false, true)
+	err := launchContainerApp(cmd, ca, testBaseURL, "", 0, false, nil, true)
 	require.NoError(t, err)
 
 	output := buf.String()
@@ -177,7 +177,7 @@ func TestLaunchContainerAppOverrides(t *testing.T) {
 	buf := new(bytes.Buffer)
 	cmd := newTestCmd(buf)
 
-	err := launchContainerApp(cmd, ca, testBaseURL, overrideImage, overridePort, false, true)
+	err := launchContainerApp(cmd, ca, testBaseURL, overrideImage, overridePort, false, nil, true)
 	require.NoError(t, err)
 
 	output := buf.String()
@@ -191,7 +191,7 @@ func TestLaunchContainerAppDetach(t *testing.T) {
 	buf := new(bytes.Buffer)
 	cmd := newTestCmd(buf)
 
-	err := launchContainerApp(cmd, ca, testBaseURL, "", 0, true, true)
+	err := launchContainerApp(cmd, ca, testBaseURL, "", 0, true, nil, true)
 	require.NoError(t, err)
 
 	output := buf.String()
@@ -206,7 +206,7 @@ func TestLaunchContainerAppUsesEnvFn(t *testing.T) {
 	buf := new(bytes.Buffer)
 	cmd := newTestCmd(buf)
 
-	err := launchContainerApp(cmd, ca, testBaseURL, "", 0, false, true)
+	err := launchContainerApp(cmd, ca, testBaseURL, "", 0, false, nil, true)
 	require.NoError(t, err)
 
 	output := buf.String()
@@ -219,7 +219,7 @@ func TestLaunchContainerAppNilEnvFn(t *testing.T) {
 	buf := new(bytes.Buffer)
 	cmd := newTestCmd(buf)
 
-	err := launchContainerApp(cmd, ca, testBaseURL, "", 0, false, true)
+	err := launchContainerApp(cmd, ca, testBaseURL, "", 0, false, nil, true)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "container app requires envFn to be set")
 }

@@ -106,7 +106,7 @@ func newLaunchCmd() *cobra.Command {
 			}
 
 			if ca, ok := containerApps[app]; ok {
-				return launchContainerApp(cmd, ca, ep.container, image, port, detach, dryRun)
+				return launchContainerApp(cmd, ca, ep.container, image, port, detach, appArgs, dryRun)
 			}
 			if cli, ok := hostApps[app]; ok {
 				return launchHostApp(cmd, app, ep.host, cli, appArgs, dryRun)
@@ -125,6 +125,11 @@ func newLaunchCmd() *cobra.Command {
 // resolveBaseEndpoints resolves the base URLs (without path) for both
 // container and host client locations.
 func resolveBaseEndpoints(runner *standaloneRunner) (engineEndpoints, error) {
+	const (
+		localhost           = "127.0.0.1"
+		hostDockerInternal  = "host.docker.internal"
+	)
+
 	kind := modelRunner.EngineKind()
 	switch kind {
 	case types.ModelRunnerEngineKindDesktop:
@@ -135,8 +140,8 @@ func resolveBaseEndpoints(runner *standaloneRunner) (engineEndpoints, error) {
 	case types.ModelRunnerEngineKindMobyManual:
 		ep := strings.TrimRight(modelRunner.URL(""), "/")
 		containerEP := strings.NewReplacer(
-			"localhost", "host.docker.internal",
-			"127.0.0.1", "host.docker.internal",
+			"localhost", hostDockerInternal,
+			localhost, hostDockerInternal,
 		).Replace(ep)
 		return engineEndpoints{container: containerEP, host: ep}, nil
 	case types.ModelRunnerEngineKindCloud, types.ModelRunnerEngineKindMoby:
@@ -147,12 +152,14 @@ func resolveBaseEndpoints(runner *standaloneRunner) (engineEndpoints, error) {
 			port := fmt.Sprintf("%d", runner.gatewayPort)
 			return engineEndpoints{
 				container: "http://" + net.JoinHostPort(runner.gatewayIP, port),
-				host:      "http://" + net.JoinHostPort("127.0.0.1", port),
+				host:      "http://" + net.JoinHostPort(localhost, port),
 			}, nil
 		}
 		if runner.hostPort != 0 {
+			hostPort := fmt.Sprintf("%d", runner.hostPort)
 			return engineEndpoints{
-				host: "http://" + net.JoinHostPort("127.0.0.1", fmt.Sprintf("%d", runner.hostPort)),
+				container: "http://" + net.JoinHostPort(hostDockerInternal, hostPort),
+				host:      "http://" + net.JoinHostPort(localhost, hostPort),
 			}, nil
 		}
 		return engineEndpoints{}, errors.New("unable to determine standalone runner endpoint")
@@ -162,7 +169,7 @@ func resolveBaseEndpoints(runner *standaloneRunner) (engineEndpoints, error) {
 }
 
 // launchContainerApp launches a container-based app via "docker run".
-func launchContainerApp(cmd *cobra.Command, ca containerApp, baseURL string, imageOverride string, portOverride int, detach, dryRun bool) error {
+func launchContainerApp(cmd *cobra.Command, ca containerApp, baseURL string, imageOverride string, portOverride int, detach bool, appArgs []string, dryRun bool) error {
 	img := imageOverride
 	if img == "" {
 		img = ca.defaultImage
@@ -187,6 +194,7 @@ func launchContainerApp(cmd *cobra.Command, ca containerApp, baseURL string, ima
 		dockerArgs = append(dockerArgs, "-e", e)
 	}
 	dockerArgs = append(dockerArgs, img)
+	dockerArgs = append(dockerArgs, appArgs...)
 
 	if dryRun {
 		cmd.Printf("Would run: docker %s\n", strings.Join(dockerArgs, " "))
