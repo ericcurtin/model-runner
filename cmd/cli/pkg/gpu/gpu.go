@@ -25,34 +25,46 @@ const (
 
 // ProbeGPUSupport determines whether or not the Docker engine has GPU support.
 func ProbeGPUSupport(ctx context.Context, dockerClient client.SystemAPIClient) (GPUSupport, error) {
-	// Check for ROCm runtime first
-	if hasROCm, err := HasROCmRuntime(ctx, dockerClient); err == nil && hasROCm {
+	// Query Docker Engine for its effective configuration.
+	// Docker Info is the source of truth for which runtimes are actually usable.
+	info, err := dockerClient.Info(ctx)
+	if err != nil {
+		return GPUSupportNone, err
+	}
+
+	// 1. CUDA (NVIDIA)
+	// NVIDIA remains the highest priority due to its wide adoption and
+	// first-class support in Docker (>= 19.03).
+	if _, ok := info.Runtimes["nvidia"]; ok {
+		return GPUSupportCUDA, nil
+	}
+
+	// 2. ROCm (AMD)
+	// Explicit ROCm runtime configured in the Docker Engine.
+	if _, ok := info.Runtimes["rocm"]; ok {
 		return GPUSupportROCm, nil
 	}
 
-	// Then check for MTHREADS runtime
-	if hasMTHREADS, err := HasMTHREADSRuntime(ctx, dockerClient); err == nil && hasMTHREADS {
+	// 3. MUSA (MThreads)
+	// Used primarily on specific accelerator platforms.
+	if _, ok := info.Runtimes["mthreads"]; ok {
 		return GPUSupportMUSA, nil
 	}
-	// Check for CANN runtime first
-	if hasCANN, err := HasCANNRuntime(ctx, dockerClient); err == nil && hasCANN {
+
+	// 4. Ascend CANN (Huawei)
+	// Ascend NPU runtime registered in Docker.
+	if _, ok := info.Runtimes["cann"]; ok {
 		return GPUSupportCANN, nil
 	}
-	// Then search for nvidia-container-runtime on PATH
+
+	// 5. Legacy fallback
+	// Older Docker setups may not register the NVIDIA runtime explicitly,
+	// but still have the legacy nvidia-container-runtime available on PATH.
 	if _, err := exec.LookPath("nvidia-container-runtime"); err == nil {
 		return GPUSupportCUDA, nil
 	}
 
-	// Next look for explicitly configured nvidia runtime. This is not required in Docker 19.03+ but
-	// may be configured on some systems
-	hasNvidia, err := HasNVIDIARuntime(ctx, dockerClient)
-	if err != nil {
-		return GPUSupportNone, err
-	}
-	if hasNvidia {
-		return GPUSupportCUDA, nil
-	}
-
+	// No known GPU runtime detected.
 	return GPUSupportNone, nil
 }
 
