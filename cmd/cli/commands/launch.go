@@ -207,15 +207,17 @@ func launchContainerApp(cmd *cobra.Command, ca containerApp, baseURL string, ima
 
 // launchHostApp launches a native host app executable.
 func launchHostApp(cmd *cobra.Command, bin string, baseURL string, cli hostApp, appArgs []string, dryRun bool) error {
-	if _, err := exec.LookPath(bin); err != nil {
-		cmd.PrintErrf("%q executable not found in PATH.\n", bin)
-		if cli.envFn != nil {
-			cmd.PrintErrf("Configure your app to use:\n")
-			for _, e := range cli.envFn(baseURL) {
-				cmd.PrintErrf("  %s\n", e)
+	if !dryRun {
+		if _, err := exec.LookPath(bin); err != nil {
+			cmd.PrintErrf("%q executable not found in PATH.\n", bin)
+			if cli.envFn != nil {
+				cmd.PrintErrf("Configure your app to use:\n")
+				for _, e := range cli.envFn(baseURL) {
+					cmd.PrintErrf("  %s\n", e)
+				}
 			}
+			return fmt.Errorf("%s not found; please install it and re-run", bin)
 		}
-		return fmt.Errorf("%s not found; please install it and re-run", bin)
 	}
 
 	if cli.envFn == nil {
