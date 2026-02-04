@@ -29,35 +29,31 @@ func ProbeGPUSupport(ctx context.Context, dockerClient client.SystemAPIClient) (
 	// Docker Info is the source of truth for which runtimes are actually usable.
 	info, err := dockerClient.Info(ctx)
 	if err != nil {
-		return GPUSupportNone, err
+		// Preserve best-effort behavior: if Docker Info is unavailable (e.g. in
+		// restricted or degraded environments), do not treat this as a hard failure.
+		// Instead, assume no GPU support and allow callers to continue.
+		return GPUSupportNone, nil
 	}
 
-	// 1. CUDA (NVIDIA)
-	// NVIDIA remains the highest priority due to its wide adoption and
-	// first-class support in Docker (>= 19.03).
-	if _, ok := info.Runtimes["nvidia"]; ok {
-		return GPUSupportCUDA, nil
+	// Runtimes are checked in priority order, from highest to lowest.
+	// The first matching runtime determines the selected GPU support.
+	supportedRuntimes := []struct {
+		name    string
+		support GPUSupport
+	}{
+		{"nvidia", GPUSupportCUDA},   // 1. CUDA (NVIDIA)
+		{"rocm", GPUSupportROCm},     // 2. ROCm (AMD)
+		{"mthreads", GPUSupportMUSA}, // 3. MUSA (MThreads)
+		{"cann", GPUSupportCANN},     // 4. Ascend CANN (Huawei)
 	}
 
-	// 2. ROCm (AMD)
-	// Explicit ROCm runtime configured in the Docker Engine.
-	if _, ok := info.Runtimes["rocm"]; ok {
-		return GPUSupportROCm, nil
+	for _, r := range supportedRuntimes {
+		if _, ok := info.Runtimes[r.name]; ok {
+			return r.support, nil
+		}
 	}
 
-	// 3. MUSA (MThreads)
-	// Used primarily on specific accelerator platforms.
-	if _, ok := info.Runtimes["mthreads"]; ok {
-		return GPUSupportMUSA, nil
-	}
-
-	// 4. Ascend CANN (Huawei)
-	// Ascend NPU runtime registered in Docker.
-	if _, ok := info.Runtimes["cann"]; ok {
-		return GPUSupportCANN, nil
-	}
-
-	// 5. Legacy fallback
+	// Legacy fallback
 	// Older Docker setups may not register the NVIDIA runtime explicitly,
 	// but still have the legacy nvidia-container-runtime available on PATH.
 	if _, err := exec.LookPath("nvidia-container-runtime"); err == nil {
