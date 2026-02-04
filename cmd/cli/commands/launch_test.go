@@ -319,16 +319,16 @@ func TestLaunchUnconfigurableHostAppDryRun(t *testing.T) {
 	buf := new(bytes.Buffer)
 	cmd := newTestCmd(buf)
 
-	cli := hostApp{configInstructions: clawdbotConfigInstructions}
-	err := launchUnconfigurableHostApp(cmd, "clawdbot", testBaseURL, cli, true)
+	cli := hostApp{configInstructions: openclawConfigInstructions}
+	err := launchUnconfigurableHostApp(cmd, "openclaw", testBaseURL, cli, nil, true)
 	require.NoError(t, err)
 
 	output := buf.String()
-	require.Contains(t, output, "Configure clawdbot to use Docker Model Runner:")
+	require.Contains(t, output, "Configure openclaw to use Docker Model Runner:")
 	require.Contains(t, output, "Base URL: "+testBaseURL+"/engines/v1")
 	require.Contains(t, output, "API type: openai-completions")
 	require.Contains(t, output, "API key:  "+dummyAPIKey)
-	require.Contains(t, output, "clawdbot config set models.providers.docker-model-runner.baseUrl")
+	require.Contains(t, output, "openclaw config set models.providers.docker-model-runner.baseUrl")
 }
 
 func TestNewLaunchCmdFlags(t *testing.T) {
@@ -388,13 +388,13 @@ func TestNewLaunchCmdDispatchHostApp(t *testing.T) {
 	buf := new(bytes.Buffer)
 	cmd := newLaunchCmd()
 	cmd.SetOut(buf)
-	cmd.SetArgs([]string{"clawdbot", "--dry-run"})
+	cmd.SetArgs([]string{"openclaw", "--dry-run"})
 
 	err = cmd.Execute()
 	require.NoError(t, err)
 
 	output := buf.String()
-	require.Contains(t, output, "Configure clawdbot to use Docker Model Runner:")
+	require.Contains(t, output, "Configure openclaw to use Docker Model Runner:")
 }
 
 func TestNewLaunchCmdDispatchUnsupportedApp(t *testing.T) {

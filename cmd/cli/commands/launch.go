@@ -9,7 +9,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/docker/model-runner/cmd/cli/commands/completion"
 	"github.com/docker/model-runner/cmd/cli/pkg/types"
 	"github.com/spf13/cobra"
 )
@@ -63,7 +62,7 @@ var hostApps = map[string]hostApp{
 	"opencode": {envFn: openaiEnv(openaiPathSuffix)},
 	"codex":    {envFn: openaiEnv("/v1")},
 	"claude":   {envFn: anthropicEnv},
-	"clawdbot": {configInstructions: clawdbotConfigInstructions},
+	"openclaw": {configInstructions: openclawConfigInstructions},
 }
 
 // supportedApps is derived from the registries above.
@@ -89,10 +88,9 @@ func newLaunchCmd() *cobra.Command {
 	c := &cobra.Command{
 		Use:   "launch APP [-- APP_ARGS...]",
 		Short: "Launch an app configured to use Docker Model Runner",
-		Long: fmt.Sprintf(`Launch an app configured to use Docker Model Runner.                                                                                                                              
-                                                                                                                                                                                                           
+		Long: fmt.Sprintf(`Launch an app configured to use Docker Model Runner.
+
 Supported apps: %s`, strings.Join(supportedApps, ", ")),
-		Short:     "Launch an app configured to use Docker Model Runner",
 		Args:      cobra.MinimumNArgs(1),
 		ValidArgs: supportedApps,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -221,7 +219,7 @@ func launchHostApp(cmd *cobra.Command, bin string, baseURL string, cli hostApp, 
 	}
 
 	if cli.envFn == nil {
-		return launchUnconfigurableHostApp(cmd, bin, baseURL, cli, dryRun)
+		return launchUnconfigurableHostApp(cmd, bin, baseURL, cli, appArgs, dryRun)
 	}
 
 	env := cli.envFn(baseURL)
@@ -236,7 +234,7 @@ func launchHostApp(cmd *cobra.Command, bin string, baseURL string, cli hostApp, 
 }
 
 // launchUnconfigurableHostApp handles host apps that need manual config rather than env vars.
-func launchUnconfigurableHostApp(cmd *cobra.Command, bin string, baseURL string, cli hostApp, dryRun bool) error {
+func launchUnconfigurableHostApp(cmd *cobra.Command, bin string, baseURL string, cli hostApp, appArgs []string, dryRun bool) error {
 	enginesEP := baseURL + openaiPathSuffix
 	cmd.Printf("Configure %s to use Docker Model Runner:\n", bin)
 	cmd.Printf("  Base URL: %s\n", enginesEP)
@@ -250,18 +248,19 @@ func launchUnconfigurableHostApp(cmd *cobra.Command, bin string, baseURL string,
 		}
 	}
 	if dryRun {
+		cmd.Printf("Would run: %s %s\n", bin, strings.Join(appArgs, " "))
 		return nil
 	}
-	return runExternal(cmd, nil, bin)
+	return runExternal(cmd, nil, bin, appArgs...)
 }
 
-// clawdbotConfigInstructions returns configuration commands for clawdbot.
-func clawdbotConfigInstructions(baseURL string) []string {
+// openclawConfigInstructions returns configuration commands for openclaw.
+func openclawConfigInstructions(baseURL string) []string {
 	ep := baseURL + openaiPathSuffix
 	return []string{
-		fmt.Sprintf("clawdbot config set models.providers.docker-model-runner.baseUrl %q", ep),
-		"clawdbot config set models.providers.docker-model-runner.api openai-completions",
-		fmt.Sprintf("clawdbot config set models.providers.docker-model-runner.apiKey %s", dummyAPIKey),
+		fmt.Sprintf("openclaw config set models.providers.docker-model-runner.baseUrl %q", ep),
+		"openclaw config set models.providers.docker-model-runner.api openai-completions",
+		fmt.Sprintf("openclaw config set models.providers.docker-model-runner.apiKey %s", dummyAPIKey),
 	}
 }
 
