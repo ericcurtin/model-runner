@@ -1,7 +1,9 @@
 # docker model launch
 
 <!---MARKER_GEN_START-->
-Launch an app configured to use Docker Model Runner
+Launch an app configured to use Docker Model Runner.
+
+Supported apps: anythingllm, claude, codex, openclaw, opencode, openwebui
 
 ### Options
 

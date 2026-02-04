@@ -17,7 +17,7 @@ import (
 const openaiPathSuffix = "/engines/v1"
 
 // dummyAPIKey is a placeholder API key for Docker Model Runner (which doesn't require auth).
-const dummyAPIKey = "sk-docker-model-runner"
+const dummyAPIKey = "sk-docker-model-runner" //nolint:gosec // not a real credential
 
 // engineEndpoints holds the resolved base URLs (without path) for both
 // client locations.
@@ -127,8 +127,8 @@ Supported apps: %s`, strings.Join(supportedApps, ", ")),
 // container and host client locations.
 func resolveBaseEndpoints(runner *standaloneRunner) (engineEndpoints, error) {
 	const (
-		localhost           = "127.0.0.1"
-		hostDockerInternal  = "host.docker.internal"
+		localhost          = "127.0.0.1"
+		hostDockerInternal = "host.docker.internal"
 	)
 
 	kind := modelRunner.EngineKind()
