@@ -350,6 +350,45 @@ func (c *Client) Chat(model, prompt string, imageURLs []string, outputFunc func(
 	return c.ChatWithContext(context.Background(), model, prompt, imageURLs, outputFunc, shouldUseMarkdown)
 }
 
+// Preload loads a model into memory without running inference.
+// The model stays loaded for the idle timeout period.
+func (c *Client) Preload(ctx context.Context, model string) error {
+	reqBody := OpenAIChatRequest{
+		Model:    model,
+		Messages: []OpenAIChatMessage{},
+	}
+
+	jsonData, err := json.Marshal(reqBody)
+	if err != nil {
+		return fmt.Errorf("error marshaling request: %w", err)
+	}
+
+	completionsPath := c.modelRunner.OpenAIPathPrefix() + "/chat/completions"
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.modelRunner.URL(completionsPath), bytes.NewReader(jsonData))
+	if err != nil {
+		return fmt.Errorf("error creating request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("User-Agent", "docker-model-cli/"+Version)
+	req.Header.Set("X-Preload-Only", "true")
+
+	resp, err := c.modelRunner.Client().Do(req)
+	if err != nil {
+		return c.handleQueryError(err, completionsPath)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return fmt.Errorf("preload failed with status %d and could not read response body: %w", resp.StatusCode, err)
+		}
+		return fmt.Errorf("preload failed: status=%d body=%s", resp.StatusCode, body)
+	}
+
+	return nil
+}
+
 // ChatWithMessagesContext performs a chat request with conversation history and returns the assistant's response.
 // This allows maintaining conversation context across multiple exchanges.
 func (c *Client) ChatWithMessagesContext(ctx context.Context, model string, conversationHistory []OpenAIChatMessage, prompt string, imageURLs []string, outputFunc func(string), shouldUseMarkdown bool) (string, error) {
