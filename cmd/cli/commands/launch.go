@@ -91,7 +91,7 @@ func newLaunchCmd() *cobra.Command {
 		Long: fmt.Sprintf(`Launch an app configured to use Docker Model Runner.
 
 Supported apps: %s`, strings.Join(supportedApps, ", ")),
-		Args:      cobra.MinimumNArgs(1),
+		Args:      requireMinArgs(1, "launch", "APP [-- APP_ARGS...]"),
 		ValidArgs: supportedApps,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			app := strings.ToLower(args[0])
