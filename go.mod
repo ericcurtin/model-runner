@@ -10,7 +10,7 @@ require (
 	github.com/docker/docker-credential-helpers v0.9.5
 	github.com/docker/go-units v0.5.0
 	github.com/gpustack/gguf-parser-go v0.23.1
-	github.com/jaypipes/ghw v0.21.2
+	github.com/jaypipes/ghw v0.21.3
 	github.com/kolesnikovae/go-winjob v1.0.0
 	github.com/mattn/go-shellwords v1.0.12
 	github.com/opencontainers/go-digest v1.0.0
