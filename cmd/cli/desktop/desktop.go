@@ -440,25 +440,18 @@ func (c *Client) ChatWithMessagesContext(ctx context.Context, model string, conv
 		TotalTokens      int `json:"total_tokens"`
 	}
 
-	// Read the first line to detect if this is SSE streaming or a regular JSON response
-	reader := bufio.NewReader(resp.Body)
-	firstLine, err := reader.ReadString('\n')
-	if err != nil && !errors.Is(err, io.EOF) {
-		return assistantResponse.String(), fmt.Errorf("error reading response: %w", err)
-	}
-	firstLine = strings.TrimSpace(firstLine)
+	// Detect streaming vs non-streaming response via Content-Type header
+	isStreaming := strings.HasPrefix(resp.Header.Get("Content-Type"), "text/event-stream")
 
-	// Check if this is a non-streaming JSON response (doesn't start with "data: ")
-	if firstLine != "" && !strings.HasPrefix(firstLine, "data: ") {
-		// This might be a regular JSON response - read the rest and try to parse it
-		restOfBody, readErr := io.ReadAll(reader)
-		if readErr != nil {
-			return assistantResponse.String(), fmt.Errorf("error reading response body: %w", readErr)
+	if !isStreaming {
+		// Non-streaming JSON response
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return assistantResponse.String(), fmt.Errorf("error reading response body: %w", err)
 		}
-		fullBody := firstLine + string(restOfBody)
 
 		var nonStreamResp OpenAIChatResponse
-		if err := json.Unmarshal([]byte(fullBody), &nonStreamResp); err != nil {
+		if err := json.Unmarshal(body, &nonStreamResp); err != nil {
 			return assistantResponse.String(), fmt.Errorf("error parsing response: %w", err)
 		}
 
@@ -474,28 +467,7 @@ func (c *Client) ChatWithMessagesContext(ctx context.Context, model string, conv
 		}
 	} else {
 		// SSE streaming response - process line by line
-		scanner := bufio.NewScanner(reader)
-
-		// Process the first line if it was SSE data
-		if strings.HasPrefix(firstLine, "data: ") {
-			data := strings.TrimPrefix(firstLine, "data: ")
-			if data != "[DONE]" {
-				var streamResp OpenAIChatResponse
-				if err := json.Unmarshal([]byte(data), &streamResp); err == nil {
-					if streamResp.Usage != nil {
-						finalUsage = streamResp.Usage
-					}
-					if len(streamResp.Choices) > 0 {
-						if streamResp.Choices[0].Delta.Content != "" {
-							chunk := streamResp.Choices[0].Delta.Content
-							printerState = chatPrinterContent
-							outputFunc(chunk)
-							assistantResponse.WriteString(chunk)
-						}
-					}
-				}
-			}
-		}
+		scanner := bufio.NewScanner(resp.Body)
 
 		for scanner.Scan() {
 			// Check if context was cancelled
