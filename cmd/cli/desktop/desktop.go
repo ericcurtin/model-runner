@@ -479,74 +479,103 @@ func (c *Client) ChatWithMessagesContext(ctx context.Context, model string, conv
 		TotalTokens      int `json:"total_tokens"`
 	}
 
-	scanner := bufio.NewScanner(resp.Body)
-	for scanner.Scan() {
-		// Check if context was cancelled
-		select {
-		case <-ctx.Done():
-			return assistantResponse.String(), ctx.Err()
-		default:
+	// Detect streaming vs non-streaming response via Content-Type header
+	isStreaming := strings.HasPrefix(resp.Header.Get("Content-Type"), "text/event-stream")
+
+	if !isStreaming {
+		// Non-streaming JSON response
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return assistantResponse.String(), fmt.Errorf("error reading response body: %w", err)
 		}
 
-		line := scanner.Text()
-		if line == "" {
-			continue
+		var nonStreamResp OpenAIChatResponse
+		if err := json.Unmarshal(body, &nonStreamResp); err != nil {
+			return assistantResponse.String(), fmt.Errorf("error parsing response: %w", err)
 		}
 
-		if !strings.HasPrefix(line, "data: ") {
-			continue
+		// Extract content from non-streaming response
+		if len(nonStreamResp.Choices) > 0 && nonStreamResp.Choices[0].Message.Content != "" {
+			content := nonStreamResp.Choices[0].Message.Content
+			outputFunc(content)
+			assistantResponse.WriteString(content)
 		}
 
-		data := strings.TrimPrefix(line, "data: ")
-
-		if data == "[DONE]" {
-			break
+		if nonStreamResp.Usage != nil {
+			finalUsage = nonStreamResp.Usage
 		}
+	} else {
+		// SSE streaming response - process line by line
+		scanner := bufio.NewScanner(resp.Body)
 
-		var streamResp OpenAIChatResponse
-		if err := json.Unmarshal([]byte(data), &streamResp); err != nil {
-			return assistantResponse.String(), fmt.Errorf("error parsing stream response: %w", err)
-		}
+		for scanner.Scan() {
+			// Check if context was cancelled
+			select {
+			case <-ctx.Done():
+				return assistantResponse.String(), ctx.Err()
+			default:
+			}
 
-		if streamResp.Usage != nil {
-			finalUsage = streamResp.Usage
-		}
+			line := scanner.Text()
+			if line == "" {
+				continue
+			}
 
-		if len(streamResp.Choices) > 0 {
-			if streamResp.Choices[0].Delta.ReasoningContent != "" {
-				chunk := streamResp.Choices[0].Delta.ReasoningContent
-				if printerState == chatPrinterContent {
-					outputFunc("\n\n")
-				}
-				if printerState != chatPrinterReasoning {
-					const thinkingHeader = "Thinking:\n"
+			if !strings.HasPrefix(line, "data: ") {
+				continue
+			}
+
+			data := strings.TrimPrefix(line, "data: ")
+
+			if data == "[DONE]" {
+				break
+			}
+
+			var streamResp OpenAIChatResponse
+			if err := json.Unmarshal([]byte(data), &streamResp); err != nil {
+				return assistantResponse.String(), fmt.Errorf("error parsing stream response: %w", err)
+			}
+
+			if streamResp.Usage != nil {
+				finalUsage = streamResp.Usage
+			}
+
+			if len(streamResp.Choices) > 0 {
+				if streamResp.Choices[0].Delta.ReasoningContent != "" {
+					chunk := streamResp.Choices[0].Delta.ReasoningContent
+					if printerState == chatPrinterContent {
+						outputFunc("\n\n")
+					}
+					if printerState != chatPrinterReasoning {
+						const thinkingHeader = "Thinking:\n"
+						if reasoningFmt != nil {
+							reasoningFmt.Print(thinkingHeader)
+						} else {
+							outputFunc(thinkingHeader)
+						}
+					}
+					printerState = chatPrinterReasoning
 					if reasoningFmt != nil {
-						reasoningFmt.Print(thinkingHeader)
+						reasoningFmt.Print(chunk)
 					} else {
-						outputFunc(thinkingHeader)
+						outputFunc(chunk)
 					}
 				}
-				printerState = chatPrinterReasoning
-				if reasoningFmt != nil {
-					reasoningFmt.Print(chunk)
-				} else {
+				if streamResp.Choices[0].Delta.Content != "" {
+					chunk := streamResp.Choices[0].Delta.Content
+					if printerState == chatPrinterReasoning {
+						outputFunc("\n\n--\n\n")
+					}
+					printerState = chatPrinterContent
 					outputFunc(chunk)
+					assistantResponse.WriteString(chunk)
 				}
-			}
-			if streamResp.Choices[0].Delta.Content != "" {
-				chunk := streamResp.Choices[0].Delta.Content
-				if printerState == chatPrinterReasoning {
-					outputFunc("\n\n--\n\n")
-				}
-				printerState = chatPrinterContent
-				outputFunc(chunk)
-				assistantResponse.WriteString(chunk)
 			}
 		}
-	}
 
-	if err := scanner.Err(); err != nil {
-		return assistantResponse.String(), fmt.Errorf("error reading response stream: %w", err)
+		if err := scanner.Err(); err != nil {
+			return assistantResponse.String(), fmt.Errorf("error reading response stream: %w", err)
+		}
 	}
 
 	if finalUsage != nil {
