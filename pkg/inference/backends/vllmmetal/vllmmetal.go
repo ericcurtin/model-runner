@@ -297,7 +297,7 @@ func (v *vllmMetal) buildArgs(bundle interface{ SafetensorsPath() string }, sock
 	case inference.BackendModeCompletion:
 		// Default mode, no additional args needed
 	case inference.BackendModeEmbedding:
-		// vllm-metal may handle embedding models automatically
+		args = append(args, "--runner", "pooling")
 	case inference.BackendModeReranking:
 		return nil, fmt.Errorf("reranking mode not supported by vllm-metal backend")
 	case inference.BackendModeImageGeneration:
