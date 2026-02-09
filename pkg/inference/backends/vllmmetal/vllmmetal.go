@@ -169,6 +169,12 @@ func (v *vllmMetal) downloadAndExtract(ctx context.Context, _ *http.Client) erro
 		return fmt.Errorf("failed to copy to install dir: %w", err)
 	}
 
+	// Docker COPY strips execute permissions in OCI image layers.
+	// Restore the execute bit on the bundled Python binary.
+	if err := os.Chmod(filepath.Join(v.installDir, "bin", "python3"), 0755); err != nil {
+		return fmt.Errorf("failed to make python3 executable: %w", err)
+	}
+
 	v.log.Infof("vllm-metal %s installed successfully", vllmMetalVersion)
 	return nil
 }
