@@ -63,6 +63,8 @@ var hostApps = map[string]hostApp{
 	"codex":    {envFn: openaiEnv("/v1")},
 	"claude":   {envFn: anthropicEnv},
 	"openclaw": {configInstructions: openclawConfigInstructions},
+	"droid":    {envFn: openaiEnv("/v1")},
+	"pi":       {envFn: openaiEnv("/v1")},
 }
 
 // supportedApps is derived from the registries above.

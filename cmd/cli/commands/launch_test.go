@@ -255,6 +255,41 @@ func TestLaunchHostAppDryRunCodex(t *testing.T) {
 	require.NotContains(t, output, "/engines/v1")
 }
 
+func TestLaunchHostAppDryRunDroid(t *testing.T) {
+	buf := new(bytes.Buffer)
+	cmd := newTestCmd(buf)
+
+	cli := hostApp{envFn: openaiEnv("/v1")}
+	err := launchHostApp(cmd, "ls", testBaseURL, cli, nil, true)
+	require.NoError(t, err)
+
+	output := buf.String()
+	require.Contains(t, output, "Would run: ls")
+	require.Contains(t, output, "OPENAI_BASE_URL="+testBaseURL+"/v1")
+	require.Contains(t, output, "OPENAI_API_KEY="+dummyAPIKey)
+	require.NotContains(t, output, "/engines/v1")
+}
+
+func TestLaunchHostAppDryRunPi(t *testing.T) {
+	buf := new(bytes.Buffer)
+	cmd := newTestCmd(buf)
+
+	cli := hostApp{envFn: openaiEnv("/v1")}
+	err := launchHostApp(cmd, "ls", testBaseURL, cli, nil, true)
+	require.NoError(t, err)
+
+	output := buf.String()
+	require.Contains(t, output, "Would run: ls")
+	require.Contains(t, output, "OPENAI_BASE_URL="+testBaseURL+"/v1")
+	require.Contains(t, output, "OPENAI_API_KEY="+dummyAPIKey)
+	require.NotContains(t, output, "/engines/v1")
+}
+
+func TestDroidAndPiInSupportedApps(t *testing.T) {
+	require.Contains(t, supportedApps, "droid", "droid should be in supportedApps")
+	require.Contains(t, supportedApps, "pi", "pi should be in supportedApps")
+}
+
 func TestLaunchHostAppDryRunWithArgs(t *testing.T) {
 	buf := new(bytes.Buffer)
 	cmd := newTestCmd(buf)
