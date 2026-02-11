@@ -126,7 +126,7 @@ Examples:
 			if dashIdx == -1 {
 				// No "--" separator
 				if len(args) > 1 {
-					return fmt.Errorf("unexpected arguments: %v\nUse '--' to pass extra arguments to the app", args[1:])
+					return fmt.Errorf("unexpected arguments: %s\nUse '--' to pass extra arguments to the app", strings.Join(args[1:], " "))
 				}
 			} else {
 				// "--" was used: args after it are passthrough
