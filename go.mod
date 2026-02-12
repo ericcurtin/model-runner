@@ -63,3 +63,5 @@ require (
 )
 
 replace github.com/kolesnikovae/go-winjob => github.com/docker/go-winjob v0.0.0-20250829235554-57b487ebcbc5
+
+replace github.com/google/go-containerregistry => ./third_party/go-containerregistry
