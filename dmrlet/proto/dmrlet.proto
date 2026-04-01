@@ -1,0 +1,117 @@
+syntax = "proto3";
+
+package dmrlet.v1;
+
+// Deployment service for managing model deployments
+service DeploymentService {
+  // Create a new deployment
+  rpc CreateDeployment(CreateDeploymentRequest) returns (DeploymentResponse);
+  
+  // List all deployments
+  rpc ListDeployments(ListDeploymentsRequest) returns (ListDeploymentsResponse);
+  
+  // Get a specific deployment
+  rpc GetDeployment(GetDeploymentRequest) returns (DeploymentResponse);
+  
+  // Delete a deployment
+  rpc DeleteDeployment(DeleteDeploymentRequest) returns (DeleteDeploymentResponse);
+  
+  // Scale a deployment
+  rpc ScaleDeployment(ScaleDeploymentRequest) returns (DeploymentResponse);
+}
+
+// Create deployment request
+message CreateDeploymentRequest {
+  string name = 1;
+  string model = 2;
+  uint32 replicas = 3;
+  uint32 gpu_count = 4;
+  string backend = 5;
+  uint32 context_size = 6;
+}
+
+// List deployments request
+message ListDeploymentsRequest {
+  // Optional filter by name
+  string name_filter = 1;
+}
+
+// List deployments response
+message ListDeploymentsResponse {
+  repeated DeploymentResponse deployments = 1;
+}
+
+// Get deployment request
+message GetDeploymentRequest {
+  string id = 1;
+}
+
+// Delete deployment request
+message DeleteDeploymentRequest {
+  string id = 1;
+}
+
+// Delete deployment response
+message DeleteDeploymentResponse {
+  bool success = 1;
+}
+
+// Scale deployment request
+message ScaleDeploymentRequest {
+  string id = 1;
+  uint32 replicas = 2;
+}
+
+// Deployment response
+message DeploymentResponse {
+  string id = 1;
+  string name = 2;
+  string model = 3;
+  uint32 replicas = 4;
+  uint32 ready_replicas = 5;
+  string phase = 6;
+  repeated Worker workers = 7;
+}
+
+// Worker information
+message Worker {
+  string id = 1;
+  uint32 index = 2;
+  string status = 3;
+  Endpoint endpoint = 4;
+  repeated uint32 gpu_ids = 5;
+}
+
+// Network endpoint
+message Endpoint {
+  string host = 1;
+  uint32 port = 2;
+  bool tls = 3;
+}
+
+// GPU service for GPU information
+service GpuService {
+  // Get GPU information
+  rpc GetGpuInfo(GetGpuInfoRequest) returns (GpuInfoResponse);
+}
+
+// Get GPU info request
+message GetGpuInfoRequest {}
+
+// GPU info response
+message GpuInfoResponse {
+  repeated GpuDevice devices = 1;
+  uint32 total_count = 2;
+  uint32 available_count = 3;
+}
+
+// GPU device information
+message GpuDevice {
+  uint32 index = 1;
+  string name = 2;
+  uint64 memory_total = 3;
+  uint64 memory_free = 4;
+  string vendor = 5;
+  bool available = 6;
+  optional uint32 utilization = 7;
+}

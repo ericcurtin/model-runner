@@ -16,3 +16,7 @@ llamacpp/install
 vllm-metal-macos-arm64-*.tar.gz
 
 .DS_Store
+
+# Rust build artifacts
+dmrlet/target/
+*.rs.bk
